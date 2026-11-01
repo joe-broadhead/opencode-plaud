@@ -1,0 +1,62 @@
+{
+  "name": "@joe-broadhead/opencode-plaud",
+  "version": "0.0.0",
+  "description": "Unofficial OpenCode plugin for Plaud recordings",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joe-broadhead/opencode-plaud.git"
+  },
+  "homepage": "https://github.com/joe-broadhead/opencode-plaud#readme",
+  "bugs": {
+    "url": "https://github.com/joe-broadhead/opencode-plaud/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plaud"
+  ],
+  "exports": {
+    ".": "./dist/index.js",
+    "./tui": "./dist/tui.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "CHANGELOG.md"
+  ],
+  "opencode": {
+    "host": ">=2.2.3 <2.3.0"
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build": "npm run clean && node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tui.json --noEmit && tsc -p test/tsconfig.json",
+    "lint": "vitest run --project lint",
+    "test": "vitest run --project unit",
+    "test:host": "vitest run --project host",
+    "test:pack": "vitest run --project pack",
+    "check": "npm run typecheck && npm run lint && npm run build && npm test && npm run test:host && npm run test:pack",
+    "check:upstream": "node scripts/check-upstream.mjs"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/preset-typescript": "7.27.1",
+    "@opencode/client": "2.2.3",
+    "@opencode/plugin": "2.2.3",
+    "@opencode/sdk": "2.2.3",
+    "@opentui/core": "0.8.0",
+    "@opentui/solid": "0.8.0",
+    "@types/node": "24.19.2",
+    "babel-preset-solid": "1.9.16",
+    "esbuild": "0.28.2",
+    "solid-js": "1.9.18",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5",
+    "zod": "4.6.7"
+  }
+}

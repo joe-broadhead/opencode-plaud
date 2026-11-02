@@ -2,7 +2,7 @@ import { displayName, signInStep } from "./domain/auth.js"
 import { scrubUrls } from "./domain/redact.js"
 import type { PluginContext } from "./host/context.js"
 import { KNOWN_READS, type PlaudServers } from "./host/mcp.js"
-import { DEFAULT_RULES, EXPORT_ACTION, unguardedAgents, type Rule } from "./host/permissions.js"
+import { DEFAULT_RULES, EXPORT_ACTION, RECENT_ACTION, unguardedAgents, type Rule } from "./host/permissions.js"
 import { READY_STEP, STATE_TEXT, overallState, statusLines, type AccountState, type AccountStatus, type Status } from "./rpc.js"
 import type { HostCheck } from "./version.js"
 
@@ -40,16 +40,19 @@ const STATE: Record<McpServerInfo["status"]["status"], AccountState> = {
 const SAFE_NAME = /^[A-Za-z0-9_-]{1,64}$/
 const LISTED_UNKNOWN = 10
 
-/** The Plaud servers' tools, known or not, and plaud_export. */
+/** The plugin's own tools; `plaud_` names them too, but they are not the server's. */
+const OWN_TOOLS: readonly string[] = [EXPORT_ACTION, RECENT_ACTION]
+
+/** The Plaud servers' tools, known or not, and the plugin's own. */
 function countTools(servers: StatusFacts["servers"], ids: readonly string[]): Status["tools"] {
   const known = new Set<string>(KNOWN_READS)
-  let visible = ids.includes(EXPORT_ACTION) ? 1 : 0
+  let visible = OWN_TOOLS.filter((tool) => ids.includes(tool)).length
   const unknown = new Set<string>()
   let count = 0
   for (const server of servers) {
     const prefix = `${server.name}_`
     for (const id of ids) {
-      if (!id.startsWith(prefix) || id === EXPORT_ACTION) continue
+      if (!id.startsWith(prefix) || OWN_TOOLS.includes(id)) continue
       const name = id.slice(prefix.length)
       if (known.has(name)) visible++
       else {

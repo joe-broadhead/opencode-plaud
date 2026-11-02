@@ -66,7 +66,7 @@ function fakeAgent() {
 const rules = (agents: readonly Agent[], id: string) => agents.find((agent) => agent.id === id)!.permissions
 
 describe("default permission rules", () => {
-  it("asks for every plaud tool, allows the known reads, and asks for exports", () => {
+  it("asks for every plaud tool, allows the known reads and the plugin's own read, and asks for exports", () => {
     expect(EXPORT_ACTION).toBe("plaud_export")
     expect(DEFAULT_RULES).toEqual([
       { action: "plaud*_*", resource: "*", effect: "ask" },
@@ -76,6 +76,7 @@ describe("default permission rules", () => {
       { action: "plaud*_get_transcript", resource: "*", effect: "allow" },
       { action: "plaud*_get_current_user", resource: "*", effect: "allow" },
       { action: "plaud_export", resource: "*", effect: "ask" },
+      { action: "plaud_recent", resource: "*", effect: "allow" },
     ])
   })
 
@@ -86,7 +87,7 @@ describe("default permission rules", () => {
     expect(rules(after, "build")).toEqual([allow, ...DEFAULT_RULES, ...env])
     expect(rules(after, "plan")).toEqual([allow, ...DEFAULT_RULES, ...env, { action: "edit", resource: "*", effect: "deny" }])
     expect(rules(after, "explore").at(-1)).toEqual({ action: "*", resource: "*", effect: "deny" })
-    expect(rules(after, "explore").slice(0, 8)).toEqual([allow, ...DEFAULT_RULES])
+    expect(rules(after, "explore").slice(0, 1 + DEFAULT_RULES.length)).toEqual([allow, ...DEFAULT_RULES])
   })
 
   it("inserts after the base allow wherever it sits", () => {

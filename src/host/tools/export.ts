@@ -113,8 +113,8 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
   }
 }
 
-/** Reads through the host executor of `<server>_<tool>` with the export's tool context, so the read's own permission rules apply. */
-function reader(tools: Awaited<ReturnType<ExportHost["tool"]["list"]>>, account: string, context: ToolContext): Read {
+/** Reads through the host executor of `<server>_<tool>` with the caller's tool context, so the read's own permission rules apply. */
+export function reader(tools: Awaited<ReturnType<ExportHost["tool"]["list"]>>, account: string, context: ToolContext): Read {
   const server = serverName(account)
   return async (tool, args) => {
     const id = `${server}_${tool}`

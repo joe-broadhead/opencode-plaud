@@ -43,6 +43,7 @@ Ask about your recordings, for example "what did I record this week?" or "save t
 | `plaud_get_transcript` | `tools.plaud.get_transcript` | One transcript block, a page at a time | runs |
 | `plaud_get_note` | `tools.plaud.get_note` | The recording's notes, such as its summary | runs |
 | `plaud_get_current_user` | `tools.plaud.get_current_user` | The signed-in account | runs |
+| `plaud_recent` | `tools.plaud.recent` | The newest recordings, one line each | runs |
 | `plaud_export` | `tools.plaud.export` | Save audio, a transcript or a note as a file | asks |
 
 Plaud maintains the read tools and their arguments. Plaud has no write API: nothing here can create, rename, delete, upload, share or send a recording. Any other tool on a Plaud server asks before it runs.

@@ -10,7 +10,7 @@ import { KNOWN_READS } from "./mcp.js"
  *   known to be a read;
  * - the known reads are allowed again, so they never prompt and work in
  *   `opencode run`;
- * - `plaud_export` asks.
+ * - `plaud_export` asks, and `plaud_recent`, which only reads, runs.
  *
  * Everything that follows the base allow comes later and still wins: an
  * agent's own stricter rules (Plan, Explore), the user's `permissions` rules
@@ -24,10 +24,14 @@ export type Rule = Readonly<ReturnType<AgentEditor["list"]>[number]["permissions
 /** The permission action of the plugin's export tool. `plaud*_*` matches it too. */
 export const EXPORT_ACTION = "plaud_export"
 
+/** The permission action of the plugin's own read, `plaud_recent`, which runs like the server's reads. */
+export const RECENT_ACTION = "plaud_recent"
+
 export const DEFAULT_RULES: readonly Rule[] = [
   { action: "plaud*_*", resource: "*", effect: "ask" },
   ...KNOWN_READS.map((tool): Rule => ({ action: `plaud*_${tool}`, resource: "*", effect: "allow" })),
   { action: EXPORT_ACTION, resource: "*", effect: "ask" },
+  { action: RECENT_ACTION, resource: "*", effect: "allow" },
 ]
 
 function isBaseAllow(rule: Rule): boolean {

@@ -58,6 +58,11 @@ describe("status model", () => {
     expect(statusLines(status).find((line) => line.label === "Tools")?.value).toBe("11 available, 3 unknown: delete_file (they ask before running)")
   })
 
+  it("counts plaud_recent as the plugin's own tool, not an unknown server tool", () => {
+    const status = buildStatus(facts({ tools: [...facts().tools, "plaud_recent"] }))
+    expect(status.tools).toEqual({ visible: 12, unknown: 0, unknownNames: [] })
+  })
+
   it("maps every OpenCode MCP state, and a server OpenCode does not list", () => {
     const mcp: McpEntry[] = [
       { name: "plaud", status: { status: "needs_auth", error: "unauthorized" } },

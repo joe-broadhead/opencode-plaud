@@ -60,6 +60,7 @@
     "zod": "4.6.7"
   },
   "jelly": {
+    "title": "Plaud",
     "tools": [
       {
         "name": "plaud.recent",
@@ -111,6 +112,13 @@
     ],
     "rpc": [],
     "views": [],
+    "signIns": [
+      {
+        "id": "plaud",
+        "label": "Plaud",
+        "server": "plaud*"
+      }
+    ],
     "contributes": {
       "homeFeeds": [
         {

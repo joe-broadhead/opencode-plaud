@@ -1,0 +1,182 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../../src/domain/redact.js"
+import { SIGNATURE, UPSTREAM_FAILURE } from "../fixtures/fake-plaud.js"
+import { startHost, type Harness, type Rule } from "./harness.js"
+
+/**
+ * The tools RPC, `plaud.recordings.tools`, in a real OpenCode host: a script calls Plaud's reads with no model, as a
+ * session and its agent. Accounts as a user with two extra ones would have them: `team` is the plugin's own
+ * `plaud-team` server, and `work` is a `plaud-work` server the user defined, which still needs sign-in. Two agents
+ * exist only in the user's config, so they carry exactly their own rules after the host's: `locked` denies every
+ * Plaud tool, and `careful` asks before notes.
+ */
+
+const RPC = "plaud.recordings.tools"
+const METHODS = ["describe", "list_files", "get_file", "get_note", "get_transcript", "get_current_user"]
+const rule = (action: string, effect: Rule["effect"]): Rule => ({ action, resource: "*", effect })
+
+let host: Harness
+const sessions: Record<string, string> = {}
+
+/** One RPC call: `{ value }` with the method's output, or the error's type, code and message. */
+async function script(method: string, input: unknown): Promise<Record<string, any>> {
+  try {
+    return { value: (await host.opencode.rpc.call({ rpcID: RPC, method, input: input as never, location: host.location })).output }
+  } catch (error) {
+    const e = error as { type?: string; data?: { code?: string; next?: string }; message?: string }
+    return { type: e.type, code: e.data?.code, next: e.data?.next, message: String(e.message ?? e) }
+  }
+}
+const call = (session: string, method: string, envelope: Record<string, unknown>) => script(method, { sessionID: sessions[session] ?? session, ...envelope })
+/** The fake's tool calls since `from`. */
+const toolCalls = (from = 0) => host.fake.calls.slice(from).map((entry) => entry.tool)
+
+beforeAll(async () => {
+  host = await startHost({
+    options: { accounts: ["work", "team"] },
+    config: (fake) => ({
+      agents: {
+        locked: { description: "Denies Plaud", mode: "subagent", permissions: [rule("plaud*_*", "deny")] },
+        careful: { description: "Asks before notes", mode: "subagent", permissions: [rule("plaud*_get_note", "ask")] },
+      },
+      mcp: { servers: { "plaud-work": { type: "remote", url: fake.authUrl } } },
+    }),
+  })
+  await host.until("the Plaud servers to settle", async () => {
+    const { data } = await host.opencode.mcp.list({ location: host.location })
+    const status = (name: string) => data.find((server) => server.name === name)?.status.status
+    return status("plaud") === "connected" && status("plaud-team") === "connected" && status("plaud-work") === "needs_auth" ? data : undefined
+  })
+  await host.until("the Plaud tools", async () => {
+    const ids = (await host.tools()).map((tool) => tool.id)
+    return ids.includes("plaud_get_current_user") && ids.includes("plaud-team_get_current_user") ? ids : undefined
+  })
+  const create = async (input: Record<string, unknown>) => (await host.opencode.sessions.create({ location: host.location, ...input })).id
+  sessions.build = await create({ agent: "build" })
+  sessions.locked = await create({ agent: "locked" })
+  sessions.careful = await create({ agent: "careful" })
+  sessions.agentless = await create({})
+  // Session rules come after the agent's: one narrows build, the other reopens one read for locked.
+  sessions.narrow = await create({ agent: "build", permissions: [rule("plaud_get_file", "deny")] })
+  sessions.reopen = await create({ agent: "locked", permissions: [rule("plaud_list_files", "allow")] })
+  // An allow rule for a tool the plugin does not know still makes no method.
+  sessions.reckless = await create({ agent: "build", permissions: [rule("plaud*_*", "allow")] })
+})
+
+afterAll(async () => {
+  await host?.close()
+})
+
+describe("the tools RPC in OpenCode", () => {
+  it("describes exactly the five reads, with the default account's live schemas", async () => {
+    const { value } = await script("describe", {})
+    expect(value.id).toBe(RPC)
+    expect(value.call).toContain(`"account":"<account>"`)
+    expect(value.methods.map((method: { name: string }) => method.name)).toEqual(METHODS.slice(1))
+    for (const method of value.methods) expect(method).toMatchObject({ kind: "mcp", tool: `plaud_${method.name}`, action: `plaud_${method.name}`, available: true })
+    expect(value.methods.find((method: { name: string }) => method.name === "get_file").input).toMatchObject({ properties: { file_id: { type: "string" } }, required: ["file_id"] })
+  })
+
+  it("never makes plaud_export or an unknown Plaud tool a method, even with an allow rule", async () => {
+    const from = host.fake.calls.length
+    for (const method of ["export", "delete_everything", "plaud_export"]) {
+      const refused = await call("reckless", method, { input: {} })
+      expect(refused.value, method).toBeUndefined()
+      expect(refused.type, method).not.toBe("failed")
+      expect(refused.message, method).toMatch(/not.?found|unknown/i)
+    }
+    expect(toolCalls(from)).toEqual([])
+  })
+
+  it("runs a read as a session whose agent allows it, with no model turn and no prompt", async () => {
+    const from = host.fake.calls.length
+    const result = await call("build", "list_files", { input: { page_size: 5 } })
+    expect(result.value.text).toContain(`"id": "rec-1"`)
+    expect(result.value.text).toContain(`"duration": 63500`)
+    expect(host.fake.calls.slice(from)).toEqual([{ tool: "list_files", arguments: { page_size: 5 } }])
+    const session = await host.opencode.sessions.get({ sessionID: sessions.build! })
+    expect(session.tokens).toMatchObject({ input: 0, output: 0 })
+    expect(await host.pending(sessions.build!)).toBe(0)
+    expect(host.fake.model.requests).toEqual([])
+  })
+
+  it("never lets a signed link reach a script", async () => {
+    for (const [method, account] of [["get_file", undefined], ["get_file", "team"], ["get_note", undefined]] as const) {
+      const result = await call("build", method, { ...(account ? { account } : {}), input: { file_id: "rec-1" } })
+      const serialised = JSON.stringify(result)
+      expect(result.value, `${method} ${account}`).toBeDefined()
+      for (const secret of [SIGNATURE, "X-Amz-Credential", "/audio/rec-1.mp3?", "/data/rec-1"]) expect(serialised, `${method} ${account}`).not.toContain(secret)
+      if (method === "get_file") {
+        expect(result.value.text).toContain(`"presigned_url":"${AUDIO_URL_NOTICE}"`)
+        expect(result.value.text.split(`"data_link":"${DATA_LINK_NOTICE}"`)).toHaveLength(3)
+      } else {
+        expect(result.value.text).toContain(`"data_link":"${DATA_LINK_NOTICE}"`)
+      }
+    }
+  })
+
+  it("picks the account's server: the default, an alias, a user-defined server that needs sign-in, or none", async () => {
+    const from = host.fake.calls.length
+    // Plaud answers this one without its envelope, so OpenCode also parses the text into the output.
+    const user = { id: "user-1", nickname: "Fixture" }
+    expect((await call("build", "get_current_user", { account: "team", input: {} })).value).toEqual({ output: user, text: JSON.stringify(user) })
+    expect((await call("build", "get_current_user", { account: "default", input: {} })).value).toMatchObject({ text: expect.stringContaining("user-1") })
+    expect(toolCalls(from)).toEqual(["get_current_user", "get_current_user"])
+    const work = await call("build", "list_files", { account: "work", input: {} })
+    expect(work).toMatchObject({ type: "failed", code: "AUTH_REQUIRED" })
+    expect(work.message).toContain(`the "plaud-work" server needs a sign-in`)
+    const unknown = await call("build", "list_files", { account: "home", input: {} })
+    expect(unknown).toMatchObject({ type: "failed", code: "ACCOUNT_UNKNOWN" })
+    expect(unknown.next).toContain("/plaud-status")
+    expect(toolCalls(from)).toHaveLength(2)
+  })
+
+  it("refuses a session whose agent denies Plaud, before Plaud is called", async () => {
+    const from = host.fake.calls.length
+    for (const method of METHODS.slice(1)) expect(await call("locked", method, { input: { file_id: "rec-1" } }), method).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+    expect(toolCalls(from)).toEqual([])
+  })
+
+  it("refuses an ask at once, and leaves no approval prompt waiting", async () => {
+    const from = host.fake.calls.length
+    const started = Date.now()
+    const result = await call("careful", "get_note", { input: { file_id: "rec-1" } })
+    expect(result).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+    expect(result.message).toMatch(/cannot answer an approval prompt/)
+    expect(Date.now() - started).toBeLessThan(5_000)
+    expect(await host.pending(sessions.careful!)).toBe(0)
+    expect(toolCalls(from)).toEqual([])
+    // The same agent's other reads have no ask, so they run.
+    expect((await call("careful", "list_files", { input: {} })).value).toMatchObject({ text: expect.stringContaining("rec-1") })
+  })
+
+  it("applies the session's rules after the agent's", async () => {
+    expect(await call("narrow", "get_file", { input: { file_id: "rec-1" } })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+    expect((await call("narrow", "get_file", { account: "team", input: { file_id: "rec-1" } })).value).toMatchObject({ text: expect.stringContaining("rec-1") })
+    expect((await call("reopen", "list_files", { input: {} })).value).toMatchObject({ text: expect.stringContaining("rec-1") })
+    expect(await call("reopen", "list_files", { account: "team", input: {} })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+  })
+
+  it("gives Plaud's own error as UPSTREAM_ERROR: its first line, with the signed link redacted", async () => {
+    const result = await call("build", "get_file", { input: { file_id: "fail" } })
+    expect(result).toMatchObject({ type: "failed", code: "UPSTREAM_ERROR" })
+    expect(result.message).toContain("https://files.example.invalid/rec-fail.mp3?[redacted]")
+    for (const hidden of [SIGNATURE, "second line"]) expect(result.message).not.toContain(hidden)
+    expect(UPSTREAM_FAILURE).toContain(SIGNATURE)
+  })
+
+  it("names an unknown session and a session without an agent, and refuses a bad envelope before any call", async () => {
+    expect(await call("ses_does_not_exist", "list_files", { input: {} })).toMatchObject({ type: "failed", code: "SESSION_UNKNOWN" })
+    expect(await call("agentless", "list_files", { input: {} })).toMatchObject({ type: "failed", code: "SESSION_AGENT_REQUIRED" })
+    const from = host.fake.calls.length
+    for (const envelope of [
+      { sessionID: sessions.build, input: {}, extra: true },
+      { input: {} },
+      { sessionID: sessions.build, input: "rec-1" },
+      { sessionID: sessions.build, account: "", input: {} },
+    ]) {
+      expect(await script("list_files", envelope), JSON.stringify(envelope)).toMatchObject({ type: "rpc.invalid_input" })
+    }
+    expect(toolCalls(from)).toEqual([])
+  })
+})

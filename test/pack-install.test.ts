@@ -7,8 +7,8 @@ import { dirname, join, relative, resolve, sep } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { startFakePlaud, type FakePlaud } from "./fixtures/fake-plaud.js"
-import { forbiddenUses, moduleSpecifiers } from "./module-specifiers.js"
+import { SIGNATURE, startFakePlaud, type FakePlaud } from "./fixtures/fake-plaud.js"
+import { exemptUses, forbiddenUses, moduleSpecifiers, type Exemption } from "./module-specifiers.js"
 
 /**
  * The published shape: build, pack, and install the tarball alone, with
@@ -181,19 +181,33 @@ describe("the tarball", () => {
     }
     expect(foreign(join(dist, "index.js"), SERVER_MODULES)).toEqual([])
     expect(foreign(join(dist, "tui.js"), TUI_MODULES)).toEqual([])
+    // The server part carries the tools RPC: its one evaluate hook, and exactly its source's reads of error tags.
+    const exempt: Record<string, Exemption[]> = { "index.js": ["evaluate hook", "error tags"] }
     const scripts = tree(dist).filter((path) => path.endsWith(".js"))
-    expect(scripts.flatMap((path) => forbiddenUses(readFileSync(join(dist, path), "utf8"), path, "shipped").map((problem) => `dist/${path}:${problem}`))).toEqual([])
+    expect(scripts.flatMap((path) => forbiddenUses(readFileSync(join(dist, path), "utf8"), path, "shipped", exempt[path]).map((problem) => `dist/${path}:${problem}`))).toEqual([])
+    const server = readFileSync(join(dist, "index.js"), "utf8")
+    const source = join(REPO, "src", "host", "tools-rpc.ts")
+    expect(exemptUses(server, "index.js", "evaluate hook")).toBe(1)
+    expect(exemptUses(server, "index.js", "error tags")).toBe(exemptUses(readFileSync(source, "utf8"), source, "error tags"))
+    expect(exemptUses(readFileSync(join(dist, "tui.js"), "utf8"), "tui.js", "evaluate hook")).toBe(0)
   })
 })
 
-/** The stock CLI: OPENCODE_BIN_<version> if set, otherwise the unmodified npm release installed with scripts off. */
+/**
+ * The stock CLI: OPENCODE_BIN_<version> if set, otherwise the unmodified npm release installed with scripts off.
+ * Installed once per version: several tests serve the same release.
+ */
+const stockBinaries = new Map<string, string>()
 function stockBinary(version: string): string {
   const given = process.env[`OPENCODE_BIN_${version.replaceAll(".", "_")}`]
   if (given) return given
+  const cached = stockBinaries.get(version)
+  if (cached) return cached
   const dir = project(`opencode-${version}`)
   run("npm", ["install", `@opencode/cli@${version}`, "--ignore-scripts", "--no-audit", "--no-fund", "--prefer-offline"], dir)
   const path = join(dir, "node_modules", "@opencode", `cli-${platform()}-${arch()}`, "bin", "opencode")
   if (!existsSync(path)) throw new Error(`@opencode/cli@${version} has no binary for ${platform()}-${arch()}`)
+  stockBinaries.set(version, path)
   return path
 }
 
@@ -207,11 +221,11 @@ async function freePort(): Promise<number> {
 
 /**
  * `opencode serve` on its own port, with an environment that holds only its temp root, and a project that loads the
- * installed package with its url option on the loopback fake.
+ * installed package with its url option on the loopback fake, plus any other `opencode.json` keys.
  */
-async function serve(version: string) {
+async function serve(version: string, name = `host-${version}`, config: Record<string, unknown> = {}) {
   const binary = stockBinary(version)
-  const root = join(work, `host-${version}`)
+  const root = join(work, name)
   const home = join(root, "home")
   const directory = join(root, "project")
   const env = {
@@ -226,7 +240,7 @@ async function serve(version: string) {
   for (const dir of [...Object.values(env), directory]) mkdirSync(dir, { recursive: true })
   writeFileSync(
     join(directory, "opencode.json"),
-    JSON.stringify({ plugins: [{ package: installed, options: { url: fake.url, exportRoots: [join(root, "exports")] } }] }, null, 2),
+    JSON.stringify({ plugins: [{ package: installed, options: { url: fake.url, exportRoots: [join(root, "exports")] } }], ...config }, null, 2),
   )
   const password = randomUUID()
   const full = { ...env, ...OFFLINE, PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8", OPENCODE_PASSWORD: password }
@@ -253,6 +267,15 @@ async function serve(version: string) {
     if (!response.ok) throw new Error(`${method} ${path}: ${response.status} ${text.slice(0, 500)}`)
     return text === "" ? undefined : JSON.parse(text)
   }
+  /** One tools RPC call: `{ value }` with the method's output, or the error's type, code and message. */
+  const script = async (method: string, input: unknown): Promise<Record<string, any>> => {
+    const url = new URL(`/api/rpc/plaud.recordings.tools/${method}`, `http://127.0.0.1:${port}`)
+    url.searchParams.set("location[directory]", directory)
+    const response = await fetch(url, { method: "POST", headers: { authorization, "content-type": "application/json" }, body: JSON.stringify({ input }) })
+    const body = (await response.json()) as Record<string, any>
+    if (response.ok) return { value: body.output }
+    return { status: response.status, type: body.type ?? body.name, code: body.data?.code, message: String(body.message ?? JSON.stringify(body)) }
+  }
   /** Polls until `read` returns a value: plugins activate after the server answers. */
   const until = async <T>(what: string, read: () => Promise<T | undefined>, ms = 180_000): Promise<T> => {
     for (const deadline = Date.now() + ms; ; await sleep(500)) {
@@ -269,7 +292,7 @@ async function serve(version: string) {
       clearTimeout(timer)
     }
   }
-  return { api, until, close, log: () => output }
+  return { api, script, until, close, directory, log: () => output }
 }
 
 describe.each(HOST_VERSIONS)("installed alone, in stock OpenCode %s", (version) => {
@@ -312,6 +335,91 @@ describe.each(HOST_VERSIONS)("installed alone, in stock OpenCode %s", (version) 
       })
       expect(skills.map((skill) => skill.id).sort()).toEqual(SKILLS)
       for (const skill of skills) expect(skill.path).toBe(join(installed, "skills", skill.id, "SKILL.md"))
+    } catch (error) {
+      throw new Error(`${(error as Error).message}\n--- opencode ${version} log ---\n${host.log().slice(-3000)}`)
+    } finally {
+      await host.close()
+    }
+  })
+})
+
+const rule = (action: string, effect: "allow" | "deny" | "ask") => ({ action, resource: "*", effect })
+const READS = ["list_files", "get_file", "get_note", "get_transcript", "get_current_user"]
+
+/**
+ * The tools RPC, `plaud.recordings.tools`, pinned on each stock release: a script calls a read as a session and its
+ * agent, with no model turn; the agent's deny hides and refuses it; an ask is refused with no prompt left waiting;
+ * the session's rules apply after the agent's; plaud_export and unknown tools are no methods; no signed link leaks.
+ * The executor it calls (`ctx.tool.list()`) is not a documented entry point, so these tests are its contract.
+ */
+describe.each(HOST_VERSIONS)("the tools RPC on stock OpenCode %s", (version) => {
+  it("runs Plaud's reads for a script under the session's agent and rules, and nothing else", async () => {
+    const host = await serve(version, `tools-${version}`, {
+      // Config-only agents carry exactly these rules after the host's defaults.
+      agents: { locked: { permissions: [rule("plaud*_*", "deny")] }, careful: { permissions: [rule("plaud*_get_note", "ask")] } },
+    })
+    try {
+      await host.until("the plaud server to sign in", async () => {
+        const { output } = (await host.api("POST", "/api/rpc/plaud.recordings/status", { input: {} })) as { output: { accounts: { state: string }[] } }
+        return output.accounts[0]?.state === "signed_in" ? true : undefined
+      })
+      const described = await host.until("the reads to be listed", async () => {
+        const { value } = await host.script("describe", {})
+        return value?.methods?.every((method: { available: boolean }) => method.available) ? value : undefined
+      })
+      expect(described.methods.map((method: { name: string }) => method.name)).toEqual(READS)
+      const session = async (body: Record<string, unknown>) => ((await host.api("POST", "/api/session", { location: { directory: host.directory }, ...body })) as { data: { id: string } }).data.id
+      const sessions = {
+        build: await session({ agent: "build" }),
+        locked: await session({ agent: "locked" }),
+        careful: await session({ agent: "careful" }),
+        narrow: await session({ agent: "build", permissions: [rule("plaud_get_file", "deny")] }),
+        reopen: await session({ agent: "locked", permissions: [rule("plaud_list_files", "allow")] }),
+        reckless: await session({ agent: "build", permissions: [rule("plaud*_*", "allow")] }),
+      }
+      const call = (name: keyof typeof sessions, method: string, input: unknown = { file_id: "rec-1" }) => host.script(method, { sessionID: sessions[name], input })
+      const calls = () => fake.calls.length
+
+      // A known read runs with no model turn, and the signed links are withheld.
+      let from = calls()
+      const file = await call("build", "get_file")
+      expect(file.value, JSON.stringify(file)).toBeDefined()
+      expect(file.value.text).toContain(`"presigned_url":"withheld: use plaud_export to download the audio"`)
+      expect(JSON.stringify(file)).not.toContain(SIGNATURE)
+      expect(fake.calls.slice(from).map((entry) => entry.tool)).toEqual(["get_file"])
+      expect(((await host.api("GET", `/api/session/${sessions.build}`)) as { data: { tokens: unknown } }).data.tokens).toMatchObject({ input: 0, output: 0 })
+
+      // The agent's deny hides and refuses every read, before Plaud is called.
+      from = calls()
+      for (const method of READS) expect(await call("locked", method), method).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+      expect(calls()).toBe(from)
+
+      // An ask is refused at once, with no prompt left waiting.
+      const started = Date.now()
+      const asked = await call("careful", "get_note")
+      expect(asked).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+      expect(asked.message).toMatch(/cannot answer an approval prompt/)
+      expect(Date.now() - started).toBeLessThan(5_000)
+      const { data: pending } = (await host.api("GET", "/api/permission/request")) as { data: unknown[] }
+      expect(pending.filter((request) => JSON.stringify(request).includes(sessions.careful))).toEqual([])
+      expect(calls()).toBe(from)
+      expect((await call("careful", "list_files", {})).value).toMatchObject({ text: expect.stringContaining("rec-1") })
+
+      // The session's rules apply after the agent's.
+      expect(await call("narrow", "get_file")).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+      expect((await call("narrow", "get_note")).value).toMatchObject({ text: expect.stringContaining("rec-1") })
+      expect((await call("reopen", "list_files", {})).value).toMatchObject({ text: expect.stringContaining("rec-1") })
+      expect(await call("reopen", "get_current_user", {})).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+
+      // plaud_export and an unknown tool are no methods, even with an allow rule.
+      from = calls()
+      for (const method of ["export", "plaud_export", "delete_everything"]) {
+        const refused = await call("reckless", method, {})
+        expect(refused.value, method).toBeUndefined()
+        expect(refused.type, method).not.toBe("failed")
+      }
+      expect(calls()).toBe(from)
+      expect(existsSync(join(work, `tools-${version}`, "exports"))).toBe(false)
     } catch (error) {
       throw new Error(`${(error as Error).message}\n--- opencode ${version} log ---\n${host.log().slice(-3000)}`)
     } finally {

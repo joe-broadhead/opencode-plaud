@@ -29,6 +29,23 @@ upload, share or send a recording.
 - Load `opencode-plaud-export` before an export, and `opencode-plaud-digest`
   for a summary across several recordings or a follow-up draft.
 
+## Scripts
+
+When the user wants a job that runs without you, such as a cron job or a
+shell script, it can call Plaud's five read tools through the OpenCode server,
+with no model. The RPC `plaud.recordings.tools` has one method per read, such
+as `list_files`, `get_note` and `get_transcript`, with the tools' own input,
+and `describe`, which lists them with their input schemas. Each call is
+`opencode api post /api/rpc/plaud.recordings.tools/<method>` with the body
+`{"input":{"sessionID":"<session>","input":<the tool's input>}}`; add
+`"account":"work"` to read the `work` account. The script runs as that
+session's agent, under its permission rules, so have the script create its
+session once with `opencode api post /api/session` and a body such as
+`{"title":"weekly recordings","agent":"build"}`. An ask is refused, so the
+agent needs the reads allowed; the default rules allow them. Scripts cannot
+export files, use any other Plaud tool, or get a signed link. The details are
+in the plugin's `docs/scripting.md`.
+
 ## Data model
 
 - **Durations and offsets are milliseconds**, not seconds: `5400000` is

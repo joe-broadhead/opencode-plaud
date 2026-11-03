@@ -1,6 +1,6 @@
 # Architecture
 
-The plugin is a thin layer over Plaud's hosted MCP server. OpenCode hosts the server, signs in and runs Plaud's read tools. The plugin adds the server definitions, default permission rules, one export tool, a hook that withholds the signed links, and a status view.
+The plugin is a thin layer over Plaud's hosted MCP server. OpenCode hosts the server, signs in and runs Plaud's read tools. The plugin adds the server definitions, default permission rules, one export tool, a hook that withholds the signed links, a status view, and a tools RPC for scripts.
 
 ```text
 OpenCode 2.2.x server
@@ -14,7 +14,9 @@ OpenCode 2.2.x server
  ├─ ctx.tool.hook          "execute.after": withholds presigned_url and data_link in plaud*_* results
  ├─ ctx.command.transform  /plaud-status
  ├─ ctx.skill.transform    opencode-plaud, opencode-plaud-export, opencode-plaud-digest
- └─ ctx.rpc.register       RPC "plaud.recordings": status
+ ├─ ctx.rpc.register       RPC "plaud.recordings": status
+ └─ tools RPC              "plaud.recordings.tools": describe and the five known reads, for scripts,
+                           with a permission evaluate hook for its own calls in flight
 OpenCode TUI
  └─ plaud.recordings.tui   the "Plaud: Status" palette command (/plaud) and dialog, from the status RPC
 ```
@@ -42,6 +44,7 @@ The skills are read from the package's `skills/` folder at setup. OpenCode provi
 4. Insert the default permission rules (`src/host/permissions.ts`).
 5. Add `plaud_export` and the signed-link hook (`src/host/tools/`).
 6. Add `/plaud-status` (`src/host/commands.ts`), the skills (`src/host/skills.ts`) and the status RPC (`src/host/rpc.ts`).
+7. Add the tools RPC for scripts (`src/host/tools-rpc.ts`).
 
 If a step fails, the steps before it are undone and the plugin does not start. `/plugins` then shows the error, and the TUI palette entry is not shown. On shutdown or reload, every registration is removed, newest first.
 
@@ -55,7 +58,7 @@ OpenCode names the server's tools `<server>_<tool>` and puts them in Code Mode. 
 
 ## Permissions
 
-There is no permission hook. `ctx.agent.transform` inserts seven rules right after each agent's base `* * allow` rule: `plaud*_*` asks, the five known reads (`plaud*_<tool>`) are allowed again, and `plaud_export` asks. Everything later in the agent's list, and saved approvals, still win. Agents without a base allow are left alone. The rules are in [configuration](configuration.md#the-default-rules).
+The default rules use no permission hook. `ctx.agent.transform` inserts seven rules right after each agent's base `* * allow` rule: `plaud*_*` asks, the five known reads (`plaud*_<tool>`) are allowed again, and `plaud_export` asks. Everything later in the agent's list, and saved approvals, still win. Agents without a base allow are left alone. The rules are in [configuration](configuration.md#the-default-rules).
 
 OpenCode creates agents defined only in the user's config after plugins run, so they miss the rules. Status finds them, `unguardedAgents()`: agents with a base allow but without the rules, in order, anywhere after it. It names them and gives the per-agent fix.
 
@@ -79,7 +82,15 @@ Plaud's results carry signed links: `presigned_url` (the audio, valid for about 
 - in structured output, every `presigned_url` field with a value, at any depth, becomes `withheld: use plaud_export to download the audio`, and every `data_link` becomes `withheld: use plaud_export to save the transcript or note`;
 - in text, including text `output`, which Code Mode programs receive, JSON is rewritten field by field, also inside Plaud's untrusted-data envelope, which stays in place; other text that names either field loses every URL.
 
-The hook runs on OpenCode's own tool path, for direct and Code Mode calls. Raw executors from `ctx.tool.list()`, such as the export's own reads, skip host hooks.
+The hook runs on OpenCode's own tool path, for direct and Code Mode calls. Raw executors from `ctx.tool.list()`, such as the export's own reads and the tools RPC's calls, skip host hooks. The tools RPC therefore withholds the links itself, with the same functions (`withholdSignedLinksInOutput` and `withholdSignedLinksInText` in `src/domain/redact.ts`).
+
+## Scripts
+
+The tools RPC, `plaud.recordings.tools`, lets a script call Plaud's five known reads with no model ([Scripting](scripting.md)). `src/host/tools-rpc.ts` is a copy of a module shared by several plugins; only its marked block is Plaud's: the reads (`KNOWN_READS` in `src/host/mcp.ts`), the next steps, and `shapeResult`, which withholds the signed links.
+
+Each call names a session; the session's agent and rules decide, exactly as for the model. The RPC refuses a tool those rules hide, then calls the tool's executor from `ctx.tool.list()`, which checks the agent's rules, the session's rules and saved approvals. A permission `evaluate` hook turns an ask on one of the RPC's own calls in flight into a deny, since no one can answer it; it touches no other call.
+
+The envelope's optional `account` picks the server: none or `default` is `plaud`, an alias from the options `plaud-<alias>` (`accountServer()` in `src/host/mcp.ts`), and anything else is `ACCOUNT_UNKNOWN`. A server the user's config defines under an account's name is used, as for the model and `plaud_export`, so the RPC never reports a server conflict.
 
 ## Status
 

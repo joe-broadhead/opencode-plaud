@@ -36,11 +36,11 @@ One command runs every check, in this order. Each stage is also a script of its 
 | Stage | Script | What it checks |
 | --- | --- | --- |
 | typecheck | `npm run typecheck` | `src/`, the TUI part and `test/`, with TypeScript. |
-| lint | `npm run lint` | Import boundaries in `src/`, and the forbidden host APIs in `src/`, `test/` and `scripts/` (see [AGENTS.md](AGENTS.md#forbidden)). |
+| lint | `npm run lint` | Import boundaries in `src/`, and the forbidden host APIs in `src/`, `test/` and `scripts/` (see [AGENTS.md](AGENTS.md#forbidden)), with the tools RPC's counted exceptions. |
 | build | `npm run build` | Cleans `dist/`, then bundles `dist/index.js` (the server part) and `dist/tui.js` (the TUI part, after Solid's JSX transform), each one self-contained file with the RPC contract inlined and no relative imports; zod goes into the server part only. It checks that `NOTICE` covers exactly the packages each bundle contains (`node scripts/build.mjs --notice` rewrites it). The build fails if an output imports a module that is neither bundled nor provided by OpenCode. |
 | unit | `npm test` | The plugin's modules against narrow fakes, `scripts/check-upstream.mjs` against a fake server, and a render of the built `dist/tui.js` under Bun. |
-| host | `npm run test:host` | The built plugin in an embedded OpenCode 2.2.3 host (`@opencode/sdk`), on a loopback fake Plaud server, with the network blocked and every OpenCode path inside a temporary folder: registration, the default rules, user rules, saved approvals, exports, the signed links (in Code Mode and in direct calls by a scripted loopback model), setup refusals and the status views. |
-| pack | `npm run test:pack` | Packs the tarball, installs it alone with scripts off, and loads it in stock OpenCode 2.2.3 and 2.2.4 (`opencode serve`). It also checks the file list, that `dist/` holds only the two self-contained entries with no relative, dynamic or required module, that `dist/tui.js` has no zod and stays under 30 KB, the size, the missing dependencies and peers, and the built `dist/` for forbidden APIs, and imports each export under Bun. |
+| host | `npm run test:host` | The built plugin in an embedded OpenCode 2.2.3 host (`@opencode/sdk`), on a loopback fake Plaud server, with the network blocked and every OpenCode path inside a temporary folder: registration, the default rules, user rules, saved approvals, exports, the signed links (in Code Mode and in direct calls by a scripted loopback model), the tools RPC for scripts, setup refusals and the status views. |
+| pack | `npm run test:pack` | Packs the tarball, installs it alone with scripts off, and loads it in stock OpenCode 2.2.3 and 2.2.4 (`opencode serve`), where it also calls the tools RPC as a script. It also checks the file list, that `dist/` holds only the two self-contained entries with no relative, dynamic or required module, that `dist/tui.js` has no zod and stays under 30 KB, the size, the missing dependencies and peers, and the built `dist/` for forbidden APIs, and imports each export under Bun. |
 
 ### Environment variables
 
@@ -88,8 +88,9 @@ It needs the network and a signed-in Plaud account, so it is not part of `npm ru
 | The `/connect` names | `src/host/integration.ts` |
 | Default permission rules | `src/host/permissions.ts` |
 | `plaud_export` | `src/domain/contract/index.ts`, `src/host/tools/export.ts`, `src/domain/export.ts`, `src/domain/normalize.ts` |
-| Signed-link withholding | `src/domain/redact.ts`, `src/host/tools/index.ts` |
+| Signed-link withholding | `src/domain/redact.ts`, `src/host/tools/index.ts`, and `shapeResult` in `src/host/tools-rpc.ts` |
 | Status, `/plaud-status`, the RPC and the TUI | `src/status.ts`, `src/rpc.ts`, `src/host/commands.ts`, `src/host/rpc.ts`, `src/tui.tsx` |
+| The tools RPC for scripts | `src/host/tools-rpc.ts` (only its `PLUGIN-SPECIFIC` block is Plaud's), `docs/scripting.md` |
 | Skills | `skills/<name>/SKILL.md` |
 
 Plaud's result shapes are read only in `src/domain/normalize.ts`. If Plaud changes a tool's arguments or results, that is the file to change.

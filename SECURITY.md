@@ -30,7 +30,7 @@ Plaud's results carry signed links. Anyone who has one can download what it poin
 
 The plugin replaces every one of them in every Plaud tool result before the model, the session history or your model provider see it. There is no option to turn this off. The model never needs a link: `plaud_export` reads the results itself, fetches the audio link plugin-side, and never returns or logs a link.
 
-The hook covers results on OpenCode's own tool path, for direct and Code Mode calls, and rewrites the links inside the untrusted-data tags around Plaud's results. Another plugin that runs Plaud tools through raw executors from `ctx.tool.list()` skips host hooks, so it receives the links.
+The hook covers results on OpenCode's own tool path, for direct and Code Mode calls, and rewrites the links inside the untrusted-data tags around Plaud's results. The plugin's tools RPC for scripts skips host hooks, so it withholds the links itself, with the same functions. Another plugin that runs Plaud tools through raw executors from `ctx.tool.list()` skips host hooks, so it receives the links.
 
 ### Recordings are not trusted
 
@@ -47,3 +47,18 @@ Recording names, transcripts and notes are content from your recordings, and any
 - **OpenCode decides which folders form one project.** On OpenCode 2.2.3, a folder with no git commit, such as a new git repository, can belong to OpenCode's shared `global` project. An approval saved there then applies in every other folder of that project. Do not count on a saved approval staying in one folder. For exports you want unattended, prefer an `allow` rule in that project's `opencode.json`, narrowed to the account and kind.
 - Agents that you define only in your config do not get the default rules, so exports and other Plaud tools run there without a prompt. `/plaud-status` names these agents and gives the fix.
 - The rule pattern `plaud*_*`, and the signed-link hook, also match the tools of any other MCP server whose name starts with `plaud`.
+
+## Scripts
+
+The tools RPC (`plaud.recordings.tools`, see [docs/scripting.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/scripting.md)) runs Plaud's five read tools for a script, with no model. It adds no authority:
+
+- A script names a session that names an agent, and runs as them. A tool that the agent's or the session's rules hide from the model is refused. OpenCode's own executor then checks the call against the agent's rules, the session's rules and saved approvals, as it does for the model.
+- An ask on a script's call is denied, not prompted: no one is there to answer it. The plugin's permission hook changes only an ask on one of its own script calls in flight, only to a deny, and leaves every other call alone.
+- Only the five known reads are methods. `plaud_export` and any other Plaud tool, including one Plaud adds later, never are, even with an allow rule. A script writes no file.
+- A script never gets a signed link: the plugin withholds every `presigned_url` and `data_link` in the result, as the hook does for the model.
+- `account` picks an account from the plugin's `accounts` option; any other value is refused. A server your config defines under an account's name is used, as for the model.
+- The call goes through OpenCode's own MCP connection and sign-in. The plugin never sees the token, and returns none.
+- Recording content in a result is untrusted, as it is for the model.
+- Plaud's error text reaches the script only as the first line, at most 300 characters, with tokens and URL query strings removed.
+- OpenCode's `execute.before` and `execute.after` tool hooks, from any plugin, do not run for a script's call, so another plugin's policy hook does not see it. A script's calls are not recorded in the session.
+- The RPC is reachable only by callers of the OpenCode server API, who already hold the server's full authority. The session is not a login: it scopes a script to what its agent may do.

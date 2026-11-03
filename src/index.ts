@@ -2,19 +2,20 @@ import { Plugin } from "@opencode/plugin"
 import { loadConfig } from "./domain/config.js"
 import { registerCommands } from "./host/commands.js"
 import { nameIntegrations } from "./host/integration.js"
-import { registerMcp } from "./host/mcp.js"
+import { accountServer, registerMcp } from "./host/mcp.js"
 import { registerPermissions } from "./host/permissions.js"
 import { registerRpc } from "./host/rpc.js"
 import { registerSkills } from "./host/skills.js"
 import { registerTools } from "./host/tools/index.js"
+import { registerToolsRpc } from "./host/tools-rpc.js"
 import { readStatus } from "./status.js"
 import { checkHost, PLUGIN_ID } from "./version.js"
 
 /**
  * Setup runs in order: options, the host check, one Plaud MCP server per
  * account and its `/connect` name, the default permission rules, the export tool, then
- * `/plaud-status`, the skills and the status RPC. The cleanup disposes every
- * registration, newest first.
+ * `/plaud-status`, the skills, the status RPC and the tools RPC for scripts.
+ * The cleanup disposes every registration, newest first.
  */
 export default Plugin.define({
   id: PLUGIN_ID,
@@ -38,6 +39,9 @@ export default Plugin.define({
       // `../skills/` is the package's skills folder from both src/ and the bundled dist/.
       registrations.push(await registerSkills(ctx, new URL("../skills/", import.meta.url)))
       registrations.push(await registerRpc(ctx, status))
+      // Scripts call the five reads with no model. Every account's server is the plugin's to use, even one the user
+      // defined under that name, as for the model and plaud_export; so there is no SERVER_CONFLICT.
+      registrations.push({ dispose: await registerToolsRpc(ctx, { mcp: { server: accountServer(options.accounts), managed: () => true } }) })
     } catch (error) {
       await cleanup()
       throw error

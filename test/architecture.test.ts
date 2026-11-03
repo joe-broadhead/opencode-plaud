@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
-import { forbiddenUses, moduleSpecifiers, type Scope } from "./module-specifiers.js"
+import { exemptUses, forbiddenUses, moduleSpecifiers, type Exemption, type Scope } from "./module-specifiers.js"
 
 /**
  * The lint stage of `npm run check`, before anything is built: import
@@ -59,6 +59,15 @@ describe("source layout", () => {
   })
 })
 
+/**
+ * The only exemptions, by file: the tools RPC's one evaluate hook and its reads of OpenCode's error tags, and its
+ * shared unit test's fakes of those errors and its one skipIf. See AGENTS.md.
+ */
+const EXEMPT: Readonly<Record<string, readonly Exemption[]>> = {
+  "src/host/tools-rpc.ts": ["evaluate hook", "error tags"],
+  "test/tools-rpc.test.ts": ["error tags", "skipIf"],
+}
+
 describe("forbidden host APIs", () => {
   const scopes: [string, Scope][] = [
     ["src", "shipped"],
@@ -68,7 +77,21 @@ describe("forbidden host APIs", () => {
   it.each(scopes)("none in %s/", (directory, scope) => {
     const files = walk(join(ROOT, directory))
     expect(files.length).toBeGreaterThan(0)
-    expect(files.flatMap((file) => forbiddenUses(readFileSync(file, "utf8"), file, scope).map((problem) => `${rel(file)}:${problem}`))).toEqual([])
+    expect(files.flatMap((file) => forbiddenUses(readFileSync(file, "utf8"), file, scope, EXEMPT[rel(file)]).map((problem) => `${rel(file)}:${problem}`))).toEqual([])
+  })
+
+  it("uses each exemption only where it is granted, and counts it", () => {
+    const uses = (directory: string, exemption: Exemption) =>
+      walk(join(ROOT, directory)).map((file) => [rel(file), exemptUses(readFileSync(file, "utf8"), file, exemption)] as const).filter(([, count]) => count > 0)
+    expect(uses("src", "evaluate hook")).toEqual([["src/host/tools-rpc.ts", 1]])
+    expect(uses("src", "error tags").map(([file]) => file)).toEqual(["src/host/tools-rpc.ts"])
+    // The shared test's one skipIf skips its MCP tests only for a plugin with no known reads; Plaud has five.
+    expect(uses("test", "skipIf")).toEqual([["test/tools-rpc.test.ts", 1]])
+    // Without its exemptions, the tools RPC breaks both rules.
+    const rpc = join(SRC, "host", "tools-rpc.ts")
+    const problems = forbiddenUses(readFileSync(rpc, "utf8"), rpc, "shipped").join("\n")
+    expect(problems).toContain("a permission evaluate hook")
+    expect(problems).toContain("_tag: private host error tags")
   })
 
   it("finds every module a file loads", () => {

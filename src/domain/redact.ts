@@ -33,6 +33,15 @@ export function withholdSignedLinks(value: unknown): unknown {
 }
 
 /**
+ * The same for a tool result's structured output: text is rewritten as text,
+ * anything else field by field. The model path's `execute.after` hook and the
+ * tools RPC for scripts both use it.
+ */
+export function withholdSignedLinksInOutput(output: unknown): unknown {
+  return typeof output === "string" ? withholdSignedLinksInText(output) : withholdSignedLinks(output)
+}
+
+/**
  * The same for result text. JSON text, bare or in Plaud's envelope, is
  * rewritten field by field; other text that names a field loses every URL,
  * because the link cannot be told apart from the rest.

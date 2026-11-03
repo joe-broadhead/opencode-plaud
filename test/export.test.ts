@@ -388,19 +388,23 @@ describe("time budget", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     const started = Date.now()
     let sent = 0
+    // True while the stream waits on its (fake) 10 s timer for the next chunk.
+    let waiting = false
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
         new Response(
           new ReadableStream({
             pull: (controller) =>
-              new Promise<void>((resolve) =>
+              new Promise<void>((resolve) => {
+                waiting = true
                 setTimeout(() => {
+                  waiting = false
                   if (sent === 13) controller.close()
                   else controller.enqueue(new Uint8Array(1000).fill(++sent))
                   resolve()
-                }, 10_000),
-              ),
+                }, 10_000)
+              }),
           }),
         ),
       ),
@@ -408,10 +412,14 @@ describe("time budget", () => {
     const { run, progress } = await exporter({ settings: { exportTimeoutMs: 30 * 60 * 1000 } })
     let settled = false
     const pending = run({ recordingId: "rec-1", kind: "audio" }).finally(() => (settled = true))
-    for (let step = 0; step < 100 && !settled; step++) {
-      await vi.advanceTimersByTimeAsync(10_000)
-      await new Promise((resolve) => setImmediate(resolve))
+    // Move the fake clock only while the stream waits on it. Otherwise yield, so the export's real file writes can
+    // finish: a fixed number of steps raced those writes and ran out on slow runners, leaving a timer never advanced.
+    const deadline = performance.now() + 20_000
+    while (!settled && performance.now() < deadline) {
+      if (waiting) await vi.advanceTimersByTimeAsync(10_000)
+      else await new Promise((resolve) => setImmediate(resolve))
     }
+    expect(settled).toBe(true)
     const result = await pending
     expect(Date.now() - started).toBeGreaterThan(120_000)
     expect(result.bytes).toBe(13_000)

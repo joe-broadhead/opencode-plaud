@@ -1,4 +1,4 @@
-import { withholdSignedLinks, withholdSignedLinksInText } from "../../domain/redact.js"
+import { withholdSignedLinksInOutput, withholdSignedLinksInText } from "../../domain/redact.js"
 import { DEFAULT_ACCOUNT } from "../../domain/config.js"
 import type { PluginConfig } from "../../domain/types.js"
 import type { PluginContext, Registration } from "../context.js"
@@ -47,7 +47,7 @@ export async function registerTools(ctx: ToolsHost, options: ToolOptions): Promi
       const { output, content } = event.result
       event.result = {
         ...event.result,
-        ...(output === undefined ? {} : { output: typeof output === "string" ? withholdSignedLinksInText(output) : withholdSignedLinks(output) }),
+        ...(output === undefined ? {} : { output: withholdSignedLinksInOutput(output) }),
         ...(content === undefined
           ? {}
           : {

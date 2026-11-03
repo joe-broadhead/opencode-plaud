@@ -20,6 +20,7 @@ never sees the token. Durations stay in milliseconds, as Plaud returns them.
 These are never methods, even with an allow rule:
 
 - the plugin's own `plaud_export`, which writes a local file;
+- the plugin's own `plaud_recent`, a summary for the model; a script reads `list_files` itself;
 - any other tool on a Plaud server, including any tool that Plaud adds later.
 
 ## Accounts

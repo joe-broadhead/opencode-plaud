@@ -41,6 +41,15 @@ export function serverName(account: string): string {
   return account === DEFAULT_ACCOUNT ? SERVER : `${SERVER}-${account}`
 }
 
+/**
+ * The tools RPC's account choice: none or "default" is the plaud server, an alias from the options its
+ * plaud-<alias> server, and anything else no server (ACCOUNT_UNKNOWN). A server the user's config defines under one
+ * of these names is still that account's server, as it is for the model and for plaud_export.
+ */
+export function accountServer(aliases: readonly string[]): (account: string | undefined) => string | undefined {
+  return (account) => (account === undefined || account === DEFAULT_ACCOUNT || aliases.includes(account) ? serverName(account ?? DEFAULT_ACCOUNT) : undefined)
+}
+
 export function mcpServers(accounts: readonly string[]): McpServer[] {
   return [DEFAULT_ACCOUNT, ...accounts].map((account) => ({ account, name: serverName(account) }))
 }

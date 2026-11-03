@@ -208,3 +208,5 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | `EXPORT_FAILED` | export | The download or the local write failed. |
 
 OpenCode itself reports a blocked call as `Permission denied: <action>`, and an ask in a run that cannot answer as `Permission <action> needs approval`.
+
+Scripts that use the tools RPC get their own error codes; see [Scripting](scripting.md#errors).

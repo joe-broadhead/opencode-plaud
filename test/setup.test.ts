@@ -5,12 +5,14 @@ import plugin from "../src/index.js"
 
 type Config = Parameters<McpEditor["set"]>[1]
 
-/** Setup names the /connect entries, registers plaud_export and its result hook through ctx.tool, then /plaud-status, the skills and the RPC. */
+/**
+ * Setup names the /connect entries, registers plaud_export and its result hook through ctx.tool, then /plaud-status,
+ * the skills, the status RPC and the tools RPC with its permission hook.
+ */
 const registered = async () => ({ dispose: async () => undefined })
 const tool = { transform: registered, hook: registered, list: async () => [] } as unknown as Plugin.Context["tool"]
 const command = { transform: registered } as unknown as Plugin.Context["command"]
 const skill = { transform: registered } as unknown as Plugin.Context["skill"]
-const rpc = { register: registered } as unknown as Plugin.Context["rpc"]
 const integration = { transform: registered, get: async () => ({ data: { name: "Plaud" } }) } as unknown as Plugin.Context["integration"]
 const event = { subscribe: async function* () {} } as unknown as Plugin.Context["event"]
 
@@ -22,13 +24,17 @@ function fakeContext(version: string, options: unknown) {
     return { dispose }
   })
   const agentTransform = vi.fn(async () => ({ dispose: async () => undefined }))
+  const register = vi.fn(async (_contract: { id: string }) => ({ dispose: async () => undefined }))
+  const hook = vi.fn(async (_name: string) => ({ dispose }))
+  const rpc = { register } as unknown as Plugin.Context["rpc"]
+  const permission = { hook, assert: async () => undefined } as unknown as Plugin.Context["permission"]
   const ctx: Pick<Plugin.Context, "app" | "options" | "mcp" | "agent"> = {
     app: { name: "opencode", version, channel: "latest" },
     options: options as Plugin.Context["options"],
     mcp: { list: async () => ({ location: {}, data: [] }) as never, reload: async () => undefined, transform },
     agent: { transform: agentTransform } as unknown as Plugin.Context["agent"],
   }
-  return { ctx: { ...ctx, tool, command, skill, rpc, integration, event } as Plugin.Context, servers, transform, dispose }
+  return { ctx: { ...ctx, tool, command, skill, rpc, permission, integration, event } as Plugin.Context, servers, transform, dispose, register, hook }
 }
 
 afterEach(() => vi.restoreAllMocks())
@@ -39,13 +45,16 @@ describe("plugin setup", () => {
   })
 
   it("works with zero config: the plaud server on Plaud's hosted URL", async () => {
-    const { ctx, servers, dispose } = fakeContext("2.2.3", undefined)
+    const { ctx, servers, dispose, register, hook } = fakeContext("2.2.3", undefined)
     const cleanup = await plugin.setup(ctx)
     expect(Object.fromEntries(servers)).toEqual({ plaud: { type: "remote", url: "https://mcp.plaud.ai/mcp" } })
+    expect(register.mock.calls.map(([contract]) => contract.id)).toEqual(["plaud.recordings", "plaud.recordings.tools"])
+    expect(hook.mock.calls.map(([name]) => name)).toEqual(["evaluate"])
     expect(typeof cleanup).toBe("function")
     await (cleanup as () => Promise<void>)()
     await (cleanup as () => Promise<void>)()
-    expect(dispose).toHaveBeenCalledOnce()
+    // The MCP registration and the tools RPC's permission hook, each once.
+    expect(dispose).toHaveBeenCalledTimes(2)
   })
 
   it("registers extra accounts on the configured URL", async () => {

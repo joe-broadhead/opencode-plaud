@@ -10,6 +10,12 @@ All notable changes to this project are documented here. The format follows [Kee
 - `title` and `signIns` in the `jelly` section: the name Jelly shows on the plugin's card, and what the plugin signs in to, so that one card can say whether each sign-in is connected and start, renew or end it. `docs/jelly.md` lists them.
 - `plaud_recent`: the newest recordings, one line each, read through the host's `plaud_list_files`; it runs without asking. A Home feed preset in Jelly uses it.
 
+## [0.0.1] - 2026-11-03
+
+### Added
+
+- The tools RPC, `plaud.recordings.tools`: a script can call Plaud's five read tools with no model, through `opencode api`, as a session and its agent, and with an optional `account` for another account. It gets exactly the access that agent's model has: a tool its rules hide is refused, OpenCode checks each call against the agent's and the session's rules, and an ask is refused at once because no one is there to answer it. Every signed link is withheld, as for the model. `describe` lists the methods with each tool's live input schema. `plaud_export` and any other Plaud tool are never methods. `docs/scripting.md` explains it.
+
 ## [0.0.0] - 2026-11-01
 
 ### Added

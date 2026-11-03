@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../src/domain/redact.js"
 import { accountServer, KNOWN_READS as PLAUD_READS } from "../src/host/mcp.js"
-import { DEFAULT_RULES } from "../src/host/permissions.js"
+import { DEFAULT_RULES, RECENT_ACTION } from "../src/host/permissions.js"
 import { registerTools } from "../src/host/tools/index.js"
 import { KNOWN_READS, NEXT_STEPS, registerToolsRpc, shapeResult, TOOLS_RPC_ID, type McpResult, type ToolCall } from "../src/host/tools-rpc.js"
 
@@ -89,12 +89,15 @@ async function modelHook() {
 }
 
 describe("Plaud's tools RPC", () => {
-  it("is plaud.recordings.tools, with exactly the five reads the default rules allow; plaud_export is never a method", () => {
+  it("is plaud.recordings.tools, with exactly the five server reads the default rules allow; plaud_export and plaud_recent are never methods", () => {
     expect(TOOLS_RPC_ID).toBe("plaud.recordings.tools")
     expect([...KNOWN_READS]).toEqual(["list_files", "get_file", "get_note", "get_transcript", "get_current_user"])
     expect(KNOWN_READS).toBe(PLAUD_READS)
-    const allowed = DEFAULT_RULES.filter((rule) => rule.effect === "allow").map((rule) => rule.action.replace("plaud*_", ""))
+    // The server's reads; the plugin's own plaud_recent is allowed too, as a tool only.
+    const allowed = DEFAULT_RULES.filter((rule) => rule.effect === "allow" && rule.action.startsWith("plaud*_")).map((rule) => rule.action.replace("plaud*_", ""))
     expect(allowed).toEqual([...KNOWN_READS])
+    expect(DEFAULT_RULES.filter((rule) => rule.effect === "allow" && !rule.action.startsWith("plaud*_")).map((rule) => rule.action)).toEqual([RECENT_ACTION])
+    expect(KNOWN_READS).not.toContain("recent")
     expect(KNOWN_READS).not.toContain("export")
   })
 

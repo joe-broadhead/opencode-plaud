@@ -1,14 +1,16 @@
 import { spawn, spawnSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { createServer } from "node:net"
-import { arch, platform, tmpdir } from "node:os"
+import { arch, platform } from "node:os"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { SUPPORTED_HOSTS, TESTED_HOSTS } from "../src/version.js"
 import { SIGNATURE, startFakePlaud, type FakePlaud } from "./fixtures/fake-plaud.js"
 import { exemptUses, forbiddenUses, moduleSpecifiers, type Exemption } from "./module-specifiers.js"
+import { scratchDir } from "./scratch.js"
 
 /**
  * The published shape: build, pack, and install the tarball alone, with
@@ -17,9 +19,10 @@ import { exemptUses, forbiddenUses, moduleSpecifiers, type Exemption } from "./m
  * itself; next to those packages, '.' and './tui' import under Bun.
  *
  * PACK_TARBALL tests a tarball that is already packed, such as the one a
- * release publishes. OPENCODE_BIN_2_2_3 and OPENCODE_BIN_2_2_4 name stock
- * binaries; otherwise each @opencode/cli release is installed with npm into
- * the temp directory.
+ * release publishes. Each release in TESTED_HOSTS (src/version.ts) is tested:
+ * OPENCODE_BIN_2_2_3, OPENCODE_BIN_2_2_4 and OPENCODE_BIN_2_2_5 name stock
+ * binaries; otherwise each @opencode/cli release is installed with npm, once
+ * per run, into the test's own folder under /tmp.
  */
 
 const REPO = realpathSync(fileURLToPath(new URL("..", import.meta.url)))
@@ -30,8 +33,6 @@ const pkg = JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")) as {
   exports: Record<string, string>
   devDependencies: Record<string, string>
 }
-const HOST_VERSIONS = ["2.2.3", "2.2.4"]
-const TESTED_HOST = ">=2.2.3 <2.3.0"
 const SKILLS = ["opencode-plaud", "opencode-plaud-digest", "opencode-plaud-export"]
 const HOST_PACKAGES = ["@opencode/plugin", "@opentui/core", "@opentui/solid", "solid-js"]
 const SERVER_MODULES = [/^node:/, /^@opencode\/plugin(?:\/|$)/]
@@ -51,8 +52,9 @@ const OFFLINE = {
   OPENCODE_DISABLE_FREE_MODELS: "true",
 }
 
-// Outside the repository, so nothing resolves from the repository's own node_modules.
-const work = realpathSync(mkdtempSync(join(tmpdir(), "opencode-plaud-pack-")))
+// Outside the repository, so nothing resolves from the repository's own node_modules, and under /tmp, so OpenCode's
+// upward config search finds nothing of the owner's.
+const work = scratchDir("opencode-plaud-pack-")
 let tarball: string
 let packed: { filename: string; files: { path: string }[] } | undefined
 let installed: string
@@ -126,7 +128,7 @@ describe("the tarball", () => {
     const manifest = JSON.parse(readFileSync(join(installed, "package.json"), "utf8")) as Record<string, unknown>
     for (const field of UNDECLARED) expect(manifest[field], field).toBeUndefined()
     expect(Object.keys((manifest.scripts as Record<string, string> | undefined) ?? {}).filter((name) => LIFECYCLE.includes(name))).toEqual([])
-    expect(manifest.opencode).toEqual({ host: TESTED_HOST })
+    expect(manifest.opencode).toEqual({ host: SUPPORTED_HOSTS })
     expect(manifest.exports).toEqual({ ".": "./dist/index.js", "./tui": "./dist/tui.js" })
     for (const target of Object.values(pkg.exports)) expect(existsSync(join(installed, target)), target).toBe(true)
   })
@@ -238,6 +240,10 @@ async function serve(version: string, name = `host-${version}`, config: Record<s
     TMPDIR: join(root, "tmp"),
   }
   for (const dir of [...Object.values(env), directory]) mkdirSync(dir, { recursive: true })
+  const port = await freePort()
+  // If a CLI call ever starts a managed service, it uses this root's own port, never the default 49374.
+  mkdirSync(join(env.XDG_CONFIG_HOME, "opencode"), { recursive: true })
+  writeFileSync(join(env.XDG_CONFIG_HOME, "opencode", "service.json"), JSON.stringify({ port }))
   writeFileSync(
     join(directory, "opencode.json"),
     JSON.stringify({ plugins: [{ package: installed, options: { url: fake.url, exportRoots: [join(root, "exports")] } }], ...config }, null, 2),
@@ -251,7 +257,6 @@ async function serve(version: string, name = `host-${version}`, config: Record<s
   expect(paths.length).toBeGreaterThan(5)
   expect(paths.filter(([, path]) => !path?.startsWith(`${root}/`))).toEqual([])
 
-  const port = await freePort()
   let output = ""
   const server = spawn(binary, ["serve", "--hostname", "127.0.0.1", "--port", String(port)], { cwd: directory, env: full, stdio: ["ignore", "pipe", "pipe"] })
   server.stdout.on("data", (chunk) => void (output += chunk))
@@ -295,7 +300,7 @@ async function serve(version: string, name = `host-${version}`, config: Record<s
   return { api, script, until, close, directory, log: () => output }
 }
 
-describe.each(HOST_VERSIONS)("installed alone, in stock OpenCode %s", (version) => {
+describe.each(TESTED_HOSTS)("installed alone, in stock OpenCode %s", (version) => {
   it("is active with its server and TUI parts, answers the status RPC, signs in to the fake, and registers /plaud-status and the skills", async () => {
     const host = await serve(version)
     try {
@@ -313,7 +318,9 @@ describe.each(HOST_VERSIONS)("installed alone, in stock OpenCode %s", (version) 
       })
       expect(status).toMatchObject({
         accounts: [{ account: "default", server: "plaud", state: "signed_in" }],
-        host: { version, tested: true },
+        version: pkg.version,
+        state: "connected",
+        host: { version, range: SUPPORTED_HOSTS, tested: true },
         unguardedAgents: [],
         nextStep: "Nothing to do.",
       })
@@ -352,7 +359,7 @@ const READS = ["list_files", "get_file", "get_note", "get_transcript", "get_curr
  * the session's rules apply after the agent's; plaud_export and unknown tools are no methods; no signed link leaks.
  * The executor it calls (`ctx.tool.list()`) is not a documented entry point, so these tests are its contract.
  */
-describe.each(HOST_VERSIONS)("the tools RPC on stock OpenCode %s", (version) => {
+describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
   it("runs Plaud's reads for a script under the session's agent and rules, and nothing else", async () => {
     const host = await serve(version, `tools-${version}`, {
       // Config-only agents carry exactly these rules after the host's defaults.

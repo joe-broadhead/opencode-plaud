@@ -16,12 +16,12 @@ async function registered(host: Harness) {
   )
 }
 
-it("refuses an untested OpenCode release before registering anything", async () => {
+it("refuses an OpenCode release outside the supported range before registering anything", async () => {
   const host = await startHost({ version: "2.3.0" })
   try {
     expect(host.plugin.state).toEqual({
       status: "failed",
-      error: expect.stringMatching(/HOST_UNTESTED: opencode-plaud is tested on OpenCode >=2\.2\.3 <2\.3\.0, and this is OpenCode 2\.3\.0\..*"allowUntestedHost": true/),
+      error: expect.stringMatching(/HOST_UNTESTED: opencode-plaud supports OpenCode >=2\.2\.3 <2\.3\.0, and this is OpenCode 2\.3\.0\..*"allowUntestedHost": true/),
     })
     expect(await registered(host)).toEqual([])
   } finally {
@@ -29,8 +29,11 @@ it("refuses an untested OpenCode release before registering anything", async () 
   }
 })
 
-it("loads an untested release with allowUntestedHost, and status says so", async () => {
-  const host = await startHost({ version: "2.3.0", options: { allowUntestedHost: true } })
+it.each([
+  ["2.3.0", "outside the range, with allowUntestedHost", { allowUntestedHost: true }, "If Plaud misbehaves, use a tested OpenCode release: 2.2.3, 2.2.4 or 2.2.5."],
+  ["2.2.6", "inside the range but not tested", {}, "Nothing to do."],
+])("loads %s, %s, and status calls it untested (INSTALL-4)", async (version, _why, options, nextStep) => {
+  const host = await startHost({ version, options })
   try {
     expect(host.plugin.state).toEqual({ status: "active" })
     // The untested-host step comes once nothing more urgent is left, so wait for the sign-in.
@@ -38,12 +41,9 @@ it("loads an untested release with allowUntestedHost, and status says so", async
       const read = await host.opencode.rpc(Plaud).status({}, { location: host.location })
       return isStatus(read) && read.accounts[0]?.state === "signed_in" ? read : undefined
     })
-    expect(status.host).toEqual({
-      version: "2.3.0",
-      tested: false,
-      warning: expect.stringMatching(/this is OpenCode 2\.3\.0\. It was loaded because "allowUntestedHost" is set\.$/),
-    })
-    expect(status.nextStep).toBe("If Plaud misbehaves, install an OpenCode release in the tested range.")
+    expect(status.host).toEqual({ version, range: ">=2.2.3 <2.3.0", tested: false })
+    expect(status.state).toBe("connected")
+    expect(status.nextStep).toBe(nextStep)
   } finally {
     await host.close()
   }

@@ -3,13 +3,13 @@ import { loadConfig } from "./domain/config.js"
 import { registerCommands } from "./host/commands.js"
 import { nameIntegrations } from "./host/integration.js"
 import { accountServer, registerMcp } from "./host/mcp.js"
-import { registerPermissions } from "./host/permissions.js"
+import { defaultRules, registerPermissions } from "./host/permissions.js"
 import { registerRpc } from "./host/rpc.js"
 import { registerSkills } from "./host/skills.js"
 import { registerTools } from "./host/tools/index.js"
 import { registerToolsRpc } from "./host/tools-rpc.js"
 import { readStatus } from "./status.js"
-import { checkHost, PLUGIN_ID } from "./version.js"
+import { checkHost, hostWarning, PLUGIN_ID } from "./version.js"
 
 /**
  * Setup runs in order: options, the host check, one Plaud MCP server per
@@ -22,7 +22,8 @@ export default Plugin.define({
   async setup(ctx) {
     const options = loadConfig(ctx.options)
     const host = checkHost(ctx.app.version, options.allowUntestedHost)
-    if (!host.tested) console.warn(`opencode-plaud: ${host.warning}`)
+    const warning = hostWarning(host)
+    if (warning !== undefined) console.warn(`opencode-plaud: ${warning}`)
 
     const registrations: { dispose(): Promise<void> }[] = []
     const cleanup = async () => {
@@ -32,7 +33,7 @@ export default Plugin.define({
       const servers = await registerMcp(ctx, options)
       registrations.push(servers)
       registrations.push(nameIntegrations(ctx, servers.list))
-      registrations.push(await registerPermissions(ctx))
+      registrations.push(await registerPermissions(ctx, defaultRules(servers.list.map((server) => server.name))))
       registrations.push(await registerTools(ctx, options))
       const status = () => readStatus(ctx, { host, servers, exportRoots: options.exportRoots })
       registrations.push(await registerCommands(ctx, status))

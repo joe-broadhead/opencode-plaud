@@ -38,7 +38,7 @@ Give options with the object form of the plugin entry:
 | `maxAudioBytes` | `2147483648` (2 GiB) | The largest audio file an export writes. |
 | `maxTextBytes` | `26214400` (25 MiB) | The largest transcript or note file an export writes. |
 | `exportTimeoutMs` | `1800000` (30 minutes) | How long one export may take, in milliseconds. |
-| `allowUntestedHost` | `false` | Start on an OpenCode release outside the tested range, with a warning. |
+| `allowUntestedHost` | `false` | Start on an OpenCode release outside the supported range, with a warning. |
 
 Rules for the values:
 
@@ -47,7 +47,7 @@ Rules for the values:
 - **`exportRoots`**: at least one folder. Each is an absolute path, `~`, or a path that starts with `~/`. The plugin expands `~` to your home folder, normalizes the paths and drops duplicates. A folder is created (mode 0700) the first time an export needs it.
 - **`maxAudioBytes`**: a whole number from 1 to 64 GiB. **`maxTextBytes`**: a whole number from 1 to 2 GiB.
 - **`exportTimeoutMs`**: a whole number from 1000 (1 second) to 86400000 (24 hours). The time starts after you approve the export, so time spent on the prompt does not count. It is separate from OpenCode's own tool time limits.
-- **`allowUntestedHost`**: the plugin starts only on OpenCode `>=2.2.3 <2.3.0`, the tested range (tested on 2.2.3 and 2.2.4). Prereleases and development builds are outside it. With this option, it also starts outside the range, prints a warning, and `/plaud-status` shows the warning.
+- **`allowUntestedHost`**: the plugin supports OpenCode `>=2.2.3 <2.3.0` and is tested on 2.2.3, 2.2.4 and 2.2.5. Inside the range it always starts; on a release there that is not tested, it prints a warning and `/plaud-status` calls it untested. Outside the range, which includes prereleases and development builds, it does not start, unless this option is set: then it starts, prints a warning, and `/plaud-status` calls the release untested.
 
 An unknown key or a wrong value stops the plugin from starting. The error names every problem at once:
 
@@ -77,18 +77,20 @@ The plugin inserts these rules into each agent's permissions, right after the ag
 ```json
 [
   { "action": "plaud*_*", "resource": "*", "effect": "ask" },
-  { "action": "plaud*_list_files", "resource": "*", "effect": "allow" },
-  { "action": "plaud*_get_file", "resource": "*", "effect": "allow" },
-  { "action": "plaud*_get_note", "resource": "*", "effect": "allow" },
-  { "action": "plaud*_get_transcript", "resource": "*", "effect": "allow" },
-  { "action": "plaud*_get_current_user", "resource": "*", "effect": "allow" },
+  { "action": "plaud_list_files", "resource": "*", "effect": "allow" },
+  { "action": "plaud_get_file", "resource": "*", "effect": "allow" },
+  { "action": "plaud_get_note", "resource": "*", "effect": "allow" },
+  { "action": "plaud_get_transcript", "resource": "*", "effect": "allow" },
+  { "action": "plaud_get_current_user", "resource": "*", "effect": "allow" },
   { "action": "plaud_export", "resource": "*", "effect": "ask" }
 ]
 ```
 
+Each account in `accounts` adds the same five allow rules for its own server, before `plaud_export`: for `work`, `plaud-work_list_files` to `plaud-work_get_current_user`. `/plaud-status` shows the exact block for your accounts.
+
 So, by default:
 
-- the five read tools of every Plaud server (`list_files`, `get_file`, `get_note`, `get_transcript` and `get_current_user`) run without a prompt, also in `opencode run`;
+- the five read tools of each account's server (`list_files`, `get_file`, `get_note`, `get_transcript` and `get_current_user`) run without a prompt, also in `opencode run`. They are allowed by exact name, so a later Plaud tool whose name only ends like a read, such as `plaud_bulk_get_file`, asks, as do the tools of a server you named `plaud…` yourself;
 - `plaud_export` asks;
 - any other tool on a Plaud server asks, including a tool Plaud adds later.
 
@@ -149,7 +151,7 @@ When a prompt offers "Always allow", OpenCode saves the approval for the whole p
 
 ### Agents defined in your config
 
-OpenCode creates agents that you define only in your config after plugins load, so those agents do not get the default rules. Their Plaud exports and other Plaud tools then run without a prompt. `/plaud-status` and the status dialog name such agents and show the rules to copy.
+OpenCode creates agents that you define only in your config after plugins load, so those agents do not get the default rules. Unless their own rules ask for or deny Plaud's tools, their Plaud exports and other Plaud tools then run without a prompt. `/plaud-status` and the status dialog name such agents, under **Agents without default rules**, and show the rules to copy. An agent whose own rules already ask for or deny every Plaud tool, such as one ending with `{ "action": "*", "resource": "*", "effect": "ask" }`, is not listed: it needs no fix.
 
 The fix: put the default rules first in **that agent's own** `permissions`, then repeat any rules for Plaud tools from your top-level `permissions`, so yours keep winning. For an agent `reviewer`, with the top-level rule from the first example above:
 
@@ -164,11 +166,11 @@ The fix: put the default rules first in **that agent's own** `permissions`, then
       "mode": "subagent",
       "permissions": [
         { "action": "plaud*_*", "resource": "*", "effect": "ask" },
-        { "action": "plaud*_list_files", "resource": "*", "effect": "allow" },
-        { "action": "plaud*_get_file", "resource": "*", "effect": "allow" },
-        { "action": "plaud*_get_note", "resource": "*", "effect": "allow" },
-        { "action": "plaud*_get_transcript", "resource": "*", "effect": "allow" },
-        { "action": "plaud*_get_current_user", "resource": "*", "effect": "allow" },
+        { "action": "plaud_list_files", "resource": "*", "effect": "allow" },
+        { "action": "plaud_get_file", "resource": "*", "effect": "allow" },
+        { "action": "plaud_get_note", "resource": "*", "effect": "allow" },
+        { "action": "plaud_get_transcript", "resource": "*", "effect": "allow" },
+        { "action": "plaud_get_current_user", "resource": "*", "effect": "allow" },
         { "action": "plaud_export", "resource": "*", "effect": "ask" },
         // Repeated from the top-level permissions, so it still wins in this agent:
         { "action": "plaud_export", "resource": "default:transcript", "effect": "allow" }
@@ -178,7 +180,7 @@ The fix: put the default rules first in **that agent's own** `permissions`, then
 }
 ```
 
-For an agent defined in a Markdown file, put the same rules in the `permissions` of its frontmatter.
+With other accounts, copy the block `/plaud-status` shows: it has their reads too. For an agent defined in a Markdown file, put the same rules in the `permissions` of its frontmatter.
 
 Do not add the default rules to the top-level `permissions`. Top-level rules come after every agent's own base rules, so they would loosen stricter agents: in Explore, denied Plaud reads would run and denied exports would ask.
 

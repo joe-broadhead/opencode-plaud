@@ -4,12 +4,25 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- OpenCode 2.2.5 is a tested release, next to 2.2.3 and 2.2.4.
+- The status RPC (`plaud.recordings` `status`) has `version`, the plugin's version, and `state`, the most urgent account's state in the shared form: `connected`, `sign_in_required`, `connecting`, `failed`, `disabled` or `not_configured`.
+
 ### Changed
 
-- Code Mode's description of the `plaud` namespace names all five reads, `get_current_user` included, and sends the model to `get_note` or `get_transcript` before `get_file`. `get_file` can be over 100 KB for one recording: it repeats what `list_files` and `get_note` return, and adds only `source_list` and the withheld audio link. The `opencode-plaud` skill says the same, and the export skill finds recording ids with `list_files`.
+- The status RPC uses the field names every plugin of this family shares. Scripts that read it need these changes:
+  - `host` is now `{ version, range, tested }`: `host.warning` is gone, `host.range` is the supported range `>=2.2.3 <2.3.0`, `host.tested` is true only for 2.2.3, 2.2.4 and 2.2.5 (before, for any release in the range), and `host.version` is `null` when OpenCode reports no version;
+  - `unguardedAgents` lists only agents whose own rules would let Plaud's tools run without asking (see Fixed);
+  - `permissionsBlock` is the block for your accounts (see below).
+- The default rules allow each account's five reads by exact name, `plaud_get_file` and `plaud-<alias>_get_file`, instead of the patterns `plaud*_get_file`. A later Plaud tool whose name only ends like a read, such as `plaud_bulk_get_file`, and the tools of a server you named `plaud…` yourself, now ask. If you copied the block into an agent's own rules, copy it again from `/plaud-status`.
+- On a release inside `>=2.2.3 <2.3.0` other than 2.2.3, 2.2.4 and 2.2.5, Plaud sets up normally and prints a warning; status calls the release untested, and its state and next step are what they would be on a tested release. The `OpenCode` row reads, for example, `2.2.5 (tested; supported range >=2.2.3 <2.3.0)`. `HOST_UNTESTED` now says "supports" for the range.
+- `/plaud-status` has the dialog's title, `Plaud status`, and always shows the `Agents without default rules` row, with `none` when no agent needs the fix.
+- Code Mode's description of the `plaud` namespace names all five reads, `get_current_user` included, and sends the model to `get_note` or `get_transcript` before `get_file`. `get_file` can be over 100 KB for one recording: it repeats what `list_files` and `get_note` return, and adds only `source_list` and the withheld audio link. The `opencode-plaud` skill says the same, and the export skill and `plaud_export`'s `recordingId` description find recording ids with `list_files`.
 
 ### Fixed
 
+- Status listed every agent without the default rules, also those whose own rules already ask for every tool, so it could name dozens of agents that need no fix. It now lists an agent only when its own rules would let an unknown Plaud tool run without asking.
 - A failed Plaud call's error text now has every URL withheld before the model sees it, as completed results already did. Plaud's server puts no link in its errors today; this keeps it so.
 - An audio export whose link Plaud sent in a form that does not parse failed with a bare `TypeError` and no next step. It now fails with `PLAUD_UNREADABLE` and a next step, and the error never holds the link.
 - An audio export followed redirects without checking them, so a redirect could lead to plain http. The export now follows redirects itself, at most 5: each one must be https with no user name or password, and one from another machine may not lead to this one. Otherwise it stops with `PLAUD_UNREADABLE` before fetching, and the error names no link. A link with a user name or password is refused the same way.

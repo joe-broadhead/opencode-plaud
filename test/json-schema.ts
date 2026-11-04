@@ -1,11 +1,11 @@
 /**
  * Checks a value against the JSON Schema subset the RPC contract uses:
- * `type` (object, array, string, integer, boolean), `enum`, `properties`,
+ * `type` (object, array, string, integer, boolean, null, or a list of them), `enum`, `properties`,
  * `required`, `additionalProperties: false` and `items`. Returns each
  * problem as `<path>: <problem>`; an empty list means the value fits.
  */
 type Schema = {
-  readonly type?: string
+  readonly type?: string | readonly string[]
   readonly enum?: readonly unknown[]
   readonly properties?: Readonly<Record<string, Schema>>
   readonly required?: readonly string[]
@@ -15,7 +15,13 @@ type Schema = {
 
 export function schemaProblems(schema: Schema, value: unknown, path = "$"): string[] {
   if (schema.enum && !schema.enum.includes(value)) return [`${path}: ${JSON.stringify(value)} is not one of ${JSON.stringify(schema.enum)}`]
+  if (Array.isArray(schema.type)) {
+    const fits = schema.type.some((type: string) => schemaProblems({ ...schema, type }, value, path).length === 0)
+    return fits ? [] : [`${path}: not one of the types ${schema.type.join(", ")}`]
+  }
   switch (schema.type) {
+    case "null":
+      return value === null ? [] : [`${path}: not null`]
     case "string":
     case "boolean":
       return typeof value === schema.type ? [] : [`${path}: not a ${schema.type}`]

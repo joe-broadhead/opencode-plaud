@@ -6,7 +6,7 @@ Unofficial; not affiliated with Plaud.
 
 ## Requirements
 
-- OpenCode `>=2.2.3 <2.3.0`, tested on 2.2.3 and 2.2.4. On any other version the plugin does not start, unless you set [`allowUntestedHost`](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#options).
+- OpenCode `>=2.2.3 <2.3.0`, tested on 2.2.3, 2.2.4 and 2.2.5. Another release inside that range starts, and `/plaud-status` calls it untested. Outside the range the plugin does not start, unless you set [`allowUntestedHost`](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#options).
 - macOS or Linux.
 - A Plaud account. Plaud's hosted MCP server, `https://mcp.plaud.ai/mcp`, is in the US; accounts in other regions are untested. If Plaud gives you another address, set it with the [`url`](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#options) option.
 
@@ -139,7 +139,7 @@ Members then only sign in, once per account: run `/connect` and choose **Plaud**
 | You see | Do this |
 | --- | --- |
 | `AUTH_REQUIRED` from an export | That account's server is not connected or not signed in. Sign in from `/connect`, then retry. |
-| Status names agents that lack the default rules | Agents defined only in your config miss the rules. Put the rules it shows first in **that agent's own** `permissions`, then repeat your top-level rules for Plaud tools after them. Never add them to the top-level `permissions`. See [the example](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#agents-defined-in-your-config). |
+| Status names agents that lack the default rules | Agents defined only in your config miss the rules; status lists those whose own rules would run Plaud tools without asking. Put the rules it shows first in **that agent's own** `permissions`, then repeat your top-level rules for Plaud tools after them. Never add them to the top-level `permissions`. See [the example](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#agents-defined-in-your-config). |
 | `OPTIONS_INVALID` | An option is wrong; the message names each one. Fix it in the plugin's `options`. |
 | `HOST_UNTESTED` | Your OpenCode is outside `>=2.2.3 <2.3.0`. Install a tested release, or set `allowUntestedHost`. |
 | `/plaud-status` and the palette command are missing | The plugin did not start. Open `/plugins` to see the error. |

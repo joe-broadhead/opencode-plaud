@@ -39,7 +39,7 @@ The skills are read from the package's `skills/` folder at setup. OpenCode provi
 `src/index.ts` runs these steps in order:
 
 1. Validate the options (`src/domain/config.ts`). A problem stops setup with `OPTIONS_INVALID`.
-2. Check the OpenCode version against `>=2.2.3 <2.3.0` (`src/version.ts`). Outside it, setup stops with `HOST_UNTESTED`, unless `allowUntestedHost` is set.
+2. Check the OpenCode version against `>=2.2.3 <2.3.0` (`src/version.ts`). Outside it, setup stops with `HOST_UNTESTED`, unless `allowUntestedHost` is set. A release inside it that is not in `TESTED_HOSTS` (2.2.3, 2.2.4 and 2.2.5, the one list the tests and CI read) starts with a warning.
 3. Register one MCP server per account (`src/host/mcp.ts`), and name each one's `/connect` entry (`src/host/integration.ts`).
 4. Insert the default permission rules (`src/host/permissions.ts`).
 5. Add `plaud_export` and the signed-link hook (`src/host/tools/`).
@@ -58,9 +58,9 @@ OpenCode names the server's tools `<server>_<tool>` and puts them in Code Mode. 
 
 ## Permissions
 
-The default rules use no permission hook. `ctx.agent.transform` inserts seven rules right after each agent's base `* * allow` rule: `plaud*_*` asks, the five known reads (`plaud*_<tool>`) are allowed again, and `plaud_export` asks. Everything later in the agent's list, and saved approvals, still win. Agents without a base allow are left alone. The rules are in [configuration](configuration.md#the-default-rules).
+The default rules use no permission hook. `ctx.agent.transform` inserts the block right after each agent's base `* * allow` rule: `plaud*_*` asks, the five known reads of each configured account's server (`plaud_<tool>`, `plaud-<alias>_<tool>`) are allowed again by exact name, and `plaud_export` asks. Everything later in the agent's list, and saved approvals, still win. Agents without a base allow are left alone. The rules are in [configuration](configuration.md#the-default-rules).
 
-OpenCode creates agents defined only in the user's config after plugins run, so they miss the rules. Status finds them, `unguardedAgents()`: agents with a base allow but without the rules, in order, anywhere after it. It names them and gives the per-agent fix.
+OpenCode creates agents defined only in the user's config after plugins run, so they miss the rules. Status finds those that need a fix, `unguardedAgents()`: agents with a base allow, without the block anywhere after it, whose own rules would let an unknown Plaud tool run without asking (`evaluate()`: the last matching rule wins). An agent whose rules already ask for or deny Plaud's tools is not listed. It names them and gives the per-agent fix.
 
 ## Export
 
@@ -108,10 +108,10 @@ The envelope's optional `account` picks the server: none or `default` is `plaud`
 
 The summary line names the most urgent account state, in this order: sign-in required, failed, not configured, disabled, connecting, connected.
 
-Every view shows the rows in one order: Connection (each account's state), Account (each account's server), Access (reads run, exports ask, and the export folders), Tools, Agents without default rules (with the rules to copy), OpenCode (`tested` or `host untested`), then one Next step: the most urgent, or `Nothing to do.`
+Every view shows the rows in one order: Connection (each account's state), Account (each account's server), Access (reads run, exports ask, and the export folders), Tools, Agents without default rules (`none`, or the names with the rules to copy), OpenCode (the version, `tested` or `untested`, and the supported range), then one Next step: the most urgent, or `Nothing to do.`
 
 Three views show it:
 
 - `/plaud-status` posts it as a synthetic message with `resume: false`, so no model turn starts. When some agent misses the rules, it adds them as JSON to copy.
-- The RPC `plaud.recordings` has one method, `status`, called with `{}`. It returns `{ accounts, exportRoots, tools, host, unguardedAgents, permissionsBlock, nextStep }`: `tools` counts the Plaud tools the plugin knows and the unknown ones, with up to ten unknown names. If the status cannot be read, it fails with the declared error `unavailable`, whose `data.nextStep` says what to do.
+- The RPC `plaud.recordings` has one method, `status`, called with `{}`. It returns `{ version, state, accounts, exportRoots, tools, host, unguardedAgents, permissionsBlock, nextStep }`. `version`, `state`, `host` (`{ version, range, tested }`), `unguardedAgents` and `nextStep` are the fields every plugin of this family shares; `state` is the most urgent account's, as `connected`, `sign_in_required`, `connecting`, `failed`, `disabled` or `not_configured`; it is never `host_untested`, because outside the supported range the plugin either does not start or was told to with `allowUntestedHost`. An untested release inside the range changes only `host.tested` and the OpenCode row. `tools` counts the Plaud tools the plugin knows and the unknown ones, with up to ten unknown names. If the status cannot be read, it fails with the declared error `unavailable`, whose `data.nextStep` says what to do.
 - The TUI part, `plaud.recordings.tui`, opens a dialog from the palette command **Plaud: Status**, or `/plaud` in the prompt. In the dialog, `r` refreshes and `Esc` closes. While the dialog is open, it reads the RPC again when the server reconnects, when a `plaud` or `plaud-<alias>` server changes state, and when an agent, an integration or a credential changes (`agent.updated`, `integration.updated`, `credential.updated`, `credential.switched`). The 2.2.x TUI receives no `mcp.tools.changed` event; `r` reads the tools again.

@@ -4,8 +4,8 @@ This repository builds `@joe-broadhead/opencode-plaud`, an unofficial OpenCode p
 
 ## Platform
 
-- Use only public APIs of `@opencode/plugin` that exist in OpenCode 2.2.3. The tested host range is exactly `>=2.2.3 <2.3.0`. Never write it as `^2.2.3`, which would accept an untested 2.3.
-- Test against stock OpenCode 2.2.3 and 2.2.4, never a fork or a patched host.
+- Use only public APIs of `@opencode/plugin` that exist in OpenCode 2.2.3. The supported host range is exactly `>=2.2.3 <2.3.0`. Never write it as `^2.2.3`, which would accept an untested 2.3.
+- Test against stock OpenCode 2.2.3, 2.2.4 and 2.2.5, never a fork or a patched host. `TESTED_HOSTS` in `src/version.ts` is the one list of tested releases; tests and CI read it, and no other file lists them.
 - Call `ctx.permission.assert(input)` with the input only: no signal and no second argument. Rethrow what it throws.
 - A plugin tool that returns `output` declares an `output` schema.
 - Tests never import host source. Use the public `@opencode/plugin`, `@opencode/sdk` and `@opencode/client` packages. Write test doubles as narrow `Pick<Plugin.Context, ...>` fakes, not full context objects.
@@ -42,7 +42,8 @@ Also forbidden, though no scan can find them: imported OAuth grants, V1 APIs, mi
 
 - The plugin id is `plaud.recordings`, the TUI id `plaud.recordings.tui`, the RPC id `plaud.recordings`, with the one method `status`, and the tools RPC id `plaud.recordings.tools`, with `describe` and one method per known read. Keep them stable.
 - The servers are `plaud` and `plaud-<alias>`. The plugin's only tool is `plaud_export`. The skills are `opencode-plaud`, `opencode-plaud-export` and `opencode-plaud-digest`.
-- Permissions are default `ask` rules inserted with `ctx.agent.transform` right after each agent's base allow. The only permission hook is the tools RPC's, above.
+- Permissions are default rules inserted with `ctx.agent.transform` right after each agent's base allow: `plaud*_*` asks, each configured server's five reads are allowed by exact name, and `plaud_export` asks. The only permission hook is the tools RPC's, above.
+- The status RPC's shared fields are `version`, `state`, `host` (`version`, `range`, `tested`), `unguardedAgents` and `nextStep`, with the same names and meanings in every plugin of this family. Keep them.
 - **Scripts read only.** The tools RPC makes exactly the five known reads methods; `plaud_export` and unknown tools never are. `src/host/tools-rpc.ts` is a copy of a module shared by several plugins: change only its block between the `PLUGIN-SPECIFIC` markers here, and the rest in the shared copy first. The executor it calls skips tool hooks, so its `shapeResult` withholds the signed links with the hook's own functions.
 - OpenCode holds Plaud's OAuth tokens. The plugin never reads, stores, logs or asks for a token.
 - Never redistribute `@plaud-ai/mcp`. Do not bundle, vendor or depend on it: it declares no licence.
@@ -52,7 +53,7 @@ Also forbidden, though no scan can find them: imported OAuth grants, V1 APIs, mi
 
 - No `dependencies` and no peer dependencies (`peerDependencies`, `peerDependenciesMeta`). OpenCode supplies `@opencode/plugin`, OpenTUI and Solid to plugins at runtime. `zod` is bundled into `dist/index.js` only, for the tool and option schemas. The RPC contract is plain JSON Schema, never zod, so `dist/tui.js` carries none.
 - Never bundle the host's runtime: `@opencode/plugin`, `effect`, OpenTUI or Solid. Do not ship TypeScript, build tools or a Node runtime.
-- `@opencode/plugin` is an exact dev dependency at 2.2.3, as are `@opencode/sdk` and `@opencode/client` for the host tests. OpenTUI and Solid are dev dependencies for the TUI build and tests. Do not add 2.2.4 to a lockfile.
+- `@opencode/plugin` is an exact dev dependency at 2.2.3, as are `@opencode/sdk` and `@opencode/client` for the host tests. OpenTUI and Solid are dev dependencies for the TUI build and tests. Do not add another SDK release to a lockfile.
 - `package.json` states compatibility as `"opencode": { "host": ">=2.2.3 <2.3.0" }`. The start-up check in `src/version.ts` uses the same range.
 - No lifecycle scripts, including `prepare`. Ship prebuilt JavaScript in `dist/`.
 - `dist/` holds exactly `index.js` and `tui.js`, each one self-contained esbuild bundle: no chunks and no relative imports. OpenCode reloads a plugin in place and keeps modules it already loaded, so a shared sibling module could be stale.

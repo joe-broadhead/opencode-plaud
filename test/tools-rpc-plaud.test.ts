@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../src/domain/redact.js"
 import { accountServer, KNOWN_READS as PLAUD_READS } from "../src/host/mcp.js"
-import { DEFAULT_RULES } from "../src/host/permissions.js"
+import { defaultRules } from "../src/host/permissions.js"
 import { registerTools } from "../src/host/tools/index.js"
 import { KNOWN_READS, NEXT_STEPS, registerToolsRpc, shapeResult, TOOLS_RPC_ID, type McpResult, type ToolCall } from "../src/host/tools-rpc.js"
 
@@ -42,7 +42,7 @@ async function rpc(tools: readonly string[], result: Result = upstream) {
     },
     permission: { hook: async () => ({ dispose: async () => undefined }) },
     session: { get: async ({ sessionID }: { sessionID: string }) => ({ id: sessionID, agent: "build", location: { directory: "/fixture/project" } }) },
-    agent: { get: async () => ({ data: { permissions: [{ action: "*", resource: "*", effect: "allow" }, ...DEFAULT_RULES] } }) },
+    agent: { get: async () => ({ data: { permissions: [{ action: "*", resource: "*", effect: "allow" }, ...defaultRules(["plaud"])] } }) },
     tool: {
       list: async () =>
         tools.map((id) => ({
@@ -93,7 +93,7 @@ describe("Plaud's tools RPC", () => {
     expect(TOOLS_RPC_ID).toBe("plaud.recordings.tools")
     expect([...KNOWN_READS]).toEqual(["list_files", "get_file", "get_note", "get_transcript", "get_current_user"])
     expect(KNOWN_READS).toBe(PLAUD_READS)
-    const allowed = DEFAULT_RULES.filter((rule) => rule.effect === "allow").map((rule) => rule.action.replace("plaud*_", ""))
+    const allowed = defaultRules(["plaud"]).filter((rule) => rule.effect === "allow").map((rule) => rule.action.replace("plaud_", ""))
     expect(allowed).toEqual([...KNOWN_READS])
     expect(KNOWN_READS).not.toContain("export")
   })

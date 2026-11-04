@@ -1,18 +1,22 @@
 import { describe, expect, it, vi } from "vitest"
-import { DEFAULT_RULES } from "../src/host/permissions.js"
+import { defaultRules } from "../src/host/permissions.js"
 import { registerCommands, STATUS_COMMAND } from "../src/host/commands.js"
 import { statusLines, type Status } from "../src/rpc.js"
 import { formatStatus, summarizeStatus } from "../src/status.js"
 
+const DEFAULT_RULES = defaultRules(["plaud", "plaud-work"])
+
 function status(overrides: Partial<Status> = {}): Status {
   return {
+    version: "0.0.0-test",
+    state: "sign_in_required",
     accounts: [
       { account: "default", server: "plaud", state: "sign_in_needed" },
       { account: "work", server: "plaud-work", state: "signed_in" },
     ],
     exportRoots: ["/fixture/Plaud", "/fixture/Shared"],
     tools: { visible: 6, unknown: 0, unknownNames: [] },
-    host: { version: "2.2.3", tested: true },
+    host: { version: "2.2.3", range: ">=2.2.3 <2.3.0", tested: true },
     unguardedAgents: [],
     permissionsBlock: DEFAULT_RULES.map((rule) => ({ ...rule })),
     nextStep: "Run /connect and choose Plaud, then press o or Enter to open the sign-in page.",
@@ -38,11 +42,11 @@ function register(read: () => Promise<Status>) {
 }
 
 describe("/plaud-status text", () => {
-  it("is the summary, then the same lines the TUI dialog shows", () => {
+  it("is the TUI dialog's title, then the same lines it shows, every row included (INSTALL-10)", () => {
     const value = status()
     const text = formatStatus(value)
     expect(text.split("\n")).toEqual([
-      "**Plaud: sign-in required**",
+      "**Plaud status**",
       "",
       ...statusLines(value).map((line) => `- ${line.label}: ${line.value}`),
     ])
@@ -50,6 +54,9 @@ describe("/plaud-status text", () => {
     expect(text).toContain("- Account: default (server plaud), work (server plaud-work)")
     expect(text).toContain("- Access: Reads run without asking. Exports ask, and write only in /fixture/Plaud, /fixture/Shared.")
     expect(text).toContain("- Tools: 6 available")
+    expect(text).toContain("- Agents without default rules: none")
+    expect(text).toContain("- OpenCode: 2.2.3 (tested; supported range >=2.2.3 <2.3.0)")
+    expect(statusLines(value).map((line) => line.label)).toEqual(["Connection", "Account", "Access", "Tools", "Agents without default rules", "OpenCode", "Next step"])
     expect(text).toContain("- Next step: Run /connect and choose Plaud,")
     expect(summarizeStatus(value)).toBe("Plaud: sign-in required")
   })

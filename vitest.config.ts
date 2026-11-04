@@ -1,4 +1,8 @@
+import { readFileSync } from "node:fs"
 import { defineConfig } from "vitest/config"
+
+// The build replaces __PLUGIN_VERSION__ (src/version.ts) the same way.
+const VERSION = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version as string
 
 /**
  * One project per `npm run check` stage:
@@ -10,6 +14,7 @@ import { defineConfig } from "vitest/config"
 export default defineConfig({
   // test/tui.test.ts imports src/tui.tsx; the shipped dist/tui.js is built by scripts/build.mjs.
   oxc: { jsx: { runtime: "automatic", importSource: "@opentui/solid" } },
+  define: { __PLUGIN_VERSION__: JSON.stringify(VERSION) },
   test: {
     projects: [
       {

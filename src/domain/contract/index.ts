@@ -16,7 +16,7 @@ export function exportInput(accounts: readonly [string, ...string[]]) {
         .enum(accounts)
         .optional()
         .describe(`Account to export from; defaults to "${accounts[0]}"`),
-      recordingId: z.string().min(1).max(200).describe("Plaud recording id, from list_files or get_file"),
+      recordingId: z.string().min(1).max(200).describe("Plaud recording id, from list_files"),
       kind: z.enum(EXPORT_KINDS).describe("audio: the recording's audio file; transcript or note: a Markdown file"),
       block: z
         .enum(TRANSCRIPT_BLOCKS)

@@ -1,7 +1,8 @@
 import type { Plugin } from "@opencode/plugin"
 import { describe, expect, it, vi } from "vitest"
 import {
-  DEFAULT_RULES,
+  defaultRules,
+  evaluate,
   EXPORT_ACTION,
   insertDefaultRules,
   registerPermissions,
@@ -64,24 +65,32 @@ function fakeAgent() {
 }
 
 const rules = (agents: readonly Agent[], id: string) => agents.find((agent) => agent.id === id)!.permissions
+/** The block for the default account alone. */
+const DEFAULT_RULES = defaultRules(["plaud"])
 
 describe("default permission rules", () => {
-  it("asks for every plaud tool, allows the known reads, and asks for exports", () => {
+  it("asks for every plaud tool, allows each configured server's known reads by exact name, and asks for exports", () => {
     expect(EXPORT_ACTION).toBe("plaud_export")
-    expect(DEFAULT_RULES).toEqual([
+    const reads = ["list_files", "get_file", "get_note", "get_transcript", "get_current_user"]
+    expect(defaultRules(["plaud", "plaud-work"])).toEqual([
       { action: "plaud*_*", resource: "*", effect: "ask" },
-      { action: "plaud*_list_files", resource: "*", effect: "allow" },
-      { action: "plaud*_get_file", resource: "*", effect: "allow" },
-      { action: "plaud*_get_note", resource: "*", effect: "allow" },
-      { action: "plaud*_get_transcript", resource: "*", effect: "allow" },
-      { action: "plaud*_get_current_user", resource: "*", effect: "allow" },
+      ...reads.map((read) => ({ action: `plaud_${read}`, resource: "*", effect: "allow" })),
+      ...reads.map((read) => ({ action: `plaud-work_${read}`, resource: "*", effect: "allow" })),
       { action: "plaud_export", resource: "*", effect: "ask" },
     ])
   })
 
+  it("allows no tool that only ends like a known read: a later upstream tool, an unconfigured account or another plaud* server asks (PLAUD-5)", () => {
+    const agent = [allow, ...defaultRules(["plaud", "plaud-work"])]
+    expect(["plaud_get_file", "plaud-work_get_transcript", "plaud-work_get_current_user"].map((action) => evaluate(agent, action))).toEqual(["allow", "allow", "allow"])
+    for (const action of ["plaud_bulk_get_file", "plaud-work_bulk_get_note", "plaud-other_get_file", "plaudit_get_file", "plaud_delete_file", EXPORT_ACTION]) {
+      expect(evaluate(agent, action), action).toBe("ask")
+    }
+  })
+
   it("lands right after each agent's base allow, ahead of the agent's own rules", () => {
     const { value, agents } = editor(builtIns())
-    insertDefaultRules(value)
+    insertDefaultRules(DEFAULT_RULES)(value)
     const after = agents()
     expect(rules(after, "build")).toEqual([allow, ...DEFAULT_RULES, ...env])
     expect(rules(after, "plan")).toEqual([allow, ...DEFAULT_RULES, ...env, { action: "edit", resource: "*", effect: "deny" }])
@@ -92,19 +101,19 @@ describe("default permission rules", () => {
   it("inserts after the base allow wherever it sits", () => {
     const earlier: Rule = { action: "other_*", resource: "*", effect: "ask" }
     const { value, agents } = editor([{ id: "custom", permissions: [earlier, allow, ...env] }])
-    insertDefaultRules(value)
+    insertDefaultRules(DEFAULT_RULES)(value)
     expect(rules(agents(), "custom")).toEqual([earlier, allow, ...DEFAULT_RULES, ...env])
   })
 
   it("leaves agents without a base allow untouched", () => {
     const { value, agents } = editor(builtIns())
-    insertDefaultRules(value)
+    insertDefaultRules(DEFAULT_RULES)(value)
     expect(rules(agents(), "locked")).toEqual(rules(builtIns(), "locked"))
   })
 
   it("inserts copies, so one agent's edits never reach another's rules", () => {
     const { value, agents } = editor(builtIns())
-    insertDefaultRules(value)
+    insertDefaultRules(DEFAULT_RULES)(value)
     const after = agents()
     expect(rules(after, "build")[1]).not.toBe(rules(after, "plan")[1])
     expect(rules(after, "build")[1]).not.toBe(DEFAULT_RULES[0])
@@ -113,16 +122,15 @@ describe("default permission rules", () => {
   it("registers one synchronous agent transform and no permission hook", async () => {
     const { ctx, transform } = fakeAgent()
     const hook = vi.fn()
-    const registration = await registerPermissions({ ...ctx, permission: { hook } } as Pick<Plugin.Context, "agent">)
+    const registration = await registerPermissions({ ...ctx, permission: { hook } } as Pick<Plugin.Context, "agent">, DEFAULT_RULES)
     expect(transform).toHaveBeenCalledOnce()
-    expect(transform).toHaveBeenCalledWith(insertDefaultRules)
     expect(hook).not.toHaveBeenCalled()
     expect(typeof registration.dispose).toBe("function")
   })
 
   it("keeps one copy of the rules on every replay", async () => {
     const { ctx, replay } = fakeAgent()
-    await registerPermissions(ctx)
+    await registerPermissions(ctx, DEFAULT_RULES)
     for (let run = 0; run < 3; run++) {
       const after = replay()
       for (const id of ["build", "plan", "explore"]) {
@@ -136,31 +144,39 @@ describe("default permission rules", () => {
 describe("unguarded agents", () => {
   it("names agents with a base allow that never got the rules", () => {
     const { value, agents } = editor(builtIns())
-    insertDefaultRules(value)
+    insertDefaultRules(DEFAULT_RULES)(value)
     const configOnly: Agent = { id: "reviewer", permissions: [allow, ...env] }
-    expect(unguardedAgents([...agents(), configOnly])).toEqual(["reviewer"])
+    expect(unguardedAgents([...agents(), configOnly], DEFAULT_RULES)).toEqual(["reviewer"])
   })
 
   it("still finds the rules when a later plugin inserts its own after the base allow", () => {
     const { value, agents } = editor(builtIns())
-    insertDefaultRules(value)
+    insertDefaultRules(DEFAULT_RULES)(value)
     const other: Rule = { action: "other_*", resource: "*", effect: "ask" }
     const shifted = agents().map((agent) => agent.id === "locked" ? agent : { ...agent, permissions: [allow, other, ...agent.permissions.slice(1)] })
     expect(rules(shifted, "build").slice(0, 3)).toEqual([allow, other, DEFAULT_RULES[0]])
-    expect(unguardedAgents(shifted)).toEqual([])
+    expect(unguardedAgents(shifted, DEFAULT_RULES)).toEqual([])
   })
 
-  it("names an agent that has only part of the rules", () => {
-    const partial: Agent = { id: "partial", permissions: [allow, ...DEFAULT_RULES.slice(0, 3)] }
-    expect(unguardedAgents([partial])).toEqual(["partial"])
+  it("names an agent that has only part of the rules, without the ask for every Plaud tool", () => {
+    const partial: Agent = { id: "partial", permissions: [allow, ...DEFAULT_RULES.slice(1)] }
+    expect(unguardedAgents([partial], DEFAULT_RULES)).toEqual(["partial"])
   })
 
   it("names an agent whose rules come only before its base allow", () => {
     const early: Agent = { id: "early", permissions: [...DEFAULT_RULES, allow] }
-    expect(unguardedAgents([early])).toEqual(["early"])
+    expect(unguardedAgents([early], DEFAULT_RULES)).toEqual(["early"])
+  })
+
+  it("does not name an agent whose own rules already ask for or deny Plaud's tools (LIVE-1)", () => {
+    const asks: Agent = { id: "perf-probe", permissions: [allow, ...env, { action: "*", resource: "*", effect: "ask" }] }
+    const denies: Agent = { id: "quiet", permissions: [allow, { action: "plaud*_*", resource: "*", effect: "deny" }] }
+    const asksPlaud: Agent = { id: "careful", permissions: [allow, { action: "plaud*", resource: "*", effect: "ask" }] }
+    const allowsAll: Agent = { id: "smoke-bot", permissions: [allow, { action: "*", resource: "*", effect: "allow" }] }
+    expect(unguardedAgents([asks, denies, asksPlaud, allowsAll], DEFAULT_RULES)).toEqual(["smoke-bot"])
   })
 
   it("does not name agents without a base allow", () => {
-    expect(unguardedAgents([{ id: "locked", permissions: [{ action: "*", resource: "*", effect: "deny" }] }])).toEqual([])
+    expect(unguardedAgents([{ id: "locked", permissions: [{ action: "*", resource: "*", effect: "deny" }] }], DEFAULT_RULES)).toEqual([])
   })
 })

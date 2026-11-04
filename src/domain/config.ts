@@ -22,9 +22,14 @@ const DEFAULT_EXPORT_TIMEOUT_MS = 30 * 60_000
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"])
 
+/** A loopback host name: the URL points at this machine. */
+export function onThisMachine(url: URL): boolean {
+  return LOOPBACK.has(url.hostname)
+}
+
 /** https, or plain http on this machine only. */
 export function secureUrl(url: URL): boolean {
-  return url.protocol === "https:" || (url.protocol === "http:" && LOOPBACK.has(url.hostname))
+  return url.protocol === "https:" || (url.protocol === "http:" && onThisMachine(url))
 }
 
 const alias = z

@@ -36,7 +36,7 @@ const AUDIO_TYPES: Record<string, string> = {
  * has its own file; `<recordingId>.md` for a note; for audio `<recordingId>`
  * with the link's extension, then the content type's, then `.bin`.
  */
-export function defaultFileName(recordingId: string, file: { readonly block: string } | { readonly audio: { url: string; contentType: string | null } } | { readonly note: true }): string {
+export function defaultFileName(recordingId: string, file: { readonly block: string } | { readonly audio: { url: URL; contentType: string | null } } | { readonly note: true }): string {
   if (!SAFE_FILE_NAME.test(recordingId)) {
     fail(
       "EXPORT_BAD_DESTINATION",
@@ -48,8 +48,8 @@ export function defaultFileName(recordingId: string, file: { readonly block: str
   return `${recordingId}${"audio" in file ? audioExtension(file.audio.url, file.audio.contentType) : ".md"}`
 }
 
-function audioExtension(url: string, contentType: string | null): string {
-  const fromUrl = extname(new URL(url).pathname)
+function audioExtension(url: URL, contentType: string | null): string {
+  const fromUrl = extname(url.pathname)
   if (AUDIO_EXTENSION.test(fromUrl)) return fromUrl.toLowerCase()
   return AUDIO_TYPES[contentType?.split(";")[0]?.trim().toLowerCase() ?? ""] ?? ".bin"
 }

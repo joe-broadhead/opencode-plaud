@@ -198,7 +198,7 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | `STATUS_UNAVAILABLE` | status views | The status could not be read. |
 | `AUTH_REQUIRED` | export | The account's server is not connected or not signed in. |
 | `PLAUD_READ_FAILED` | export | A Plaud read failed or was denied. |
-| `PLAUD_UNREADABLE` | export | Plaud returned something the plugin cannot use, such as a non-https audio link or a transcript that never ends. |
+| `PLAUD_UNREADABLE` | export | Plaud returned something the plugin cannot use, such as an audio link that is not a valid https URL, an audio download that redirects to one or more than 5 times, or a transcript that never ends. |
 | `CONTENT_UNAVAILABLE` | export | The recording has no audio yet, or no such transcript block. |
 | `EXPORT_OUTSIDE_ROOTS` | export | The destination is outside the export roots. |
 | `EXPORT_BAD_DESTINATION` | export | The destination is a folder or a root, or the recording id cannot be a file name. |

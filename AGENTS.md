@@ -25,7 +25,7 @@ The lint stage of `npm run check` scans `src/`, `test/` and `scripts/` for these
 - an import of `@opencode/ai`, of an `@opencode` package other than `plugin`, `sdk`, `client` and `theme`, or of a path inside an `@opencode` package;
 - an import of host source (`packages/*/src`), of the V1 plugin API (`@opencode-ai/*`), or of an absolute, machine-local path;
 - in the shipped code: importing `effect` or `child_process`, or a computed module path;
-- in tests: `skip`, `skipIf`, `runIf`, `only` and `todo`, except the one `skipIf` in the shared `test/tools-rpc.test.ts`, which skips its MCP tests only for a plugin with no known reads; Plaud has five, so every test runs.
+- in tests: `skip`, `skipIf`, `runIf`, `only` and `todo`, with no exception: the shared `test/tools-rpc.test.ts` registers its MCP tests with a plain `if`, and Plaud has five known reads, so every test runs.
 
 Each exception is counted: the lint stage and the pack test fail when one appears anywhere else, or more often.
 

@@ -61,11 +61,11 @@ describe("source layout", () => {
 
 /**
  * The only exemptions, by file: the tools RPC's one evaluate hook and its reads of OpenCode's error tags, and its
- * shared unit test's fakes of those errors and its one skipIf. See AGENTS.md.
+ * shared unit test's fakes of those errors. See AGENTS.md.
  */
 const EXEMPT: Readonly<Record<string, readonly Exemption[]>> = {
   "src/host/tools-rpc.ts": ["evaluate hook", "error tags"],
-  "test/tools-rpc.test.ts": ["error tags", "skipIf"],
+  "test/tools-rpc.test.ts": ["error tags"],
 }
 
 describe("forbidden host APIs", () => {
@@ -85,8 +85,6 @@ describe("forbidden host APIs", () => {
       walk(join(ROOT, directory)).map((file) => [rel(file), exemptUses(readFileSync(file, "utf8"), file, exemption)] as const).filter(([, count]) => count > 0)
     expect(uses("src", "evaluate hook")).toEqual([["src/host/tools-rpc.ts", 1]])
     expect(uses("src", "error tags").map(([file]) => file)).toEqual(["src/host/tools-rpc.ts"])
-    // The shared test's one skipIf skips its MCP tests only for a plugin with no known reads; Plaud has five.
-    expect(uses("test", "skipIf")).toEqual([["test/tools-rpc.test.ts", 1]])
     // Without its exemptions, the tools RPC breaks both rules.
     const rpc = join(SRC, "host", "tools-rpc.ts")
     const problems = forbiddenUses(readFileSync(rpc, "utf8"), rpc, "shipped").join("\n")

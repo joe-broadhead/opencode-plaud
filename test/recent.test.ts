@@ -19,8 +19,8 @@ type Tool = {
 }
 
 const RECORDINGS = [
-  { id: "rec-3", name: "Design review", start_at: "2026-10-31T14:05:00Z", duration: 3_780_000, presigned_url: "https://files.example.invalid/a.mp3?X-Amz-Signature=s" },
-  { id: "rec-2", name: "", created_at: "2026-10-30T09:00:00Z", duration: 20_000 },
+  { id: "rec-3", name: "Design review", start_at: "2026-10-31T14:05:00", duration: 3_780_000, presigned_url: "https://files.example.invalid/a.mp3?X-Amz-Signature=s" },
+  { id: "rec-2", name: "", created_at: "2026-10-30T09:00:00", duration: 20_000 },
   { name: "No id, skipped" },
   { id: "rec-1", name: "Two\nlines\tand  tabs" },
 ]

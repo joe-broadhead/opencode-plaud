@@ -90,9 +90,9 @@ export async function startFakePlaud(): Promise<FakePlaud> {
   const recording = (id: string) => ({
     id,
     name: "Weekly sync",
-    created_at: "2026-10-01T09:00:00Z",
+    created_at: "2026-10-01T09:00:00",
     serial_number: "P0000000000",
-    start_at: "2026-10-01T09:00:00Z",
+    start_at: "2026-10-01T09:00:00",
     duration: 63_500,
   })
   const note = (id: string) => ({

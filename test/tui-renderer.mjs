@@ -11,32 +11,36 @@ const { RPC_ID, rulesBlock, statusLines } = await import("../src/rpc.ts")
 
 const RULES = [
   { action: "plaud*_*", resource: "*", effect: "ask" },
-  { action: "plaud*_list_files", resource: "*", effect: "allow" },
-  { action: "plaud*_get_file", resource: "*", effect: "allow" },
-  { action: "plaud*_get_note", resource: "*", effect: "allow" },
-  { action: "plaud*_get_transcript", resource: "*", effect: "allow" },
-  { action: "plaud*_get_current_user", resource: "*", effect: "allow" },
+  { action: "plaud_list_files", resource: "*", effect: "allow" },
+  { action: "plaud_get_file", resource: "*", effect: "allow" },
+  { action: "plaud_get_note", resource: "*", effect: "allow" },
+  { action: "plaud_get_transcript", resource: "*", effect: "allow" },
+  { action: "plaud_get_current_user", resource: "*", effect: "allow" },
   { action: "plaud_export", resource: "*", effect: "ask" },
 ]
+const RANGE = ">=2.2.3 <2.3.0"
 const status = (overrides = {}) => ({
+  version: "0.0.0-test",
+  state: "sign_in_required",
   accounts: [
     { account: "default", server: "plaud", state: "sign_in_needed" },
     { account: "work", server: "plaud-work", state: "signed_in" },
   ],
   exportRoots: ["/fixture/Plaud"],
   tools: { visible: 6, unknown: 0, unknownNames: [] },
-  host: { version: "2.2.3", tested: true },
+  host: { version: "2.2.3", range: RANGE, tested: true },
   unguardedAgents: [],
   permissionsBlock: RULES,
   nextStep: "Run /connect and choose Plaud, then press o or Enter to open the sign-in page.",
   ...overrides,
 })
 const signedIn = status({
+  state: "connected",
   accounts: [{ account: "default", server: "plaud", state: "signed_in" }],
   nextStep: "Nothing to do.",
 })
 const attention = status({
-  host: { version: "2.3.0", tested: false, warning: "opencode-plaud is tested on OpenCode >=2.2.3 <2.3.0, and this is OpenCode 2.3.0." },
+  host: { version: "2.3.0", range: RANGE, tested: false },
   tools: { visible: 11, unknown: 1, unknownNames: ["delete_file"] },
   unguardedAgents: ["reviewer"],
   nextStep: "Agent reviewer did not get Plaud's default permission rules.",

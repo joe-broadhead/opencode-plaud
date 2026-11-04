@@ -21,10 +21,13 @@ changes nothing in Jelly.
 
 - Ask: `plaud_export`.
 - Off: none.
-- Everything else runs, as the plugin's own rules let it.
+- Everything else runs, as the plugin's own rules let it: the five reads of Plaud's server, and
+  `plaud_recent`, the plugin's own read of the newest recordings.
 
-A tool the upstream server adds later is not declared, so in Jelly it is not asked about by
-default. Keep `jelly.tools` in step with the known-tool list; `test/**/jelly.test.ts` checks
+The reads are declared for the default account's server, `plaud`. Another account's reads,
+`plaud-<alias>_<read>`, are not declared, because the accounts are a plugin option that Jelly
+does not read. A tool the upstream server adds later is not declared either. In Jelly, a tool
+that is not declared is not asked about by default. Keep `jelly.tools` in step with the known-tool list; `test/jelly.test.ts` checks
 each declared effect against the plugin's own default rules.
 
 ## Skills
@@ -34,9 +37,11 @@ skill ids collide with another plugin's or the agent's own.
 
 ## Views
 
-- **Recent Plaud recordings**, a Home feed preset: `plaud.recent` (the plugin's own read, which
-  calls Plaud's `list_files` through the host) answers in Home's `list` shape, one line per
-  recording, every 30 minutes.
+The plugin declares no views. It offers one Home feed preset:
+
+- **Recent Plaud recordings**: `plaud.recent` (the plugin's own read, which calls Plaud's
+  `list_files` through the host) answers in Home's `list` shape, one line per recording, every
+  30 minutes.
 
 ## Signing in
 
@@ -46,5 +51,5 @@ Jelly folds the declared sign-ins into this plugin's one card, which shows each 
 
 ## Versions
 
-Jelly's curated catalogue pins an exact version. `latest` is `0.0.0`; publish each release
-under a new version so a review in Jelly can tell the two apart.
+Jelly's curated catalogue pins an exact version. Publish each release under a new version, so
+that a review in Jelly can tell the two apart.

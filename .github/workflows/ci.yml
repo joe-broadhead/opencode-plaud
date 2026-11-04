@@ -1,5 +1,6 @@
-# Runs what a contributor runs locally: npm ci with scripts off, then npm run check.
-# The host suite then runs again on @opencode/sdk 2.2.4, installed outside the lockfiles.
+# Runs what a contributor runs locally: npm ci with scripts off, then npm run check. The host suite runs on each
+# tested OpenCode release (TESTED_HOSTS in src/version.ts: 2.2.3, 2.2.4 and 2.2.5), installing each @opencode/sdk
+# other than the lockfile's itself, and the pack test installs each stock @opencode/cli release itself.
 name: CI
 
 on:
@@ -23,7 +24,7 @@ jobs:
         # Public GitHub-hosted runners: Linux x64, Linux arm64, macOS arm64, macOS x64.
         os: [ubuntu-24.04, ubuntu-24.04-arm, macos-26, macos-26-intel]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -32,21 +33,13 @@ jobs:
         with:
           node-version: 24 # the embedded OpenCode host needs Node 24 or later
           cache: npm
-          # The pack test installs the stock @opencode/cli releases it names, so it is part of the key.
+          # The host and pack stages install the releases src/version.ts lists, so it is part of the key.
           cache-dependency-path: |
             package-lock.json
-            test/pack-install.test.ts
+            src/version.ts
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.4 # the Bun inside stock OpenCode 2.2.3 and 2.2.4
+          bun-version: 1.4.4 # the Bun inside stock OpenCode 2.2.3, 2.2.4 and 2.2.5
       # OpenCode installs plugins with scripts off, and no dev dependency needs its install script.
       - run: npm ci --ignore-scripts
       - run: npm run check
-      - name: Host suite on @opencode/sdk 2.2.4
-        shell: bash
-        run: |
-          sdk="$RUNNER_TEMP/sdk-2.2.4"
-          mkdir "$sdk"
-          echo '{ "private": true }' > "$sdk/package.json"
-          npm install --prefix "$sdk" --ignore-scripts --no-audit --no-fund @opencode/sdk@2.2.4
-          HOST_SDK_DIR="$sdk" npm run test:host

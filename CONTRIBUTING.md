@@ -7,7 +7,7 @@ Read [AGENTS.md](AGENTS.md) first: it has the rules every change follows. [docs/
 You need:
 
 - Node 24 or later, with npm. The embedded OpenCode host in the host tests needs Node 24.
-- [Bun](https://bun.sh) on `PATH`, for the TUI render test and the pack test. CI uses Bun 1.4.4, the Bun inside stock OpenCode 2.2.3 and 2.2.4.
+- [Bun](https://bun.sh) on `PATH`, for the TUI render test and the pack test. CI uses Bun 1.4.4, the Bun inside stock OpenCode 2.2.3, 2.2.4 and 2.2.5.
 - macOS or Linux.
 
 ```sh
@@ -39,28 +39,22 @@ One command runs every check, in this order. Each stage is also a script of its 
 | lint | `npm run lint` | Import boundaries in `src/`, and the forbidden host APIs in `src/`, `test/` and `scripts/` (see [AGENTS.md](AGENTS.md#forbidden)), with the tools RPC's counted exceptions. |
 | build | `npm run build` | Cleans `dist/`, then bundles `dist/index.js` (the server part) and `dist/tui.js` (the TUI part, after Solid's JSX transform), each one self-contained file with the RPC contract inlined and no relative imports; zod goes into the server part only. It checks that `NOTICE` covers exactly the packages each bundle contains (`node scripts/build.mjs --notice` rewrites it). The build fails if an output imports a module that is neither bundled nor provided by OpenCode. |
 | unit | `npm test` | The plugin's modules against narrow fakes, `scripts/check-upstream.mjs` against a fake server, and a render of the built `dist/tui.js` under Bun. |
-| host | `npm run test:host` | The built plugin in an embedded OpenCode 2.2.3 host (`@opencode/sdk`), on a loopback fake Plaud server, with the network blocked and every OpenCode path inside a temporary folder: registration, the default rules, user rules, saved approvals, exports, the signed links (in Code Mode and in direct calls by a scripted loopback model), the tools RPC for scripts, setup refusals and the status views. |
-| pack | `npm run test:pack` | Packs the tarball, installs it alone with scripts off, and loads it in stock OpenCode 2.2.3 and 2.2.4 (`opencode serve`), where it also calls the tools RPC as a script. It also checks the file list, that `dist/` holds only the two self-contained entries with no relative, dynamic or required module, that `dist/tui.js` has no zod and stays under 30 KB, the size, the missing dependencies and peers, and the built `dist/` for forbidden APIs, and imports each export under Bun. |
+| host | `npm run test:host` | The built plugin in an embedded OpenCode host (`@opencode/sdk`), once per tested release (`TESTED_HOSTS` in `src/version.ts`: 2.2.3, 2.2.4 and 2.2.5), on a loopback fake Plaud server, with the network blocked and every OpenCode path inside a temporary folder: registration, the default rules, user rules, saved approvals, exports, the signed links (in Code Mode and in direct calls by a scripted loopback model), the tools RPC for scripts, setup refusals and the status views. |
+| pack | `npm run test:pack` | Packs the tarball, installs it alone with scripts off, and loads it in each tested stock OpenCode release (`opencode serve`, on its own port), where it also calls the tools RPC as a script. It also checks the file list, that `dist/` holds only the two self-contained entries with no relative, dynamic or required module, that `dist/tui.js` has no zod and stays under 30 KB, the size, the missing dependencies and peers, and the built `dist/` for forbidden APIs, and imports each export under Bun. |
 
 ### Environment variables
 
 | Variable | Used by | Effect |
 | --- | --- | --- |
 | `VITEST_MAX_WORKERS` | every stage that runs Vitest | Limits parallel test workers, for example `VITEST_MAX_WORKERS=2` on a busy machine. |
-| `HOST_SDK_DIR` | `test:host` | A folder with another `@opencode/sdk` installed, to run the host tests on that release. |
-| `OPENCODE_BIN_2_2_3`, `OPENCODE_BIN_2_2_4` | `test:pack` | Paths to stock `opencode` binaries. Without them, the pack test installs `@opencode/cli@2.2.3` and `@opencode/cli@2.2.4` from npm into a temporary folder, so its first run needs the registry. |
+| `HOST_SDK_DIR_2_2_4`, `HOST_SDK_DIR_2_2_5` | `test:host` | A folder whose `node_modules` holds that `@opencode/sdk` release. Without one, `scripts/host-tests.mjs` installs it from npm, with scripts off, into a folder under `/tmp` that it removes afterwards. 2.2.3 is the lockfile's. |
+| `HOST_SDK_DIR` | `test:host` | A folder with an `@opencode/sdk` installed: the host tests run once, on that release only. |
+| `OPENCODE_BIN_2_2_3`, `OPENCODE_BIN_2_2_4`, `OPENCODE_BIN_2_2_5` | `test:pack` | Paths to stock `opencode` binaries. Without one, the pack test installs that `@opencode/cli` release from npm, once per run, into its own folder under `/tmp`, so its first run needs the registry. |
 | `PACK_TARBALL` | `test:pack` | Test this tarball instead of packing one, such as the tarball a release publishes. |
 
-To run the host tests on OpenCode 2.2.4, as CI does:
+The tested releases are listed once, in `TESTED_HOSTS` (`src/version.ts`); the host and pack stages, CI and a unit test read it. To test another release, add it there. Do not add another SDK release to a lockfile.
 
-```sh
-sdk="$(mktemp -d)"
-echo '{ "private": true }' > "$sdk/package.json"
-npm install --prefix "$sdk" --ignore-scripts --no-audit --no-fund @opencode/sdk@2.2.4
-HOST_SDK_DIR="$sdk" npm run test:host
-```
-
-Do not add 2.2.4 to a lockfile.
+Every isolated host runs in a folder under `/tmp`, never below your home folder, where OpenCode's upward search would read your own `.opencode` folders and `opencode.json`; a test folder with one of those above it is refused. Each stock `opencode serve` gets its own free port, and its root pins that port for any CLI call, so no test reaches your own OpenCode service.
 
 ## Check Plaud's tools (maintainers)
 
@@ -88,6 +82,8 @@ It needs the network and a signed-in Plaud account, so it is not part of `npm ru
 | The `/connect` names | `src/host/integration.ts` |
 | Default permission rules | `src/host/permissions.ts` |
 | `plaud_export` | `src/domain/contract/index.ts`, `src/host/tools/export.ts`, `src/domain/export.ts`, `src/domain/normalize.ts` |
+| `plaud_recent` | `src/domain/contract/index.ts`, `src/host/tools/recent.ts`, `src/domain/normalize.ts` |
+| The Jelly declaration | the `jelly` section of `package.json`, `docs/jelly.md` |
 | Signed-link withholding | `src/domain/redact.ts`, `src/host/tools/index.ts`, and `shapeResult` in `src/host/tools-rpc.ts` |
 | Status, `/plaud-status`, the RPC and the TUI | `src/status.ts`, `src/rpc.ts`, `src/host/commands.ts`, `src/host/rpc.ts`, `src/tui.tsx` |
 | The tools RPC for scripts | `src/host/tools-rpc.ts` (only its `PLUGIN-SPECIFIC` block is Plaud's), `docs/scripting.md` |

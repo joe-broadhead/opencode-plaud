@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest version gets security fixes. It supports OpenCode `>=2.2.3 <2.3.0` and is tested on 2.2.3 and 2.2.4.
+Only the latest version gets security fixes. It supports OpenCode `>=2.2.3 <2.3.0` and is tested on 2.2.3, 2.2.4 and 2.2.5.
 
 ## Reporting a vulnerability
 
@@ -15,7 +15,7 @@ Include the plugin version, the OpenCode version, what you did and what happened
 Recordings, transcripts and notes are often highly sensitive. The plugin:
 
 - never sees your Plaud sign-in. OpenCode's MCP OAuth signs you in, and OpenCode stores and refreshes the tokens in its own credential store. The plugin has no option for a token and never reads, logs or stores one;
-- makes one kind of network request of its own: an export's audio download, from the signed audio link Plaud returns. OpenCode's MCP client makes every other request to Plaud's server;
+- makes one kind of network request of its own: an export's audio download, from the signed audio link Plaud returns. The link and every redirect it follows must be https, with no user name or password in them. OpenCode's MCP client makes every other request to Plaud's server;
 - writes files only for `plaud_export`, only inside your export roots, as private files (0600) in private folders (0700) that it creates. It refuses a destination outside the roots, including through a symbolic link, and replaces a file only with `overwrite: true`;
 - stores nothing else and collects no telemetry.
 
@@ -50,11 +50,11 @@ Recording names, transcripts and notes are content from your recordings, and any
 
 ## Scripts
 
-The tools RPC (`plaud.recordings.tools`, see [docs/scripting.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/scripting.md)) runs Plaud's five read tools for a script, with no model. It adds no authority:
+The tools RPC (`plaud.recordings.tools`, see [docs/scripting.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/scripting.md)) runs Plaud's five read tools and the plugin's own `plaud_recent` for a script, with no model. It adds no authority:
 
 - A script names a session that names an agent, and runs as them. A tool that the agent's or the session's rules hide from the model is refused. OpenCode's own executor then checks the call against the agent's rules, the session's rules and saved approvals, as it does for the model.
 - An ask on a script's call is denied, not prompted: no one is there to answer it. The plugin's permission hook changes only an ask on one of its own script calls in flight, only to a deny, and leaves every other call alone.
-- Only the five known reads are methods. `plaud_export` and any other Plaud tool, including one Plaud adds later, never are, even with an allow rule. A script writes no file.
+- Only the five known reads and `plaud_recent` (method `recent`) are methods. `recent` asserts `plaud_recent` and reads through the account's own `list_files`, as for the model. `plaud_export` and any other Plaud tool, including one Plaud adds later, never are, even with an allow rule. A script writes no file.
 - A script never gets a signed link: the plugin withholds every `presigned_url` and `data_link` in the result, as the hook does for the model.
 - `account` picks an account from the plugin's `accounts` option; any other value is refused. A server your config defines under an account's name is used, as for the model.
 - The call goes through OpenCode's own MCP connection and sign-in. The plugin never sees the token, and returns none.

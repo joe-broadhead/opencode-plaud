@@ -8,11 +8,13 @@ import { startHost, type Harness, type Rule } from "./harness.js"
  * session and its agent. Accounts as a user with two extra ones would have them: `team` is the plugin's own
  * `plaud-team` server, and `work` is a `plaud-work` server the user defined, which still needs sign-in. Two agents
  * exist only in the user's config, so they carry exactly their own rules after the host's: `locked` denies every
- * Plaud tool, and `careful` asks before notes.
+ * Plaud tool, and `careful` asks before notes. `recent` is the plugin's own plaud_recent, which reads the envelope's
+ * account through that account's list_files.
  */
 
 const RPC = "plaud.recordings.tools"
 const METHODS = ["describe", "list_files", "get_file", "get_note", "get_transcript", "get_current_user"]
+const RECENT = { items: [{ id: "rec-1", text: "Weekly sync · 2026-10-01 09:00 UTC · 1 min" }], editable: false }
 const rule = (action: string, effect: Rule["effect"]): Rule => ({ action, resource: "*", effect })
 
 let host: Harness
@@ -61,6 +63,9 @@ beforeAll(async () => {
   sessions.reopen = await create({ agent: "locked", permissions: [rule("plaud_list_files", "allow")] })
   // An allow rule for a tool the plugin does not know still makes no method.
   sessions.reckless = await create({ agent: "build", permissions: [rule("plaud*_*", "allow")] })
+  // plaud_recent is allowed, but the read it makes is denied, or asks.
+  sessions.unlisted = await create({ agent: "build", permissions: [rule("plaud_list_files", "deny")] })
+  sessions.hesitant = await create({ agent: "build", permissions: [rule("plaud_list_files", "ask")] })
 })
 
 afterAll(async () => {
@@ -72,14 +77,16 @@ describe("the tools RPC in OpenCode", () => {
     const { value } = await script("describe", {})
     expect(value.id).toBe(RPC)
     expect(value.call).toContain(`"account":"<account>"`)
-    expect(value.methods.map((method: { name: string }) => method.name)).toEqual(METHODS.slice(1))
-    for (const method of value.methods) expect(method).toMatchObject({ kind: "mcp", tool: `plaud_${method.name}`, action: `plaud_${method.name}`, available: true })
+    expect(value.methods.map((method: { name: string }) => method.name)).toEqual([...METHODS.slice(1), "recent"])
+    for (const method of value.methods.slice(0, -1)) expect(method).toMatchObject({ kind: "mcp", tool: `plaud_${method.name}`, action: `plaud_${method.name}`, available: true })
+    expect(value.methods.at(-1)).toMatchObject({ kind: "plugin", tool: "recent", action: "plaud_recent", available: true, input: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false } })
+    expect(Object.keys(value.methods.at(-1).input.properties)).toEqual(["limit"])
     expect(value.methods.find((method: { name: string }) => method.name === "get_file").input).toMatchObject({ properties: { file_id: { type: "string" } }, required: ["file_id"] })
   })
 
   it("never makes plaud_export or an unknown Plaud tool a method, even with an allow rule", async () => {
     const from = host.fake.calls.length
-    for (const method of ["export", "delete_everything", "plaud_export"]) {
+    for (const method of ["export", "delete_everything", "plaud_export", "plaud_recent"]) {
       const refused = await call("reckless", method, { input: {} })
       expect(refused.value, method).toBeUndefined()
       expect(refused.type, method).not.toBe("failed")
@@ -90,10 +97,12 @@ describe("the tools RPC in OpenCode", () => {
 
   it("runs a read as a session whose agent allows it, with no model turn and no prompt", async () => {
     const from = host.fake.calls.length
-    const result = await call("build", "list_files", { input: { page_size: 5 } })
+    const result = await call("build", "list_files", { input: { page_size: 10 } })
     expect(result.value.text).toContain(`"id": "rec-1"`)
     expect(result.value.text).toContain(`"duration": 63500`)
-    expect(host.fake.calls.slice(from)).toEqual([{ tool: "list_files", arguments: { page_size: 5 } }])
+    // A result with no structured content, whose text is not JSON (it is in Plaud's envelope), has its text as output.
+    expect(result.value.output).toBe(result.value.text)
+    expect(host.fake.calls.slice(from)).toEqual([{ tool: "list_files", arguments: { page_size: 10 } }])
     const session = await host.opencode.sessions.get({ sessionID: sessions.build! })
     expect(session.tokens).toMatchObject({ input: 0, output: 0 })
     expect(await host.pending(sessions.build!)).toBe(0)
@@ -131,9 +140,53 @@ describe("the tools RPC in OpenCode", () => {
     expect(toolCalls(from)).toHaveLength(2)
   })
 
+  it("runs recent on the envelope's account, never asking Plaud for fewer than 10, and refuses an unknown account first", async () => {
+    const from = host.fake.calls.length
+    expect((await call("build", "recent", { input: {} })).value).toEqual(RECENT)
+    expect((await call("build", "recent", { account: "team", input: { limit: 1 } })).value).toEqual(RECENT)
+    expect((await call("build", "recent", { account: "default", input: { limit: 20 } })).value).toEqual(RECENT)
+    expect(host.fake.calls.slice(from)).toEqual([
+      { tool: "list_files", arguments: { page_size: 10 } },
+      { tool: "list_files", arguments: { page_size: 10 } },
+      { tool: "list_files", arguments: { page_size: 20 } },
+    ])
+    const unknown = await call("build", "recent", { account: "home", input: {} })
+    expect(unknown).toMatchObject({ type: "failed", code: "ACCOUNT_UNKNOWN" })
+    expect(unknown.next).toContain("/plaud-status")
+    // plaud-work is the user's own server, still to sign in, so OpenCode lists no tool for it.
+    const work = await call("build", "recent", { account: "work", input: {} })
+    expect(work).toMatchObject({ type: "failed", code: "AUTH_REQUIRED" })
+    expect(work.next).toContain("Plaud (work)")
+    for (const input of [{ account: "team" }, { limit: 0 }, { limit: 21 }, "rec-1"]) {
+      const invalid = await call("build", "recent", { input })
+      expect(invalid, JSON.stringify(input)).toMatchObject({ type: "failed", code: "INPUT_INVALID" })
+    }
+    expect(host.fake.calls).toHaveLength(from + 3)
+    expect(await host.pending(sessions.build!)).toBe(0)
+  })
+
+  it("refuses recent when the session's rules deny or ask for the read it makes, naming that read", async () => {
+    const from = host.fake.calls.length
+    // A deny: OpenCode's own reason names the read.
+    const denied = await call("unlisted", "recent", { input: {} })
+    expect(denied).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+    expect(denied.message).toContain("plaud_recent was refused for this session's agent: Permission denied: plaud_list_files")
+    // An ask: refused at once, with no prompt left waiting, and the message and next step name the read.
+    const started = Date.now()
+    const asked = await call("hesitant", "recent", { input: {} })
+    expect(asked).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+    expect(asked.message).toContain("plaud_recent needs plaud_list_files, which was refused")
+    expect(asked.next).toBe("Add an allow rule for plaud_list_files to the session's agent or to the session, or use a session whose agent allows it.")
+    expect(Date.now() - started).toBeLessThan(5_000)
+    expect(await host.pending(sessions.hesitant!)).toBe(0)
+    expect(toolCalls(from)).toEqual([])
+  })
+
   it("refuses a session whose agent denies Plaud, before Plaud is called", async () => {
     const from = host.fake.calls.length
     for (const method of METHODS.slice(1)) expect(await call("locked", method, { input: { file_id: "rec-1" } }), method).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+    expect(await call("locked", "recent", { input: {} })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+    expect(await call("reopen", "recent", { input: {} })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
     expect(toolCalls(from)).toEqual([])
   })
 

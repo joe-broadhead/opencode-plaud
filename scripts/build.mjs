@@ -51,6 +51,9 @@ const solid = {
   },
 }
 
+// The plugin's version, for src/version.ts; no source file repeats it.
+const VERSION = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version
+
 const result = await build({
   absWorkingDir: ROOT,
   entryPoints: { index: "src/index.ts", tui: "src/tui.tsx" },
@@ -62,6 +65,7 @@ const result = await build({
   target: "es2022",
   external: HOST,
   plugins: [solid],
+  define: { __PLUGIN_VERSION__: JSON.stringify(VERSION) },
   legalComments: "none",
   metafile: true,
   logLevel: "warning",

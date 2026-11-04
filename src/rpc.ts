@@ -15,6 +15,20 @@ export const RPC_ID = "plaud.recordings"
 export const ACCOUNT_STATES = ["signed_in", "sign_in_needed", "connecting", "failed", "disabled", "missing"] as const
 export type AccountState = (typeof ACCOUNT_STATES)[number]
 
+/** The shared status states (S13) Plaud reports: the most urgent account's state, in the family's machine form. */
+export const STATES = ["connected", "sign_in_required", "connecting", "failed", "disabled", "not_configured"] as const
+export type State = (typeof STATES)[number]
+
+/** Each account state as a shared state. */
+export const SHARED_STATE: Record<AccountState, State> = {
+  signed_in: "connected",
+  sign_in_needed: "sign_in_required",
+  connecting: "connecting",
+  failed: "failed",
+  disabled: "disabled",
+  missing: "not_configured",
+}
+
 export interface Rule {
   readonly action: string
   readonly resource: string
@@ -34,6 +48,10 @@ export interface AccountStatus {
 }
 
 export interface Status {
+  /** The plugin's version. */
+  readonly version: string
+  /** The most urgent account's state. */
+  readonly state: State
   /** One entry per account, the default account first. */
   readonly accounts: readonly AccountStatus[]
   /** Absolute folders plaud_export may write in. */
@@ -46,10 +64,11 @@ export interface Status {
     /** The unknown tools' names, without the server prefix. */
     readonly unknownNames: readonly string[]
   }
-  readonly host: { readonly version: string; readonly tested: boolean; readonly warning?: string }
-  /** Agents without the plugin's default permission rules; exports and other Plaud tools run there without asking. */
+  /** OpenCode's version (null when it reports none), the supported range, and whether this release is a tested one. */
+  readonly host: { readonly version: string | null; readonly range: string; readonly tested: boolean }
+  /** Agents without the plugin's default rules whose own rules let exports and other Plaud tools run without asking. */
   readonly unguardedAgents: readonly string[]
-  /** The default rules, to add to each unguarded agent's own permissions. */
+  /** The default rules for the configured accounts, to add to each unguarded agent's own permissions. */
   readonly permissionsBlock: readonly Rule[]
   /** The most urgent thing to do. */
   readonly nextStep: string
@@ -72,15 +91,17 @@ const account = object(
 /** The status as JSON Schema; `Status` is the same shape as a type. */
 export const StatusSchema = object(
   {
+    version: text,
+    state: { enum: [...STATES] },
     accounts: { type: "array", items: account },
     exportRoots: texts,
     tools: object({ visible: integer, unknown: integer, unknownNames: texts }, ["visible", "unknown", "unknownNames"]),
-    host: object({ version: text, tested: flag, warning: text }, ["version", "tested"]),
+    host: object({ version: { type: ["string", "null"] }, range: text, tested: flag }, ["version", "range", "tested"]),
     unguardedAgents: texts,
     permissionsBlock: { type: "array", items: rule },
     nextStep: text,
   },
-  ["accounts", "exportRoots", "tools", "host", "unguardedAgents", "permissionsBlock", "nextStep"],
+  ["version", "state", "accounts", "exportRoots", "tools", "host", "unguardedAgents", "permissionsBlock", "nextStep"],
 )
 
 export const Plaud = Rpc.define({
@@ -101,10 +122,11 @@ export function isStatus(value: unknown): value is Status {
   const candidate = value as Record<string, unknown>
   const tools = candidate.tools as Record<string, unknown> | undefined
   const host = candidate.host as Record<string, unknown> | undefined
-  return Array.isArray(candidate.accounts) && Array.isArray(candidate.exportRoots) && Array.isArray(candidate.unguardedAgents)
+  return typeof candidate.version === "string" && STATES.includes(candidate.state as State)
+    && Array.isArray(candidate.accounts) && Array.isArray(candidate.exportRoots) && Array.isArray(candidate.unguardedAgents)
     && Array.isArray(candidate.permissionsBlock) && typeof candidate.nextStep === "string"
     && typeof tools?.visible === "number" && typeof tools.unknown === "number" && Array.isArray(tools.unknownNames)
-    && typeof host?.version === "string" && typeof host.tested === "boolean"
+    && (typeof host?.version === "string" || host?.version === null) && typeof host.range === "string" && typeof host.tested === "boolean"
 }
 
 export type Tone = "ok" | "info" | "warning" | "error"
@@ -132,7 +154,7 @@ const STATE_TONE: Record<AccountState, Tone> = {
 const URGENCY: readonly AccountState[] = ["sign_in_needed", "failed", "missing", "disabled", "connecting", "signed_in"]
 
 /** The most urgent state of all accounts, for the summary line. */
-export function overallState(status: Status): AccountState {
+export function overallState(status: Pick<Status, "accounts">): AccountState {
   const states = new Set(status.accounts.map((account) => account.state))
   return URGENCY.find((state) => states.has(state)) ?? "signed_in"
 }
@@ -176,18 +198,21 @@ export function statusLines(status: Status): StatusLine[] {
     tone: "info",
   })
   const block = rulesBlock(status)
-  if (block !== undefined) {
-    lines.push({
-      label: "Agents without default rules",
-      value: `${status.unguardedAgents.join(", ")}. Exports and other Plaud tools run there without asking. The rules:`,
-      tone: "warning",
-      block,
-    })
-  }
+  lines.push(
+    block === undefined
+      ? { label: "Agents without default rules", value: "none", tone: "info" }
+      : {
+          label: "Agents without default rules",
+          value: `${status.unguardedAgents.join(", ")}. Exports and other Plaud tools run there without asking. The rules:`,
+          tone: "warning",
+          block,
+        },
+  )
+  const { host } = status
   lines.push({
     label: "OpenCode",
-    value: status.host.tested ? `${status.host.version} (tested)` : `${status.host.version} (host untested)${status.host.warning ? `: ${status.host.warning}` : ""}`,
-    tone: status.host.tested ? "info" : "warning",
+    value: `${host.version ?? "unknown version"} (${host.tested ? "tested" : "untested"}; supported range ${host.range})`,
+    tone: host.tested ? "info" : "warning",
   })
   lines.push({ label: "Next step", value: status.nextStep, tone: "info" })
   return lines

@@ -58,5 +58,95 @@
     "typescript": "5.9.3",
     "vitest": "5.0.5",
     "zod": "4.6.7"
+  },
+  "jelly": {
+    "title": "Plaud",
+    "tools": [
+      {
+        "name": "plaud.recent",
+        "permission": "plaud_recent",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud.list_files",
+        "permission": "plaud_list_files",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud.get_file",
+        "permission": "plaud_get_file",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud.get_note",
+        "permission": "plaud_get_note",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud.get_transcript",
+        "permission": "plaud_get_transcript",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud.get_current_user",
+        "permission": "plaud_get_current_user",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud.export",
+        "permission": "plaud_export",
+        "effect": "ask",
+        "readOnly": false
+      }
+    ],
+    "skills": [
+      "opencode-plaud",
+      "opencode-plaud-export",
+      "opencode-plaud-digest"
+    ],
+    "rpc": [],
+    "views": [],
+    "signIns": [
+      {
+        "id": "plaud",
+        "label": "Plaud",
+        "server": "plaud*"
+      }
+    ],
+    "contributes": {
+      "homeFeeds": [
+        {
+          "id": "plaud.recent",
+          "label": "Recent Plaud recordings",
+          "description": "Your newest recordings, by title, time and length.",
+          "keywords": [
+            "plaud",
+            "recordings",
+            "voice notes"
+          ],
+          "feed": {
+            "title": "Recent recordings",
+            "size": "m",
+            "template": "list",
+            "cadence": 1800,
+            "mode": "looking",
+            "preview": "desktop-only",
+            "tools": [
+              "plaud.recent"
+            ],
+            "script": "return await tools.plaud.recent({});"
+          }
+        }
+      ],
+      "homeWidgets": [],
+      "workKinds": [],
+      "settings": []
+    }
   }
 }

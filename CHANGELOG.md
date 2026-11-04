@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - `plaud_recent` (`tools.plaud.recent` in Code Mode): the newest recordings, one line each, with the title, the start time in UTC and the length. It takes an optional `account` and `limit` (1 to 20, 8 by default), and reads through the account's own `list_files`. It runs without asking: the default rules allow `plaud_recent` by its exact name, and a rule for the account's `list_files` applies to it too. Because it is one tool for every account, a rule can name the account as its resource, such as `{ "action": "plaud_recent", "resource": "work", "effect": "deny" }`. It is not a tools RPC method; a script reads `list_files`.
 - `/plaud-status` counts `plaud_recent` as one of the plugin's own tools, not as an unknown Plaud tool. The block it shows for agents defined in your config has the `plaud_recent` rule; copy it again into those agents.
+- A `jelly` section in `package.json`, for [Jelly](https://heyjelly.ai): the plugin's title, each tool with its permission, its default effect and whether it only reads, the skills, the `plaud*` sign-in, which folds every account into one row, and a Home feed preset, "Recent Plaud recordings", that shows `plaud_recent` every 30 minutes. Jelly reads it without loading the plugin. `docs/jelly.md` explains it.
 
 ## [0.0.2] - 2026-11-04
 

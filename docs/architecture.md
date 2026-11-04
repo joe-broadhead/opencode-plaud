@@ -10,7 +10,7 @@ OpenCode 2.2.x server
  │                         and marked "Sign in required" while its account needs a new sign-in
  ├─ Plaud's tools          plaud_list_files, plaud_get_file, plaud_get_note, plaud_get_transcript, plaud_get_current_user (and plaud-<alias>_*)
  ├─ ctx.agent.transform    default rules right after each agent's base allow
- ├─ ctx.tool.transform     plaud_export, in the Code Mode namespace "plaud"
+ ├─ ctx.tool.transform     plaud_export, in the Code Mode namespace "plaud", whose description names the five reads
  ├─ ctx.tool.hook          "execute.after": withholds presigned_url and data_link in plaud*_* results
  ├─ ctx.command.transform  /plaud-status
  ├─ ctx.skill.transform    opencode-plaud, opencode-plaud-export, opencode-plaud-digest
@@ -77,10 +77,11 @@ OpenCode creates agents defined only in the user's config after plugins run, so 
 
 ## Signed links
 
-Plaud's results carry signed links: `presigned_url` (the audio, valid for about 24 hours) in `get_file`, and `data_link` (a transcript or note) in each item of `get_file`'s `source_list` and `note_list` and in each `get_note` tab. An `execute.after` hook rewrites every completed result of a tool whose name matches `plaud*_*`, always:
+Plaud's results carry signed links: `presigned_url` (the audio, valid for about 24 hours) in `get_file`, and `data_link` (a transcript or note) in each item of `get_file`'s `source_list` and `note_list` and in each `get_note` tab. An `execute.after` hook rewrites every result of a tool whose name matches `plaud*_*`, always:
 
 - in structured output, every `presigned_url` field with a value, at any depth, becomes `withheld: use plaud_export to download the audio`, and every `data_link` becomes `withheld: use plaud_export to save the transcript or note`;
-- in text, including text `output`, which Code Mode programs receive, JSON is rewritten field by field, also inside Plaud's untrusted-data envelope, which stays in place; other text that names either field loses every URL.
+- in text, including text `output`, which Code Mode programs receive, JSON is rewritten field by field, also inside Plaud's untrusted-data envelope, which stays in place; other text that names either field loses every URL;
+- in the error text of a failed call, every URL is withheld. The hook rebuilds the error with its own class, cause and metadata, and leaves an error with no URL as it is, so a declined prompt still reaches OpenCode unchanged.
 
 The hook runs on OpenCode's own tool path, for direct and Code Mode calls. Raw executors from `ctx.tool.list()`, such as the export's own reads and the tools RPC's calls, skip host hooks. The tools RPC therefore withholds the links itself, with the same functions (`withholdSignedLinksInOutput` and `withholdSignedLinksInText` in `src/domain/redact.ts`).
 

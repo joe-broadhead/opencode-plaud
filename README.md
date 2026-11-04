@@ -39,9 +39,9 @@ Ask about your recordings, for example "what did I record this week?" or "save t
 | Tool | Code Mode | What it does | Permission |
 | --- | --- | --- | --- |
 | `plaud_list_files` | `tools.plaud.list_files` | List or search recordings | runs |
-| `plaud_get_file` | `tools.plaud.get_file` | One recording's details | runs |
-| `plaud_get_transcript` | `tools.plaud.get_transcript` | One transcript block, a page at a time | runs |
 | `plaud_get_note` | `tools.plaud.get_note` | The recording's notes, such as its summary | runs |
+| `plaud_get_transcript` | `tools.plaud.get_transcript` | One transcript block, a page at a time | runs |
+| `plaud_get_file` | `tools.plaud.get_file` | One recording in full, often over 100 KB; the skill and Code Mode's description send the model to the notes or the transcript first | runs |
 | `plaud_get_current_user` | `tools.plaud.get_current_user` | The signed-in account | runs |
 | `plaud_export` | `tools.plaud.export` | Save audio, a transcript or a note as a file | asks |
 

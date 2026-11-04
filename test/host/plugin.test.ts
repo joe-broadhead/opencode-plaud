@@ -338,6 +338,18 @@ describe("tools on the host", () => {
     expect(readFileSync(note, "utf8")).toContain("# Note\n\n## Summary\n\n- Ship on Friday.\n")
   })
 
+  it("withholds every link from a failed Plaud call's error text on the host's Code Mode path (PLAUD-4)", async () => {
+    const sessionID = await host.session()
+    const seen = await host.codemode(
+      sessionID,
+      'try { await tools.plaud.get_file({ file_id: "fail" }) } catch (error) { throw new Error("SEEN " + String(error?.message ?? error)) }\nthrow new Error("no error")',
+    )
+    expect(seen).toContain("SEEN ")
+    expect(seen).toContain("File not found: see [url withheld]")
+    expect(seen).not.toContain(SIGNATURE)
+    expect(seen).not.toContain("files.example.invalid")
+  })
+
   it("refuses an export or an unknown tool in an unattended run that nobody can approve", async () => {
     const sessionID = await host.session()
     expect(await host.codemode(sessionID, 'await tools.plaud.export({ recordingId: "rec-1", kind: "note", overwrite: true }); throw new Error("ran")')).toContain(

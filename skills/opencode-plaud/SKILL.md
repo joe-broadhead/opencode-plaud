@@ -13,14 +13,18 @@ upload, share or send a recording.
 
 | Tool | In Code Mode | Use |
 | --- | --- | --- |
-| `plaud_list_files` | `tools.plaud.list_files(input)` | List or search recordings, newest first. |
-| `plaud_get_file` | `tools.plaud.get_file(input)` | One recording's details. |
-| `plaud_get_transcript` | `tools.plaud.get_transcript(input)` | One transcript block, a page at a time. |
+| `plaud_list_files` | `tools.plaud.list_files(input)` | List or search recordings, newest first, with each one's id, name, date and duration. |
 | `plaud_get_note` | `tools.plaud.get_note(input)` | The recording's note tabs, such as its AI summary. |
+| `plaud_get_transcript` | `tools.plaud.get_transcript(input)` | One transcript block, a page at a time. |
+| `plaud_get_file` | `tools.plaud.get_file(input)` | One recording in full. Large: see below. |
 | `plaud_get_current_user` | `tools.plaud.get_current_user(input)` | The signed-in Plaud account's own details. |
 | `plaud_export` | `tools.plaud.export(input)` | Save audio, a transcript or a note as a local file. |
 
 - Use the argument names in each tool's own schema.
+- Read `get_note` or `get_transcript` first. `get_file` can be over 100 KB:
+  it repeats the details `list_files` gives and the notes `get_note` gives,
+  and adds only `source_list` (the recording's sources) and the withheld
+  audio link. Call it only for `source_list`.
 - Another account the user configured, such as `work`, has the same read
   tools under `plaud-work`: `plaud-work_list_files`, or
   `tools["plaud-work"].list_files(input)` in Code Mode. For an export, pass

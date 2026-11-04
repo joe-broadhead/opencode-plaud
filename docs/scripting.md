@@ -12,26 +12,33 @@ It uses the tools RPC, `plaud.recordings.tools`, through `opencode api` or an Op
 | `get_note` | `plaud_get_note` |
 | `get_transcript` | `plaud_get_transcript` |
 | `get_current_user` | `plaud_get_current_user` |
+| `recent` | `plaud_recent`, the plugin's own: the newest recordings, one line each |
 | `describe` | none: lists the methods, their permission actions, whether OpenCode lists each tool now, and each tool's input as JSON Schema |
 
-Each method runs Plaud's own read tool with the same input, through OpenCode's own connection and sign-in. The plugin
-never sees the token. Durations stay in milliseconds, as Plaud returns them.
+Each server method runs Plaud's own read tool with the same input, through OpenCode's own connection and sign-in. The
+plugin never sees the token. Durations stay in milliseconds, as Plaud returns them.
+
+`recent` runs the plugin's own `plaud_recent`, as the model does: it asserts `plaud_recent` for the account, then reads
+through that account's `list_files`, so both rules apply. Its input is `{ "limit"?: 1 to 20 }`, 8 by default; the
+account is the envelope's `account`, never part of the input. It returns
+`{ "items": [{ "id", "text" }], "editable": false }`: one line per recording, with its title, start time (UTC) and
+length, and no link or content.
 
 These are never methods, even with an allow rule:
 
 - the plugin's own `plaud_export`, which writes a local file;
-- the plugin's own `plaud_recent`, a one-line summary for the model and Jelly's Home: it takes its account in its own input, which a method could not honour, so a script reads `list_files` itself;
 - any other tool on a Plaud server, including any tool that Plaud adds later.
 
 ## Accounts
 
 The default account's reads run on the `plaud` server. To read another account, add `account` with its alias from the
-plugin's `accounts` option: `"account": "work"` runs `plaud-work_list_files` and so on. `"account": "default"` is the
+plugin's `accounts` option: `"account": "work"` runs `plaud-work_list_files` and so on, and `recent` reads that
+account's recordings. `"account": "default"` is the
 default account, the same as leaving `account` out. An account that is not in the options is refused with
 `ACCOUNT_UNKNOWN`. If your OpenCode config defines its own server under an account's name, such as `plaud-work`, the
 call uses it, as the model and `plaud_export` do.
 
-`describe` shows the default account's tools. Every account's server has the same five reads.
+`describe` shows the default account's tools, and `recent`. Every account's server has the same five reads.
 
 ## Signed links
 
@@ -87,6 +94,12 @@ opencode api post /api/rpc/plaud.recordings.tools/get_note -d '{"input":{
   "account":"work",
   "input":{"file_id":"…"}
 }}'
+
+opencode api post /api/rpc/plaud.recordings.tools/recent -d '{"input":{
+  "sessionID":"ses_…",
+  "account":"work",
+  "input":{"limit":5}
+}}'
 ```
 
 The tool's input is Plaud's: `describe` shows each tool's schema as OpenCode lists it now.
@@ -119,11 +132,13 @@ A refusal or failure is the RPC error `failed`, with a message `CODE: what happe
 | `SESSION_UNKNOWN` | OpenCode says the session does not exist. Any other failure to look the session up is OpenCode's own error. |
 | `SESSION_AGENT_REQUIRED` | The session names no agent, or an agent that does not exist. |
 | `ACCOUNT_UNKNOWN` | `account` is neither `default` nor an alias from the plugin's `accounts` option. |
-| `PERMISSION_DENIED` | The agent's or the session's rules deny the tool, or ask for an approval. The message names the action whose check was refused. |
-| `AUTH_REQUIRED`, `CONNECTING`, `CONNECTION_FAILED`, `DISABLED`, `NOT_REGISTERED` | The account's server needs a sign-in, is still connecting (or reconnected during the call: call again), could not connect, is disabled, or is missing. `/plaud-status` gives the next step for each account. |
+| `PERMISSION_DENIED` | The agent's or the session's rules deny the tool, or ask for an approval. The message names the action whose check was refused: for `recent`, `plaud_recent`, or the account's `list_files` it reads through. |
+| `AUTH_REQUIRED`, `CONNECTING`, `CONNECTION_FAILED`, `DISABLED`, `NOT_REGISTERED` | The account's server needs a sign-in, is still connecting (or reconnected during the call: call again), could not connect, is disabled, or is missing. `/plaud-status` gives the next step for each account. For `recent`, `AUTH_REQUIRED` covers all of these: OpenCode lists no `list_files` for the account. |
 | `TOOL_UNAVAILABLE` | The account's server is connected, but OpenCode does not list the tool. |
 | `UPSTREAM_ERROR` | Plaud answered with an error, such as a recording that does not exist. The message holds the first line of Plaud's text, at most 300 characters, with tokens and URL query strings removed. |
 | `CANCELLED` | The request was cancelled. |
+| `INPUT_INVALID` | `recent` only: its input is not `{}` or `{ "limit": 1 to 20 }`, for example because it holds `account`, which belongs in the envelope. |
+| `PLAUD_READ_FAILED`, `PLAUD_UNREADABLE` | `recent` only: the account's `list_files` failed, or did not return a list. |
 
 OpenCode itself answers `rpc.method_not_found` for a method that does not exist, such as `export` or a tool Plaud added
 later, and `rpc.invalid_input` for a body that is not the envelope above, with one issue per problem:
@@ -140,7 +155,7 @@ later, and `rpc.invalid_input` for a body that is not the envelope above, with o
 
 ## What scripts cannot do
 
-- Call a tool that is not one of the five reads, even with an allow rule: no export, and no other Plaud tool.
+- Call a tool that is not one of the five reads or `plaud_recent`, even with an allow rule: no export, and no other Plaud tool.
 - Get a signed link.
 - Answer an approval prompt, or use a tool that asks.
 - Use a token: the plugin has none to give.

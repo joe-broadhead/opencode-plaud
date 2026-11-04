@@ -6,6 +6,7 @@
 
 export type ErrorCode =
   | "AUTH_REQUIRED"
+  | "INPUT_INVALID"
   | "PLAUD_READ_FAILED"
   | "PLAUD_UNREADABLE"
   | "CONTENT_UNAVAILABLE"

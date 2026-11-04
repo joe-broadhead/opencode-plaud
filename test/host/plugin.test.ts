@@ -24,6 +24,7 @@ const BLOCK: Rule[] = [
   { action: "plaud*_*", resource: "*", effect: "ask" },
   ...["plaud", "plaud-work", "plaud-team"].flatMap((server) => READS.map((read): Rule => ({ action: `${server}_${read}`, resource: "*", effect: "allow" }))),
   { action: "plaud_export", resource: "*", effect: "ask" },
+  { action: "plaud_recent", resource: "*", effect: "allow" },
 ]
 const USER_RULES: Rule[] = [
   { action: "plaud_export", resource: "default:transcript", effect: "allow" },
@@ -106,7 +107,7 @@ describe("activation and registration", () => {
     expect(listed.map((item) => item.name).sort()).toEqual(["Plaud", "Plaud (team)", "Plaud (work)"])
   })
 
-  it("adds plaud_export as its only tool, next to the server's own tools", async () => {
+  it("adds plaud_export and plaud_recent as its own tools, next to the server's own tools", async () => {
     const tools = (await host.tools()).filter((tool) => tool.id.startsWith("plaud"))
     expect(tools.map((tool) => tool.id).sort()).toEqual([
       "plaud-team_delete_everything",
@@ -122,7 +123,9 @@ describe("activation and registration", () => {
       "plaud_get_note",
       "plaud_get_transcript",
       "plaud_list_files",
+      "plaud_recent",
     ])
+    expect(tools.find((tool) => tool.id === "plaud_recent")?.options).toMatchObject({ namespace: "plaud" })
     const exporter = tools.find((tool) => tool.id === "plaud_export")
     expect(exporter?.options).toMatchObject({ namespace: "plaud", pinned: true })
     // The host refuses a result with `output` from a tool that declares no output schema.
@@ -176,6 +179,12 @@ describe("default permission rules", () => {
     ["build", "plaud_export", "default:transcript", "allow"],
     ["build", "plaud_export", "work:audio", "deny"],
     ["build", "plaud_export", "work:note", "ask"],
+    // The plugin's own read, by exact name, for every account.
+    ["build", "plaud_recent", "default", "allow"],
+    ["build", "plaud_recent", "team", "allow"],
+    ["build", "plaud_recentx", "*", "ask"],
+    ["plan", "plaud_recent", "default", "allow"],
+    ["explore", "plaud_recent", "default", "deny"],
     ["plan", "plaud_export", "default:audio", "ask"],
     ["plan", "plaud_list_files", "*", "allow"],
     ["plan", "edit", "src/index.ts", "deny"],
@@ -222,6 +231,8 @@ describe("tools on the host", () => {
       ["plaud_get_transcript", { file_id: "rec-1" }],
       ["plaud_get_current_user", {}],
       ["plaud-team_list_files", {}],
+      ["plaud_recent", {}],
+      ["plaud_recent", { account: "team", limit: 1 }],
     ] as const) {
       expect(await host.call(sessionID, tool, input), tool).toMatchObject({ ok: true })
       expect(await host.pending(sessionID), tool).toBe(0)
@@ -232,6 +243,23 @@ describe("tools on the host", () => {
     await host.opencode.permission.reply({ sessionID, requestID: (await host.asked(sessionID)).id, decision: "reject" })
     expect(await unknown).toMatchObject({ ok: false })
     expect(host.fake.calls.map((call) => call.tool)).not.toContain("delete_everything")
+  })
+
+  it("lists recent recordings through the account's own list_files, never asking Plaud for fewer than 10", async () => {
+    const sessionID = await host.session()
+    const from = host.fake.calls.length
+    for (const input of [{}, { limit: 1 }, { account: "team", limit: 20 }]) {
+      expect(await host.call(sessionID, "plaud_recent", input), JSON.stringify(input)).toEqual({
+        ok: true,
+        result: expect.objectContaining({ output: { items: [{ id: "rec-1", text: "Weekly sync · 2026-10-01 09:00 UTC · 1 min" }], editable: false } }),
+      })
+    }
+    expect(host.fake.calls.slice(from)).toEqual([
+      { tool: "list_files", arguments: { page_size: 10 } },
+      { tool: "list_files", arguments: { page_size: 10 } },
+      { tool: "list_files", arguments: { page_size: 20 } },
+    ])
+    expect(await host.pending(sessionID)).toBe(0)
   })
 
   it("asks before each export: a rejection writes nothing, an approval writes the file once", async () => {
@@ -378,7 +406,7 @@ describe("status", () => {
         { account: "team", server: "plaud-team", state: "signed_in" },
       ],
       exportRoots: [host.exportRoot],
-      tools: { visible: 11, unknown: 2, unknownNames: ["delete_everything"] },
+      tools: { visible: 12, unknown: 2, unknownNames: ["delete_everything"] },
       host: { version: host.sdkVersion, range: ">=2.2.3 <2.3.0", tested: true },
       // asker's own rules already ask for every Plaud tool (LIVE-1).
       unguardedAgents: ["reviewer"],
@@ -400,7 +428,7 @@ describe("status", () => {
     expect(lines[0]).toBe("**Plaud status**")
     expect(lines).toContain("- Connection: default: connected; work: sign-in required; team: connected")
     expect(lines).toContain("- Account: default (server plaud), work (server plaud-work, from your OpenCode config), team (server plaud-team)")
-    expect(lines).toContain("- Tools: 11 available, 2 unknown: delete_everything (they ask before running)")
+    expect(lines).toContain("- Tools: 12 available, 2 unknown: delete_everything (they ask before running)")
     expect(lines.filter((line) => line.startsWith("- Agents without default rules: reviewer."))).toHaveLength(1)
     expect(lines).toContain('  {"action":"plaud*_*","resource":"*","effect":"ask"},')
     expect(host.events.filter((event) => event.type === "session.execution.started" && event.data?.sessionID === sessionID)).toEqual([])

@@ -82,7 +82,8 @@ The plugin inserts these rules into each agent's permissions, right after the ag
   { "action": "plaud_get_note", "resource": "*", "effect": "allow" },
   { "action": "plaud_get_transcript", "resource": "*", "effect": "allow" },
   { "action": "plaud_get_current_user", "resource": "*", "effect": "allow" },
-  { "action": "plaud_export", "resource": "*", "effect": "ask" }
+  { "action": "plaud_export", "resource": "*", "effect": "ask" },
+  { "action": "plaud_recent", "resource": "*", "effect": "allow" }
 ]
 ```
 
@@ -91,6 +92,7 @@ Each account in `accounts` adds the same five allow rules for its own server, be
 So, by default:
 
 - the five read tools of each account's server (`list_files`, `get_file`, `get_note`, `get_transcript` and `get_current_user`) run without a prompt, also in `opencode run`. They are allowed by exact name, so a later Plaud tool whose name only ends like a read, such as `plaud_bulk_get_file`, asks, as do the tools of a server you named `plaud…` yourself;
+- `plaud_recent`, the plugin's own read of the newest recordings, runs without a prompt for every account. It is allowed by its exact name, and it reads through the account's own `list_files`, so a rule for that read applies to it too;
 - `plaud_export` asks;
 - any other tool on a Plaud server asks, including a tool Plaud adds later.
 
@@ -107,9 +109,10 @@ An agent without a base `* * allow` rule gets no Plaud rules.
 | Tool | Action | Resource | "Always allow" saves |
 | --- | --- | --- | --- |
 | A Plaud server tool | `<server>_<tool>`, such as `plaud_get_file` or `plaud-work_list_files` | `*` | `<server>_<tool>` for `*` |
+| `plaud_recent` | `plaud_recent`, then the account's `<server>_list_files` | the account, such as `default` or `work`; `*` for the read | that account only |
 | `plaud_export` | `plaud_export` | `<account>:<kind>`, such as `default:audio` or `work:transcript` | that account and kind only |
 
-The kinds are `audio`, `transcript` and `note`. Patterns can use `*`. Note that `plaud*_*` also matches `plaud_export`, and the tools of any other MCP server whose name starts with `plaud`. A rule such as `{ "action": "plaud*_*", "resource": "*", "effect": "allow" }` therefore also allows every export.
+The kinds are `audio`, `transcript` and `note`. Patterns can use `*`. Note that `plaud*_*` also matches `plaud_export` and `plaud_recent`, and the tools of any other MCP server whose name starts with `plaud`. A rule such as `{ "action": "plaud*_*", "resource": "*", "effect": "allow" }` therefore also allows every export.
 
 ### Change the defaults
 
@@ -172,6 +175,7 @@ The fix: put the default rules first in **that agent's own** `permissions`, then
         { "action": "plaud_get_transcript", "resource": "*", "effect": "allow" },
         { "action": "plaud_get_current_user", "resource": "*", "effect": "allow" },
         { "action": "plaud_export", "resource": "*", "effect": "ask" },
+        { "action": "plaud_recent", "resource": "*", "effect": "allow" },
         // Repeated from the top-level permissions, so it still wins in this agent:
         { "action": "plaud_export", "resource": "default:transcript", "effect": "allow" }
       ]
@@ -186,7 +190,7 @@ Do not add the default rules to the top-level `permissions`. Top-level rules com
 
 ## Code Mode
 
-OpenCode puts MCP tools in Code Mode by default. The model then calls the read tools as `tools.plaud.list_files(input)`, and an extra account's tools as `tools["plaud-work"].list_files(input)`. `plaud_export` is `tools.plaud.export(input)`. It is pinned, so the model sees it in the Code Mode catalog without a search. The permission rules are the same in Code Mode.
+OpenCode puts MCP tools in Code Mode by default. The model then calls the read tools as `tools.plaud.list_files(input)`, and an extra account's tools as `tools["plaud-work"].list_files(input)`. `plaud_export` is `tools.plaud.export(input)`. It is pinned, so the model sees it in the Code Mode catalog without a search. `plaud_recent` is `tools.plaud.recent(input)`; it is not pinned, and the Plaud namespace's description names it. The permission rules are the same in Code Mode.
 
 ## Errors
 
@@ -198,9 +202,9 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | `HOST_UNTESTED` | setup | OpenCode is outside `>=2.2.3 <2.3.0` and `allowUntestedHost` is not set. |
 | `SKILLS_INVALID` | setup | The package's `skills/` folder is missing or a skill file is malformed. Reinstall the plugin. |
 | `STATUS_UNAVAILABLE` | status views | The status could not be read. |
-| `AUTH_REQUIRED` | export | The account's server is not connected or not signed in. |
-| `PLAUD_READ_FAILED` | export | A Plaud read failed or was denied. |
-| `PLAUD_UNREADABLE` | export | Plaud returned something the plugin cannot use, such as an audio link that is not a valid https URL, an audio download that redirects to one or more than 5 times, or a transcript that never ends. |
+| `AUTH_REQUIRED` | export, recent | The account's server is not connected or not signed in. |
+| `PLAUD_READ_FAILED` | export, recent | A Plaud read failed or was denied. |
+| `PLAUD_UNREADABLE` | export, recent | Plaud returned something the plugin cannot use, such as an audio link that is not a valid https URL, an audio download that redirects to one or more than 5 times, a transcript that never ends, or a recording list that is not a list. |
 | `CONTENT_UNAVAILABLE` | export | The recording has no audio yet, or no such transcript block. |
 | `EXPORT_OUTSIDE_ROOTS` | export | The destination is outside the export roots. |
 | `EXPORT_BAD_DESTINATION` | export | The destination is a folder or a root, or the recording id cannot be a file name. |

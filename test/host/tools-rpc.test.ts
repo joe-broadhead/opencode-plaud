@@ -77,9 +77,9 @@ describe("the tools RPC in OpenCode", () => {
     expect(value.methods.find((method: { name: string }) => method.name === "get_file").input).toMatchObject({ properties: { file_id: { type: "string" } }, required: ["file_id"] })
   })
 
-  it("never makes plaud_export or an unknown Plaud tool a method, even with an allow rule", async () => {
+  it("never makes plaud_export, plaud_recent or an unknown Plaud tool a method, even with an allow rule", async () => {
     const from = host.fake.calls.length
-    for (const method of ["export", "delete_everything", "plaud_export"]) {
+    for (const method of ["export", "delete_everything", "plaud_export", "recent", "plaud_recent"]) {
       const refused = await call("reckless", method, { input: {} })
       expect(refused.value, method).toBeUndefined()
       expect(refused.type, method).not.toBe("failed")
@@ -90,12 +90,12 @@ describe("the tools RPC in OpenCode", () => {
 
   it("runs a read as a session whose agent allows it, with no model turn and no prompt", async () => {
     const from = host.fake.calls.length
-    const result = await call("build", "list_files", { input: { page_size: 5 } })
+    const result = await call("build", "list_files", { input: { page_size: 10 } })
     expect(result.value.text).toContain(`"id": "rec-1"`)
     expect(result.value.text).toContain(`"duration": 63500`)
     // A result with no structured content, whose text is not JSON (it is in Plaud's envelope), has its text as output.
     expect(result.value.output).toBe(result.value.text)
-    expect(host.fake.calls.slice(from)).toEqual([{ tool: "list_files", arguments: { page_size: 5 } }])
+    expect(host.fake.calls.slice(from)).toEqual([{ tool: "list_files", arguments: { page_size: 10 } }])
     const session = await host.opencode.sessions.get({ sessionID: sessions.build! })
     expect(session.tokens).toMatchObject({ input: 0, output: 0 })
     expect(await host.pending(sessions.build!)).toBe(0)

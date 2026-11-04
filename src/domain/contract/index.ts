@@ -49,3 +49,30 @@ export const ExportOutput = z.strictObject({
 })
 
 export type ExportResult = z.output<typeof ExportOutput>
+
+/** The contract of `plaud_recent`: the newest recordings, one line each. */
+export function recentInput(accounts: readonly [string, ...string[]]) {
+  return z.strictObject({
+    account: z
+      .enum(accounts)
+      .optional()
+      .describe(`Account to read; defaults to "${accounts[0]}"`),
+    limit: z.number().int().min(1).max(20).optional().describe("How many recordings, newest first; 8 by default"),
+  })
+}
+
+export type RecentRequest = z.output<ReturnType<typeof recentInput>>
+
+/**
+ * Shaped as a Home `list` (items of at most 200 characters, not editable), so
+ * a Home feed can show it as it is.
+ */
+export const RecentOutput = z.strictObject({
+  items: z
+    .array(z.strictObject({ id: z.string().min(1).max(128), text: z.string().min(1).max(200) }))
+    .max(20)
+    .describe("One line per recording: its title, when it started and how long it is"),
+  editable: z.literal(false),
+})
+
+export type RecentResult = z.output<typeof RecentOutput>

@@ -1,6 +1,6 @@
 # Architecture
 
-The plugin is a thin layer over Plaud's hosted MCP server. OpenCode hosts the server, signs in and runs Plaud's read tools. The plugin adds the server definitions, default permission rules, one export tool, a hook that withholds the signed links, a status view, and a tools RPC for scripts.
+The plugin is a thin layer over Plaud's hosted MCP server. OpenCode hosts the server, signs in and runs Plaud's read tools. The plugin adds the server definitions, default permission rules, an export tool, a read of the newest recordings, a hook that withholds the signed links, a status view, and a tools RPC for scripts.
 
 ```text
 OpenCode 2.2.x server
@@ -10,7 +10,7 @@ OpenCode 2.2.x server
  │                         and marked "Sign in required" while its account needs a new sign-in
  ├─ Plaud's tools          plaud_list_files, plaud_get_file, plaud_get_note, plaud_get_transcript, plaud_get_current_user (and plaud-<alias>_*)
  ├─ ctx.agent.transform    default rules right after each agent's base allow
- ├─ ctx.tool.transform     plaud_export, in the Code Mode namespace "plaud", whose description names the five reads
+ ├─ ctx.tool.transform     plaud_export and plaud_recent, in the Code Mode namespace "plaud", whose description names the five reads
  ├─ ctx.tool.hook          "execute.after": withholds presigned_url and data_link in plaud*_* results
  ├─ ctx.command.transform  /plaud-status
  ├─ ctx.skill.transform    opencode-plaud, opencode-plaud-export, opencode-plaud-digest
@@ -42,7 +42,7 @@ The skills are read from the package's `skills/` folder at setup. OpenCode provi
 2. Check the OpenCode version against `>=2.2.3 <2.3.0` (`src/version.ts`). Outside it, setup stops with `HOST_UNTESTED`, unless `allowUntestedHost` is set. A release inside it that is not in `TESTED_HOSTS` (2.2.3, 2.2.4 and 2.2.5, the one list the tests and CI read) starts with a warning.
 3. Register one MCP server per account (`src/host/mcp.ts`), and name each one's `/connect` entry (`src/host/integration.ts`).
 4. Insert the default permission rules (`src/host/permissions.ts`).
-5. Add `plaud_export` and the signed-link hook (`src/host/tools/`).
+5. Add `plaud_export`, `plaud_recent` and the signed-link hook (`src/host/tools/`).
 6. Add `/plaud-status` (`src/host/commands.ts`), the skills (`src/host/skills.ts`) and the status RPC (`src/host/rpc.ts`).
 7. Add the tools RPC for scripts (`src/host/tools-rpc.ts`).
 
@@ -58,7 +58,7 @@ OpenCode names the server's tools `<server>_<tool>` and puts them in Code Mode. 
 
 ## Permissions
 
-The default rules use no permission hook. `ctx.agent.transform` inserts the block right after each agent's base `* * allow` rule: `plaud*_*` asks, the five known reads of each configured account's server (`plaud_<tool>`, `plaud-<alias>_<tool>`) are allowed again by exact name, and `plaud_export` asks. Everything later in the agent's list, and saved approvals, still win. Agents without a base allow are left alone. The rules are in [configuration](configuration.md#the-default-rules).
+The default rules use no permission hook. `ctx.agent.transform` inserts the block right after each agent's base `* * allow` rule: `plaud*_*` asks, the five known reads of each configured account's server (`plaud_<tool>`, `plaud-<alias>_<tool>`) are allowed again by exact name, `plaud_export` asks, and `plaud_recent` is allowed by its exact name. Everything later in the agent's list, and saved approvals, still win. Agents without a base allow are left alone. The rules are in [configuration](configuration.md#the-default-rules).
 
 OpenCode creates agents defined only in the user's config after plugins run, so they miss the rules. Status finds those that need a fix, `unguardedAgents()`: agents with a base allow, without the block anywhere after it, whose own rules would let an unknown Plaud tool run without asking (`evaluate()`: the last matching rule wins). An agent whose rules already ask for or deny Plaud's tools is not listed. It names them and gives the per-agent fix.
 
@@ -74,6 +74,10 @@ OpenCode creates agents defined only in the user's config after plugins run, so 
 6. **Write.** Missing folders below the root are created one at a time (mode 0700), and a symbolic link that leads outside the roots is refused. The content goes to a private staging file, `.plaud-export-<random>.partial` (mode 0600), beside the destination. It is hashed and synced to disk.
 7. **Publish.** A hard link puts the file in place, so an existing file is never replaced unless `overwrite` is true; then a rename replaces it. On a filesystem without hard links, the export checks that the name is free, then renames. The staging file is always removed.
 8. **Return** `{ path, bytes, sha256 }`.
+
+## Recent recordings
+
+`plaud_recent` (`src/host/tools/recent.ts`) takes `{ account?, limit? }`, `limit` 1 to 20 and 8 by default. It asserts `plaud_recent` with the account as resource and save, then calls the host's executor for the account's `<server>_list_files`, as the export reads, so that read's own rule applies too. Plaud's server refuses a `page_size` below 10, so it asks for at least 10 and keeps the first `limit`. It returns a Home `list`, `{ items: [{ id, text }], editable: false }`: one line per recording, the title on one line, the start time in UTC and the length, at most 200 characters. It returns no link and no content. Jelly's Home feed preset calls it.
 
 ## Signed links
 

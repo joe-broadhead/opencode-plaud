@@ -3,10 +3,11 @@ import { DEFAULT_ACCOUNT } from "../../domain/config.js"
 import type { PluginConfig } from "../../domain/types.js"
 import type { PluginContext, Registration } from "../context.js"
 import { exportTool } from "./export.js"
+import { recentTool } from "./recent.js"
 
 /**
- * The plugin's only tool, plaud_export, plus the hook that withholds the
- * signed links (`presigned_url`, `data_link`) from Plaud tool results, and
+ * The plugin's own tools, plaud_export and plaud_recent, plus the hook that withholds the
+ * signed links (`presigned_url`, `data_link`) from Plaud tool results, theirs included, and
  * every link from a failed Plaud call's error text. Reads are the MCP server's own
  * tools (`plaud_get_file`, …), registered by the host.
  */
@@ -15,7 +16,8 @@ export const NAMESPACE = {
   name: "plaud",
   description:
     "Plaud voice recordings. list_files, get_file, get_note, get_transcript and get_current_user read from Plaud's " +
-    "server; export writes one recording's audio, transcript or note to a local file. For what a recording says, " +
+    "server; recent lists the newest recordings, one line each; export writes one recording's audio, transcript or " +
+    "note to a local file. For what a recording says, " +
     "call get_note (its notes, such as the summary) or get_transcript (what was said) first. get_file can be over " +
     "100 KB: it repeats list_files' details and get_note's notes, and adds only source_list (the recording's " +
     "sources) and the withheld audio link, so call it only for those. Another account <alias> has its reads under " +
@@ -36,11 +38,14 @@ export type ToolsHost = {
 }
 
 export async function registerTools(ctx: ToolsHost, options: ToolOptions): Promise<Registration> {
-  const tool = exportTool(ctx, options, [DEFAULT_ACCOUNT, ...options.accounts])
+  const accounts: [string, ...string[]] = [DEFAULT_ACCOUNT, ...options.accounts]
+  const tool = exportTool(ctx, options, accounts)
+  const recent = recentTool(ctx, accounts)
   const registrations = [
     await ctx.tool.transform((editor) => {
       editor.namespace(NAMESPACE)
       editor.add(tool)
+      editor.add(recent)
     }),
     await ctx.tool.hook("execute.after", (event) => {
       if (!PLAUD_TOOL.test(event.tool)) return

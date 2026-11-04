@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Jelly shows the plugin's one-line summary and icon: `jelly.summary`, and `jelly.icon`, shipped as `assets/icon.svg`.
 - Scripts can call `plaud_recent` through the tools RPC, as the method `recent`. Its input is `{ "limit"?: 1 to 20 }`; the account is the envelope's `account`, as for the five reads, and an account the options don't name is `ACCOUNT_UNKNOWN`. It runs under the same rules as for the model: `plaud_recent`, then the account's `list_files`, and a refused read is `PERMISSION_DENIED` naming that read. An input it does not take, such as `account`, is the new code `INPUT_INVALID`. `describe` lists it.
 
 ## [0.0.3] - 2026-11-04

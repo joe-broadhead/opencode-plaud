@@ -110,13 +110,15 @@ afterAll(async () => {
 })
 
 describe("the tarball", () => {
-  it("holds exactly the files whitelist: built JavaScript, skills and the user docs, under 1 MB", () => {
+  it("holds exactly the files whitelist: built JavaScript, Jelly's icon, skills and the user docs, under 1 MB", () => {
     const files = tree(installed).sort()
     const expected = [
       "package.json",
       ...pkg.files.flatMap((entry) => (statSync(join(REPO, entry)).isDirectory() ? tree(join(REPO, entry)).map((path) => `${entry}/${path}`) : [entry])),
     ].sort()
     expect(files).toEqual(expected)
+    // The one asset is Jelly's icon.
+    expect(files.filter((path) => path.startsWith("assets/"))).toEqual(["assets/icon.svg"])
     expect(files.filter((path) => /\.(?:tsx|jsx|map|ts)$|(?:^|\/)node_modules\//.test(path))).toEqual([])
     expect([...new Set(files.filter((path) => path.startsWith("skills/")).map((path) => path.split("/")[1]))].sort()).toEqual(SKILLS)
     expect(files.length).toBeLessThan(150)

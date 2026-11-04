@@ -113,7 +113,7 @@ const notRun = (modifiers: readonly string[]): Rule => (node) =>
     && `${chain(node)}: every test runs; delete it or make it pass`
 
 /** Tests that do not run. */
-const TEST_RULES: readonly Rule[] = [notRun(["skip", "runIf", "only", "todo"])]
+const TEST_RULES: readonly Rule[] = [notRun(["skip", "skipIf", "runIf", "only", "todo"])]
 
 export type Scope = "shipped" | "test" | "tooling"
 
@@ -123,10 +123,9 @@ export type Scope = "shipped" | "test" | "tooling"
  * - `evaluate hook`: the RPC's one hook turns an ask on one of its own script calls in flight into a deny, because no
  *   one can answer it, and touches nothing else;
  * - `error tags`: the RPC reads OpenCode's `Tool.Error` and `Session.NotFoundError` tags to tell a refusal from an
- *   upstream failure and a missing session from other failures; its unit test fakes those errors;
- * - `skipIf`: the shared unit test skips its MCP tests for a plugin with no known reads; Plaud has five, so they run.
+ *   upstream failure and a missing session from other failures; its unit test fakes those errors.
  */
-export type Exemption = "evaluate hook" | "error tags" | "skipIf"
+export type Exemption = "evaluate hook" | "error tags"
 
 const EXEMPTIBLE: Readonly<Record<Exemption, { readonly scopes: readonly Scope[]; readonly rules: readonly Rule[] }>> = {
   "evaluate hook": {
@@ -147,7 +146,6 @@ const EXEMPTIBLE: Readonly<Record<Exemption, { readonly scopes: readonly Scope[]
         && "_tag: private host error tags are not a public API",
     ],
   },
-  skipIf: { scopes: ["test"], rules: [notRun(["skipIf"])] },
 }
 
 

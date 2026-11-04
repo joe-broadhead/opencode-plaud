@@ -113,14 +113,24 @@ A refusal or failure is the RPC error `failed`, with a message `CODE: what happe
 | `SESSION_UNKNOWN` | OpenCode says the session does not exist. Any other failure to look the session up is OpenCode's own error. |
 | `SESSION_AGENT_REQUIRED` | The session names no agent, or an agent that does not exist. |
 | `ACCOUNT_UNKNOWN` | `account` is neither `default` nor an alias from the plugin's `accounts` option. |
-| `PERMISSION_DENIED` | The agent's or the session's rules deny the tool, or ask for an approval. |
-| `AUTH_REQUIRED`, `CONNECTING`, `CONNECTION_FAILED`, `DISABLED`, `NOT_REGISTERED` | The account's server needs a sign-in, is still connecting, could not connect, is disabled, or is missing. `/plaud-status` gives the next step for each account. |
+| `PERMISSION_DENIED` | The agent's or the session's rules deny the tool, or ask for an approval. The message names the action whose check was refused. |
+| `AUTH_REQUIRED`, `CONNECTING`, `CONNECTION_FAILED`, `DISABLED`, `NOT_REGISTERED` | The account's server needs a sign-in, is still connecting (or reconnected during the call: call again), could not connect, is disabled, or is missing. `/plaud-status` gives the next step for each account. |
 | `TOOL_UNAVAILABLE` | The account's server is connected, but OpenCode does not list the tool. |
 | `UPSTREAM_ERROR` | Plaud answered with an error, such as a recording that does not exist. The message holds the first line of Plaud's text, at most 300 characters, with tokens and URL query strings removed. |
 | `CANCELLED` | The request was cancelled. |
 
-OpenCode itself answers `rpc.invalid_input` for a body that is not the envelope above, and `rpc.method_not_found` for a
-method that does not exist, such as `export` or a tool Plaud added later.
+OpenCode itself answers `rpc.method_not_found` for a method that does not exist, such as `export` or a tool Plaud added
+later, and `rpc.invalid_input` for a body that is not the envelope above, with one issue per problem:
+
+| Case | Message |
+| --- | --- |
+| The envelope is not an object | `the envelope must be an object, such as {"sessionID":"<session>","input":<the tool's input>}` |
+| An unknown key, such as `extra` | `"extra" is not allowed` |
+| `sessionID` missing, not a string, or empty | `"sessionID" must be a non-empty string` |
+| `account` not a string, or empty | `"account" must be a non-empty string` |
+| `input` missing | `"input" is missing` |
+| `input` not an object | `"input" must be an object` |
+| `describe` given anything but nothing or `{}` | `describe takes no input` |
 
 ## What scripts cannot do
 

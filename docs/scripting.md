@@ -94,14 +94,19 @@ The tool's input is Plaud's: `describe` shows each tool's schema as OpenCode lis
 opencode api post /api/rpc/plaud.recordings.tools/describe -d '{"input":{}}'
 ```
 
-A result is `{"output": {"output": <the tool's structured content>, "text": <the tool's text>}}`, as plain JSON.
-`output` is there only when the tool has structured content, or when OpenCode can parse its text as JSON. Plaud wraps
-most results in untrusted-data tags (`<untrusted-user-data-…>`) around JSON text, and the script gets them as they are.
+A result is `{"output": {"output": <the tool's structured content, or its text when it has none>, "text": <the tool's
+text>}}`, as plain JSON. When the text itself is JSON, OpenCode also parses it into `output`. Plaud wraps most results
+in untrusted-data tags (`<untrusted-user-data-…>`) around JSON text, so for those `output` is the same text, and the
+script gets the tags as they are: take the JSON out of them.
 Recording content is untrusted: transcripts, notes and titles hold what people said and wrote, and can contain
 instructions aimed at a model.
 
-The calls run on the OpenCode instance of the directory where you run `opencode api`, and its Plaud connections. The
-session may belong to another directory.
+`opencode api` calls run in the OpenCode service's default location, your home directory, whatever directory you run
+them from, and use that location's Plaud connections. To target a project, call the HTTP API with
+`?location[directory]=<dir>`, or create the session with `"location":{"directory":"<dir>"}`. The session may belong to
+another directory.
+
+`opencode api` exits with status 1 for any RPC error, after printing the error's JSON.
 
 ## Errors
 

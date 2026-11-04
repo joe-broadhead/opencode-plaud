@@ -47,6 +47,7 @@ Ask about your recordings, for example "what did I record this week?" or "save t
 | `plaud_get_transcript` | `tools.plaud.get_transcript` | One transcript block, a page at a time | runs |
 | `plaud_get_file` | `tools.plaud.get_file` | One recording in full, often over 100 KB; the skill and Code Mode's description send the model to the notes or the transcript first | runs |
 | `plaud_get_current_user` | `tools.plaud.get_current_user` | The signed-in account | runs |
+| `plaud_recent` | `tools.plaud.recent` | The newest recordings, one line each: title, start time and length | runs |
 | `plaud_export` | `tools.plaud.export` | Save audio, a transcript or a note as a file | asks |
 
 Plaud maintains the read tools and their arguments. Plaud has no write API: nothing here can create, rename, delete, upload, share or send a recording. Any other tool on a Plaud server asks before it runs.
@@ -91,7 +92,7 @@ See [Scripting](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/s
 
 ## Permissions
 
-The plugin adds default rules to each agent: Plaud's read tools run without a prompt, and `plaud_export` and any other Plaud tool ask first. "Always allow" on an export remembers only that account and kind, such as `default:transcript`. Your own `permissions` rules win over the defaults.
+The plugin adds default rules to each agent: Plaud's read tools and `plaud_recent` run without a prompt, and `plaud_export` and any other Plaud tool ask first. "Always allow" on an export remembers only that account and kind, such as `default:transcript`. Your own `permissions` rules win over the defaults.
 
 `opencode run` and other runs where nobody can answer refuse an export unless a rule allows it. To export without a prompt, or to block some exports, see [Permissions](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#permissions).
 

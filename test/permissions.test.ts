@@ -5,6 +5,7 @@ import {
   evaluate,
   EXPORT_ACTION,
   insertDefaultRules,
+  RECENT_ACTION,
   registerPermissions,
   unguardedAgents,
   type Rule,
@@ -69,21 +70,24 @@ const rules = (agents: readonly Agent[], id: string) => agents.find((agent) => a
 const DEFAULT_RULES = defaultRules(["plaud"])
 
 describe("default permission rules", () => {
-  it("asks for every plaud tool, allows each configured server's known reads by exact name, and asks for exports", () => {
+  it("asks for every plaud tool, allows each configured server's known reads and plaud_recent by exact name, and asks for exports", () => {
     expect(EXPORT_ACTION).toBe("plaud_export")
+    expect(RECENT_ACTION).toBe("plaud_recent")
     const reads = ["list_files", "get_file", "get_note", "get_transcript", "get_current_user"]
     expect(defaultRules(["plaud", "plaud-work"])).toEqual([
       { action: "plaud*_*", resource: "*", effect: "ask" },
       ...reads.map((read) => ({ action: `plaud_${read}`, resource: "*", effect: "allow" })),
       ...reads.map((read) => ({ action: `plaud-work_${read}`, resource: "*", effect: "allow" })),
       { action: "plaud_export", resource: "*", effect: "ask" },
+      { action: "plaud_recent", resource: "*", effect: "allow" },
     ])
   })
 
   it("allows no tool that only ends like a known read: a later upstream tool, an unconfigured account or another plaud* server asks (PLAUD-5)", () => {
     const agent = [allow, ...defaultRules(["plaud", "plaud-work"])]
     expect(["plaud_get_file", "plaud-work_get_transcript", "plaud-work_get_current_user"].map((action) => evaluate(agent, action))).toEqual(["allow", "allow", "allow"])
-    for (const action of ["plaud_bulk_get_file", "plaud-work_bulk_get_note", "plaud-other_get_file", "plaudit_get_file", "plaud_delete_file", EXPORT_ACTION]) {
+    expect(evaluate(agent, RECENT_ACTION)).toBe("allow")
+    for (const action of ["plaud_bulk_get_file", "plaud-work_bulk_get_note", "plaud-other_get_file", "plaudit_get_file", "plaud_delete_file", "plaud-work_recent", "plaud_recent_files", EXPORT_ACTION]) {
       expect(evaluate(agent, action), action).toBe("ask")
     }
   })
@@ -95,7 +99,7 @@ describe("default permission rules", () => {
     expect(rules(after, "build")).toEqual([allow, ...DEFAULT_RULES, ...env])
     expect(rules(after, "plan")).toEqual([allow, ...DEFAULT_RULES, ...env, { action: "edit", resource: "*", effect: "deny" }])
     expect(rules(after, "explore").at(-1)).toEqual({ action: "*", resource: "*", effect: "deny" })
-    expect(rules(after, "explore").slice(0, 8)).toEqual([allow, ...DEFAULT_RULES])
+    expect(rules(after, "explore").slice(0, 1 + DEFAULT_RULES.length)).toEqual([allow, ...DEFAULT_RULES])
   })
 
   it("inserts after the base allow wherever it sits", () => {

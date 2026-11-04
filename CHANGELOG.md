@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `plaud_recent` (`tools.plaud.recent` in Code Mode): the newest recordings, one line each, with the title, the start time in UTC and the length. It takes an optional `account` and `limit` (1 to 20, 8 by default), and reads through the account's own `list_files`. It runs without asking: the default rules allow `plaud_recent` by its exact name, and a rule for the account's `list_files` applies to it too. Because it is one tool for every account, a rule can name the account as its resource, such as `{ "action": "plaud_recent", "resource": "work", "effect": "deny" }`. It is not a tools RPC method; a script reads `list_files`.
+- `/plaud-status` counts `plaud_recent` as one of the plugin's own tools, not as an unknown Plaud tool. The block it shows for agents defined in your config has the `plaud_recent` rule; copy it again into those agents.
+
 ## [0.0.2] - 2026-11-04
 
 ### Added

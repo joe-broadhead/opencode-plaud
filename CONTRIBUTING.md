@@ -82,6 +82,7 @@ It needs the network and a signed-in Plaud account, so it is not part of `npm ru
 | The `/connect` names | `src/host/integration.ts` |
 | Default permission rules | `src/host/permissions.ts` |
 | `plaud_export` | `src/domain/contract/index.ts`, `src/host/tools/export.ts`, `src/domain/export.ts`, `src/domain/normalize.ts` |
+| `plaud_recent` | `src/domain/contract/index.ts`, `src/host/tools/recent.ts`, `src/domain/normalize.ts` |
 | Signed-link withholding | `src/domain/redact.ts`, `src/host/tools/index.ts`, and `shapeResult` in `src/host/tools-rpc.ts` |
 | Status, `/plaud-status`, the RPC and the TUI | `src/status.ts`, `src/rpc.ts`, `src/host/commands.ts`, `src/host/rpc.ts`, `src/tui.tsx` |
 | The tools RPC for scripts | `src/host/tools-rpc.ts` (only its `PLUGIN-SPECIFIC` block is Plaud's), `docs/scripting.md` |

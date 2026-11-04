@@ -27,7 +27,8 @@ const CODES: Record<ErrorCode, true> = {
   EXPORT_TIMEOUT: true,
   EXPORT_FAILED: true,
 }
-const TOOLS = new Set([...KNOWN_READS, "export"])
+/** Every tool a skill may name: the server's reads and the plugin's own two. The router names each in both forms. */
+const TOOLS = new Set([...KNOWN_READS, "export", "recent"])
 
 const text = (id: string) => readFileSync(new URL(`${id}/SKILL.md`, SKILLS), "utf8")
 const temporary: string[] = []

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../src/domain/redact.js"
 import { accountServer, KNOWN_READS as PLAUD_READS } from "../src/host/mcp.js"
-import { defaultRules } from "../src/host/permissions.js"
+import { defaultRules, RECENT_ACTION } from "../src/host/permissions.js"
 import { registerTools } from "../src/host/tools/index.js"
 import { KNOWN_READS, NEXT_STEPS, registerToolsRpc, shapeResult, TOOLS_RPC_ID, type McpResult, type ToolCall } from "../src/host/tools-rpc.js"
 
@@ -58,7 +58,11 @@ async function rpc(tools: readonly string[], result: Result = upstream) {
   }
   await registerToolsRpc(ctx as never, { mcp: { server: accountServer(["work"]), managed: () => true } })
   const context = { signal: new AbortController().signal, error: (type: string, message: string, data?: unknown) => ({ type, message, data }) }
-  return { calls, run: (method: string, envelope: Record<string, unknown>) => handlers[method]!({ sessionID: "ses_1", input: {}, ...envelope }, context) }
+  return {
+    calls,
+    methods: Object.keys(handlers),
+    run: (method: string, envelope: Record<string, unknown>) => handlers[method]!({ sessionID: "ses_1", input: {}, ...envelope }, context),
+  }
 }
 
 /** The model path's execute.after hook, as registerTools installs it. */
@@ -89,13 +93,17 @@ async function modelHook() {
 }
 
 describe("Plaud's tools RPC", () => {
-  it("is plaud.recordings.tools, with exactly the five reads the default rules allow; plaud_export is never a method", () => {
+  it("is plaud.recordings.tools, with exactly the five server reads the default rules allow; plaud_export and plaud_recent are never methods", async () => {
     expect(TOOLS_RPC_ID).toBe("plaud.recordings.tools")
     expect([...KNOWN_READS]).toEqual(["list_files", "get_file", "get_note", "get_transcript", "get_current_user"])
     expect(KNOWN_READS).toBe(PLAUD_READS)
-    const allowed = defaultRules(["plaud"]).filter((rule) => rule.effect === "allow").map((rule) => rule.action.replace("plaud_", ""))
-    expect(allowed).toEqual([...KNOWN_READS])
+    // The rules allow the server's five reads, then the plugin's own plaud_recent, which is a tool only.
+    const allowed = defaultRules(["plaud"]).filter((rule) => rule.effect === "allow").map((rule) => rule.action)
+    expect(allowed).toEqual([...KNOWN_READS.map((read) => `plaud_${read}`), RECENT_ACTION])
     expect(KNOWN_READS).not.toContain("export")
+    expect(KNOWN_READS).not.toContain("recent")
+    const { methods } = await rpc(["plaud_list_files", "plaud_recent", "plaud_export"])
+    expect(methods.sort()).toEqual(["describe", ...KNOWN_READS].sort())
   })
 
   it("has a next step for an unknown account, and every next step is one sentence", () => {
@@ -158,6 +166,18 @@ describe("Plaud's tools RPC", () => {
       expect(script).toEqual(model.output === undefined ? { text: model.content[0]!.text } : { output: model.output, text: model.content[0]!.text })
       expect(JSON.stringify(script)).not.toContain(SIGNATURE)
     }
+  })
+
+  it("withholds signed links from plaud_recent's results on the model path, as from the server's reads", async () => {
+    const hook = await modelHook()
+    const result: Result = {
+      output: { items: [{ id: "rec-1", text: "Weekly sync" }], editable: false, presigned_url: signed("/audio/rec-1.mp3") },
+      content: [{ type: "text", text: JSON.stringify({ items: [], data_link: signed("/data/rec-1-note.md") }) }],
+    }
+    const seen = hook("plaud_recent", result) as { output: Record<string, unknown>; content: { text: string }[] }
+    expect(seen.output).toMatchObject({ items: [{ id: "rec-1", text: "Weekly sync" }], presigned_url: AUDIO_URL_NOTICE })
+    expect(seen.content[0]!.text).toContain(`"data_link":"${DATA_LINK_NOTICE}"`)
+    expect(JSON.stringify(seen)).not.toContain(SIGNATURE)
   })
 
   it("keeps durations in milliseconds, as Plaud returns them", async () => {

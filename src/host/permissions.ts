@@ -12,7 +12,11 @@ import { KNOWN_READS } from "./mcp.js"
  *   exact name (`plaud_get_file`, `plaud-work_get_file`, …), so they never
  *   prompt and work in `opencode run`, and no other tool whose name merely
  *   ends like a read (`plaud_bulk_get_file`, `plaudit_get_file`) is allowed;
- * - `plaud_export` asks.
+ * - `plaud_export` asks;
+ * - `plaud_recent`, the plugin's own read, is allowed by its exact name. It
+ *   is one tool for every account: it asserts `plaud_recent` with the account
+ *   as the resource, and reads through that account's `<server>_list_files`,
+ *   whose own exact-name rule still applies.
  *
  * Everything that follows the base allow comes later and still wins: an
  * agent's own stricter rules (Plan, Explore), the user's `permissions` rules
@@ -26,12 +30,19 @@ export type Rule = Readonly<ReturnType<AgentEditor["list"]>[number]["permissions
 /** The permission action of the plugin's export tool. `plaud*_*` matches it too. */
 export const EXPORT_ACTION = "plaud_export"
 
+/** The permission action of the plugin's own read, `plaud_recent`. `plaud*_*` matches it too. */
+export const RECENT_ACTION = "plaud_recent"
+
+/** The plugin's own tools: `plaud_` names them too, but they are not a server's. */
+export const OWN_TOOLS: readonly string[] = [EXPORT_ACTION, RECENT_ACTION]
+
 /** The default rules for these servers, the default account's `plaud` first. */
 export function defaultRules(servers: readonly string[]): Rule[] {
   return [
     { action: "plaud*_*", resource: "*", effect: "ask" },
     ...servers.flatMap((server) => KNOWN_READS.map((tool): Rule => ({ action: `${server}_${tool}`, resource: "*", effect: "allow" }))),
     { action: EXPORT_ACTION, resource: "*", effect: "ask" },
+    { action: RECENT_ACTION, resource: "*", effect: "allow" },
   ]
 }
 

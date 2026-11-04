@@ -13,7 +13,7 @@ import { fail } from "./errors.js"
  * Times: `duration`, `start_time` and `end_time` are milliseconds.
  */
 
-export const PLAUD_TOOLS = { file: "get_file", transcript: "get_transcript", note: "get_note" } as const
+export const PLAUD_TOOLS = { list: "list_files", file: "get_file", transcript: "get_transcript", note: "get_note" } as const
 
 /** The `get_file` field holding the signed audio link, a credential valid for about 24 hours. */
 export const AUDIO_URL_FIELD = "presigned_url"
@@ -113,6 +113,22 @@ export function recordingMeta(payload: unknown, recordingId: string): RecordingM
     ...(startedAt === undefined ? {} : { startedAt }),
     ...(durationMs === undefined ? {} : { durationMs }),
   }
+}
+
+/**
+ * The recordings of a `list_files` payload, newest first as Plaud returns them:
+ * `{ data: [...] }`, or the list itself. An entry without an id is skipped; a
+ * payload with no list at all fails with PLAUD_UNREADABLE.
+ */
+export function recordingList(payload: unknown): RecordingMeta[] {
+  const list = Array.isArray(payload) ? payload : isRecord(payload) ? payload["data"] : undefined
+  if (!Array.isArray(list)) {
+    fail("PLAUD_UNREADABLE", `list_files returned ${describe(payload)} instead of a list of recordings.`, UNREADABLE_NEXT_STEP)
+  }
+  return list.flatMap((item) => {
+    const id = isRecord(item) ? identifier(item["id"]) : undefined
+    return id === undefined ? [] : [recordingMeta(item, id)]
+  })
 }
 
 /** The signed audio link of a `get_file` payload, when Plaud has one. */

@@ -50,6 +50,8 @@ export const ExportOutput = z.strictObject({
 
 export type ExportResult = z.output<typeof ExportOutput>
 
+const recentLimit = z.number().int().min(1).max(20).optional().describe("How many recordings, newest first; 8 by default")
+
 /** The contract of `plaud_recent`: the newest recordings, one line each. */
 export function recentInput(accounts: readonly [string, ...string[]]) {
   return z.strictObject({
@@ -57,11 +59,14 @@ export function recentInput(accounts: readonly [string, ...string[]]) {
       .enum(accounts)
       .optional()
       .describe(`Account to read; defaults to "${accounts[0]}"`),
-    limit: z.number().int().min(1).max(20).optional().describe("How many recordings, newest first; 8 by default"),
+    limit: recentLimit,
   })
 }
 
 export type RecentRequest = z.output<ReturnType<typeof recentInput>>
+
+/** The tools RPC's `recent` method: the tool's input without `account`, which comes from the envelope. */
+export const RecentMethodInput = z.strictObject({ limit: recentLimit })
 
 /**
  * Shaped as a Home `list` (items of at most 200 characters, not editable), so

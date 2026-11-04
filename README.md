@@ -81,7 +81,7 @@ See [SECURITY.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/SECU
 
 ### Scripts
 
-A script or a cron job can call Plaud's five read tools with no model, through `opencode api`. It runs as a session and its agent, under that agent's permission rules and the session's own. Add `"account": "<alias>"` to read another account. Exports and every other Plaud tool are never available to scripts, and a script never gets a signed link:
+A script or a cron job can call Plaud's five read tools and `plaud_recent` with no model, through `opencode api`. It runs as a session and its agent, under that agent's permission rules and the session's own. Add `"account": "<alias>"` to read another account. Exports and every other Plaud tool are never available to scripts, and a script never gets a signed link:
 
 ```sh
 opencode api post /api/rpc/plaud.recordings.tools/list_files \

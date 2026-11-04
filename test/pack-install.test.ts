@@ -356,7 +356,8 @@ const READS = ["list_files", "get_file", "get_note", "get_transcript", "get_curr
 /**
  * The tools RPC, `plaud.recordings.tools`, pinned on each stock release: a script calls a read as a session and its
  * agent, with no model turn; the agent's deny hides and refuses it; an ask is refused with no prompt left waiting;
- * the session's rules apply after the agent's; plaud_export and unknown tools are no methods; no signed link leaks.
+ * the session's rules apply after the agent's; plaud_recent is the method recent, on the envelope's account;
+ * plaud_export and unknown tools are no methods; no signed link leaks.
  * The executor it calls (`ctx.tool.list()`) is not a documented entry point, so these tests are its contract.
  */
 describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
@@ -374,7 +375,7 @@ describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
         const { value } = await host.script("describe", {})
         return value?.methods?.every((method: { available: boolean }) => method.available) ? value : undefined
       })
-      expect(described.methods.map((method: { name: string }) => method.name)).toEqual(READS)
+      expect(described.methods.map((method: { name: string }) => method.name)).toEqual([...READS, "recent"])
       const session = async (body: Record<string, unknown>) => ((await host.api("POST", "/api/session", { location: { directory: host.directory }, ...body })) as { data: { id: string } }).data.id
       const sessions = {
         build: await session({ agent: "build" }),
@@ -396,9 +397,15 @@ describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
       expect(fake.calls.slice(from).map((entry) => entry.tool)).toEqual(["get_file"])
       expect(((await host.api("GET", `/api/session/${sessions.build}`)) as { data: { tokens: unknown } }).data.tokens).toMatchObject({ input: 0, output: 0 })
 
+      // recent runs plaud_recent on the envelope's account, through its list_files; an unknown account is refused first.
+      from = calls()
+      expect((await call("build", "recent", { limit: 1 })).value).toEqual({ items: [{ id: "rec-1", text: expect.stringContaining("Weekly sync") }], editable: false })
+      expect(fake.calls.slice(from)).toEqual([{ tool: "list_files", arguments: { page_size: 10 } }])
+      expect(await host.script("recent", { sessionID: sessions.build, account: "home", input: {} })).toMatchObject({ type: "failed", code: "ACCOUNT_UNKNOWN" })
+
       // The agent's deny hides and refuses every read, before Plaud is called.
       from = calls()
-      for (const method of READS) expect(await call("locked", method), method).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+      for (const method of [...READS, "recent"]) expect(await call("locked", method), method).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
       expect(calls()).toBe(from)
 
       // An ask is refused at once, with no prompt left waiting.

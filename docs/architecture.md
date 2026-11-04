@@ -15,8 +15,8 @@ OpenCode 2.2.x server
  ├─ ctx.command.transform  /plaud-status
  ├─ ctx.skill.transform    opencode-plaud, opencode-plaud-export, opencode-plaud-digest
  ├─ ctx.rpc.register       RPC "plaud.recordings": status
- └─ tools RPC              "plaud.recordings.tools": describe and the five known reads, for scripts,
-                           with a permission evaluate hook for its own calls in flight
+ └─ tools RPC              "plaud.recordings.tools": describe, the five known reads and recent, for
+                           scripts, with a permission evaluate hook for its own calls in flight
 OpenCode TUI
  └─ plaud.recordings.tui   the "Plaud: Status" palette command (/plaud) and dialog, from the status RPC
 ```
@@ -77,7 +77,7 @@ OpenCode creates agents defined only in the user's config after plugins run, so 
 
 ## Recent recordings
 
-`plaud_recent` (`src/host/tools/recent.ts`) takes `{ account?, limit? }`, `limit` 1 to 20 and 8 by default. It asserts `plaud_recent` with the account as resource and save, then calls the host's executor for the account's `<server>_list_files`, as the export reads, so that read's own rule applies too. Plaud's server refuses a `page_size` below 10, so it asks for at least 10 and keeps the first `limit`. It returns a Home `list`, `{ items: [{ id, text }], editable: false }`: one line per recording, the title on one line, the start time in UTC and the length, at most 200 characters. It returns no link and no content. Jelly's Home feed preset calls it.
+`plaud_recent` (`src/host/tools/recent.ts`) takes `{ account?, limit? }`, `limit` 1 to 20 and 8 by default. It asserts `plaud_recent` with the account as resource and save, then calls the host's executor for the account's `<server>_list_files`, as the export reads, so that read's own rule applies too. Plaud's server refuses a `page_size` below 10, so it asks for at least 10 and keeps the first `limit`. It returns a Home `list`, `{ items: [{ id, text }], editable: false }`: one line per recording, the title on one line, the start time in UTC and the length, at most 200 characters. It returns no link and no content. Jelly's Home feed preset calls it. The tools RPC runs the same spec as the method `recent`, with `{ limit? }` as input and the envelope's `account`; there a refused `list_files` reaches the module untouched, so a script reads `PERMISSION_DENIED`.
 
 ## Signed links
 
@@ -91,7 +91,7 @@ The hook runs on OpenCode's own tool path, for direct and Code Mode calls. Raw e
 
 ## Scripts
 
-The tools RPC, `plaud.recordings.tools`, lets a script call Plaud's five known reads with no model ([Scripting](scripting.md)). `src/host/tools-rpc.ts` is a copy of a module shared by several plugins; only its marked block is Plaud's: the reads (`KNOWN_READS` in `src/host/mcp.ts`), the next steps, and `shapeResult`, which withholds the signed links.
+The tools RPC, `plaud.recordings.tools`, lets a script call Plaud's five known reads and `plaud_recent` (method `recent`) with no model ([Scripting](scripting.md)). `src/host/tools-rpc.ts` is a copy of a module shared by several plugins; only its marked block is Plaud's: the reads (`KNOWN_READS` in `src/host/mcp.ts`), the next steps, `shapeResult`, which withholds the signed links, and `pluginError`, which gives `recent`'s own errors their code and next step. Setup passes `recent` as an owned method (`recentMethod` in `src/host/tools/recent.ts`).
 
 Each call names a session; the session's agent and rules decide, exactly as for the model. The RPC refuses a tool those rules hide, then calls the tool's executor from `ctx.tool.list()`, which checks the agent's rules, the session's rules and saved approvals. A permission `evaluate` hook turns an ask on one of the RPC's own calls in flight into a deny, since no one can answer it; it touches no other call.
 

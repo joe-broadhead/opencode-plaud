@@ -114,8 +114,12 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
   }
 }
 
-/** Reads through the host executor of `<server>_<tool>` with the caller's tool context, so the read's own permission rules apply. */
-export function reader(tools: Awaited<ReturnType<ExportHost["tool"]["list"]>>, account: string, context: ToolContext): Read {
+/**
+ * Reads through the host executor of `<server>_<tool>` with the caller's tool context, so the read's own permission
+ * rules apply. With `passRefusals`, a refused permission check (an error that carries its cause) reaches the caller
+ * untouched, so the tools RPC reports it as PERMISSION_DENIED.
+ */
+export function reader(tools: Awaited<ReturnType<ExportHost["tool"]["list"]>>, account: string, context: ToolContext, passRefusals = false): Read {
   const server = serverName(account)
   return async (tool, args) => {
     const id = `${server}_${tool}`
@@ -126,6 +130,7 @@ export function reader(tools: Awaited<ReturnType<ExportHost["tool"]["list"]>>, a
     } catch (error) {
       // A declined prompt carries no message and, like a cancellation, must reach the host untouched.
       if (context.signal.aborted || !(error instanceof Error) || error.message === "") throw error
+      if (passRefusals && (error as { error?: unknown }).error !== undefined) throw error
       const step = `If a permission rule denies ${id}, allow it for this agent; if ${server} is signed out, run /connect and choose ${displayName(account)}; otherwise retry.`
       fail("PLAUD_READ_FAILED", `${id} failed: ${scrubUrls(error.message)}`, step)
     }

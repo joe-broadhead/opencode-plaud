@@ -202,6 +202,7 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | `HOST_UNTESTED` | setup | OpenCode is outside `>=2.2.3 <2.3.0` and `allowUntestedHost` is not set. |
 | `SKILLS_INVALID` | setup | The package's `skills/` folder is missing or a skill file is malformed. Reinstall the plugin. |
 | `STATUS_UNAVAILABLE` | status views | The status could not be read. |
+| `INPUT_INVALID` | the tools RPC's `recent` | Its input is not `{}` or `{ "limit": 1 to 20 }`; the account goes in the envelope. |
 | `AUTH_REQUIRED` | export, recent | The account's server is not connected or not signed in. |
 | `PLAUD_READ_FAILED` | export, recent | A Plaud read failed or was denied. |
 | `PLAUD_UNREADABLE` | export, recent | Plaud returned something the plugin cannot use, such as an audio link that is not a valid https URL, an audio download that redirects to one or more than 5 times, a transcript that never ends, or a recording list that is not a list. |

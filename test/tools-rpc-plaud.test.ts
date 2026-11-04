@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../src/domain/redact.js"
 import { accountServer, KNOWN_READS as PLAUD_READS } from "../src/host/mcp.js"
 import { defaultRules, RECENT_ACTION } from "../src/host/permissions.js"
+import { reader } from "../src/host/tools/export.js"
 import { registerTools } from "../src/host/tools/index.js"
+import { recentMethod } from "../src/host/tools/recent.js"
 import { KNOWN_READS, NEXT_STEPS, registerToolsRpc, shapeResult, TOOLS_RPC_ID, type McpResult, type ToolCall } from "../src/host/tools-rpc.js"
 
 /**
@@ -28,9 +30,13 @@ const upstream = { output: recording, content: [{ type: "text" as const, text: w
 type Result = { output?: unknown; content?: string | { type: "text"; text: string }[] }
 type Handler = (input: unknown, context: { signal: AbortSignal; error: (type: string, message: string, data?: unknown) => unknown }) => Promise<any>
 
-/** The tools RPC with the plugin's own account mapping, on narrow fakes: every listed tool runs and answers `result`. */
+/**
+ * The tools RPC with the plugin's own account mapping and its `recent` method, on narrow fakes: every listed tool
+ * runs and answers `result`, and every assertion is allowed and recorded.
+ */
 async function rpc(tools: readonly string[], result: Result = upstream) {
   const calls: { tool: string; input: unknown; call: ToolCall }[] = []
+  const asserted: Record<string, unknown>[] = []
   let handlers: Record<string, Handler> = {}
   const ctx = {
     location: { directory: "/fixture/project" },
@@ -56,10 +62,12 @@ async function rpc(tools: readonly string[], result: Result = upstream) {
     },
     mcp: { list: async () => ({ data: [] }) },
   }
-  await registerToolsRpc(ctx as never, { mcp: { server: accountServer(["work"]), managed: () => true } })
+  const recent = recentMethod({ tool: ctx.tool, permission: { assert: async (request: Record<string, unknown>) => void asserted.push(request) } } as never, ["default", "work"])
+  await registerToolsRpc(ctx as never, { mcp: { server: accountServer(["work"]), managed: () => true }, owned: [recent] })
   const context = { signal: new AbortController().signal, error: (type: string, message: string, data?: unknown) => ({ type, message, data }) }
   return {
     calls,
+    asserted,
     methods: Object.keys(handlers),
     run: (method: string, envelope: Record<string, unknown>) => handlers[method]!({ sessionID: "ses_1", input: {}, ...envelope }, context),
   }
@@ -93,7 +101,7 @@ async function modelHook() {
 }
 
 describe("Plaud's tools RPC", () => {
-  it("is plaud.recordings.tools, with exactly the five server reads the default rules allow; plaud_export and plaud_recent are never methods", async () => {
+  it("is plaud.recordings.tools, with exactly the five server reads the default rules allow and recent; plaud_export is never a method", async () => {
     expect(TOOLS_RPC_ID).toBe("plaud.recordings.tools")
     expect([...KNOWN_READS]).toEqual(["list_files", "get_file", "get_note", "get_transcript", "get_current_user"])
     expect(KNOWN_READS).toBe(PLAUD_READS)
@@ -103,7 +111,7 @@ describe("Plaud's tools RPC", () => {
     expect(KNOWN_READS).not.toContain("export")
     expect(KNOWN_READS).not.toContain("recent")
     const { methods } = await rpc(["plaud_list_files", "plaud_recent", "plaud_export"])
-    expect(methods.sort()).toEqual(["describe", ...KNOWN_READS].sort())
+    expect(methods.sort()).toEqual(["describe", ...KNOWN_READS, "recent"].sort())
   })
 
   it("has a next step for an unknown account, and every next step is one sentence", () => {
@@ -130,6 +138,67 @@ describe("Plaud's tools RPC", () => {
     expect(refused).toMatchObject({ type: "failed", data: { code: "ACCOUNT_UNKNOWN", next: NEXT_STEPS.ACCOUNT_UNKNOWN } })
     expect(refused.message).toMatch(/^ACCOUNT_UNKNOWN: there is no account 'home'\. Next step: /)
     expect(calls).toHaveLength(3)
+  })
+
+  it("runs recent on the envelope's account: plaud_recent asserted for it, then its list_files, at least 10 asked", async () => {
+    const list = { content: [{ type: "text" as const, text: JSON.stringify([{ id: "rec-2", name: "Planning" }, { id: "rec-1", name: "Weekly sync" }]) }] }
+    const { calls, asserted, run } = await rpc(["plaud_list_files", "plaud-work_list_files"], list)
+    expect(await run("recent", { input: {} })).toEqual({ items: [{ id: "rec-2", text: "Planning" }, { id: "rec-1", text: "Weekly sync" }], editable: false })
+    expect(await run("recent", { account: "work", input: { limit: 1 } })).toEqual({ items: [{ id: "rec-2", text: "Planning" }], editable: false })
+    expect(await run("recent", { account: "default", input: { limit: 20 } })).toMatchObject({ editable: false })
+    expect(calls.map((call) => [call.tool, call.input])).toEqual([
+      ["plaud_list_files", { page_size: 10 }],
+      ["plaud-work_list_files", { page_size: 10 }],
+      ["plaud_list_files", { page_size: 20 }],
+    ])
+    expect(asserted.map((request) => [request["action"], request["resources"]])).toEqual([
+      [RECENT_ACTION, ["default"]],
+      [RECENT_ACTION, ["work"]],
+      [RECENT_ACTION, ["default"]],
+    ])
+    // The assertion carries the script call's source, so the evaluate hook can refuse an ask on it.
+    expect(asserted[0]).toMatchObject({ sessionID: "ses_1", agent: "build", source: { type: "tool", id: expect.stringMatching(/^script:/) } })
+  })
+
+  it("refuses recent for an unknown account, or an input it does not take, before any assertion or read", async () => {
+    const { calls, asserted, run } = await rpc(["plaud_list_files"])
+    const unknown = await run("recent", { account: "home", input: {} })
+    expect(unknown).toMatchObject({ type: "failed", data: { code: "ACCOUNT_UNKNOWN", next: NEXT_STEPS.ACCOUNT_UNKNOWN } })
+    for (const input of [{ account: "work" }, { limit: 0 }, { limit: 21 }, { limit: 1.5 }, "rec-1", null]) {
+      const refused = await run("recent", { input })
+      expect(refused, JSON.stringify(input)).toMatchObject({ type: "failed", data: { code: "INPUT_INVALID" } })
+      expect(refused.message).toMatch(/^INPUT_INVALID: The recent input is invalid: .+\. Next step: Pass \{\} or \{"limit": 1 to 20\} as the input, and the account as the envelope's "account"\.$/)
+    }
+    expect([calls, asserted]).toEqual([[], []])
+  })
+
+  it("gives recent's own errors their code and next step: no listed read is AUTH_REQUIRED with the account's sign-in", async () => {
+    const { run } = await rpc([])
+    const refused = await run("recent", { account: "work", input: {} })
+    expect(refused).toMatchObject({ type: "failed", data: { code: "AUTH_REQUIRED", next: "Run /connect and choose Plaud (work), then press o or Enter to open the sign-in page." } })
+    const failing = await rpc(["plaud_list_files"], { content: [{ type: "text", text: "not a list" }] })
+    expect(await failing.run("recent", { input: {} })).toMatchObject({ type: "failed", data: { code: "PLAUD_UNREADABLE" } })
+  })
+
+  it("describes recent as the plugin's own method, with its input and the Home list it returns", async () => {
+    const { run } = await rpc(["plaud_list_files"])
+    const described = (await run("describe", {})) as { methods: Record<string, any>[] }
+    const recent = described.methods.find((method) => method.name === "recent")
+    expect(recent).toMatchObject({ kind: "plugin", tool: "recent", action: RECENT_ACTION, available: true })
+    expect(recent!.input).toMatchObject({ type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false })
+    expect(Object.keys(recent!.input.properties)).toEqual(["limit"])
+    expect(recent!.output).toMatchObject({ type: "object", properties: { items: { type: "array", maxItems: 20 }, editable: { const: false } } })
+  })
+
+  it("lets the script path's reader pass a refused read's error through, and keeps the model path's PLAUD_READ_FAILED", async () => {
+    const refusal = Object.assign(new Error("Permission denied: plaud_list_files"), { error: { request: { action: "plaud_list_files" } } })
+    const tools = [{ id: "plaud_list_files", execute: async () => { throw refusal } }] as never
+    const context = { sessionID: "ses_1", agent: "build", messageID: "msg", id: "call", signal: new AbortController().signal } as never
+    await expect(reader(tools, "default", context, true)("list_files", {})).rejects.toBe(refusal)
+    await expect(reader(tools, "default", context)("list_files", {})).rejects.toMatchObject({ code: "PLAUD_READ_FAILED" })
+    // An upstream failure carries no cause: PLAUD_READ_FAILED on both paths.
+    const upstreamTools = [{ id: "plaud_list_files", execute: async () => { throw new Error("server error") } }] as never
+    await expect(reader(upstreamTools, "default", context, true)("list_files", {})).rejects.toMatchObject({ code: "PLAUD_READ_FAILED" })
   })
 
   it("never lets a signed link reach a script: not in the structured output, not in the text", async () => {

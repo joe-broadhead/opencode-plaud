@@ -113,7 +113,7 @@ export function renderNote(doc: NoteDocument): string {
   return finish(lines)
 }
 
-/** Local calendar date the recording started, from an ISO timestamp. */
+/** The machine's local calendar date the recording started, from a UTC ISO timestamp. */
 function recordedOn(recording: RecordingMeta): string | undefined {
   const timestamp = recording.startedAt ?? recording.createdAt
   if (timestamp === undefined) return undefined

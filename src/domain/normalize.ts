@@ -243,10 +243,15 @@ function milliseconds(value: unknown): number | undefined {
   return rounded >= 0 ? rounded : undefined
 }
 
-/** An ISO timestamp, normalised. */
+/**
+ * An ISO timestamp, normalised. Plaud sends UTC times with no zone, such as
+ * `2026-10-31T14:05:00`, which `Date.parse` would read as the machine's local
+ * time; a date-time with no zone gets `Z`, as Plaud's own server does.
+ */
 function iso(value: unknown): string | undefined {
   if (typeof value !== "string" || value.trim().length === 0) return undefined
-  const parsed = Date.parse(value)
+  const text = value.trim()
+  const parsed = Date.parse(/T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(text) ? `${text}Z` : text)
   return Number.isNaN(parsed) ? undefined : new Date(parsed).toISOString()
 }
 

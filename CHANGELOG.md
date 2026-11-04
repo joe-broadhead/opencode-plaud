@@ -4,8 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- Code Mode's description of the `plaud` namespace names all five reads, `get_current_user` included, and sends the model to `get_note` or `get_transcript` before `get_file`. `get_file` can be over 100 KB for one recording: it repeats what `list_files` and `get_note` return, and adds only `source_list` and the withheld audio link. The `opencode-plaud` skill says the same, and the export skill finds recording ids with `list_files`.
+
 ### Fixed
 
+- A failed Plaud call's error text now has every URL withheld before the model sees it, as completed results already did. Plaud's server puts no link in its errors today; this keeps it so.
 - An audio export whose link Plaud sent in a form that does not parse failed with a bare `TypeError` and no next step. It now fails with `PLAUD_UNREADABLE` and a next step, and the error never holds the link.
 - An audio export followed redirects without checking them, so a redirect could lead to plain http. The export now follows redirects itself, at most 5: each one must be https with no user name or password, and one from another machine may not lead to this one. Otherwise it stops with `PLAUD_UNREADABLE` before fetching, and the error names no link. A link with a user name or password is refused the same way.
 

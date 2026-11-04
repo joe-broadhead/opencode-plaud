@@ -3,10 +3,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
+import { startFakePlaud, type FakePlaud } from "./fixtures/fake-plaud.js"
 import { ExportOutput, exportInput } from "../src/domain/contract/index.js"
 import type { ErrorCode } from "../src/domain/errors.js"
 import { TRANSCRIPT_BLOCKS } from "../src/domain/types.js"
+import { AUDIO_URL_FIELD, unwrap } from "../src/domain/normalize.js"
 import { KNOWN_READS } from "../src/host/mcp.js"
+import { NAMESPACE } from "../src/host/tools/index.js"
 import { loadSkills, parseSkill, registerSkills } from "../src/host/skills.js"
 
 const SKILLS = new URL("../skills/", import.meta.url)
@@ -155,5 +158,48 @@ describe("skill loading", () => {
   it("refuses a missing folder or a skill without SKILL.md", async () => {
     await expect(loadSkills(new URL("file:///nonexistent-opencode-plaud-skills/"))).rejects.toThrow(/the skills folder is missing/)
     await expect(loadSkills(folder({ empty: "" }))).rejects.toThrow(/skills\/empty has no SKILL\.md/)
+  })
+})
+
+/**
+ * LIVE-7: get_file is Plaud's largest read. The namespace description and the skill send the model to get_note and
+ * get_transcript first, and say what get_file adds; that claim is checked here against the fake's shapes, which are
+ * the live server's.
+ */
+describe("steering away from get_file", () => {
+  async function read(fake: FakePlaud, tool: string, args: Record<string, unknown>): Promise<unknown> {
+    const response = await fetch(fake.url, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: tool, arguments: args } }),
+    })
+    const { result } = (await response.json()) as { result: { content: { text: string }[] } }
+    return JSON.parse(unwrap(result.content[0]!.text))
+  }
+
+  it("get_file adds only source_list and the audio link to list_files' details and get_note's notes", async () => {
+    const fake = await startFakePlaud()
+    try {
+      const [listed] = ((await read(fake, "list_files", {})) as { data: Record<string, unknown>[] }).data
+      const file = (await read(fake, "get_file", { file_id: listed!.id })) as Record<string, unknown>
+      const notes = await read(fake, "get_note", { file_id: listed!.id })
+      expect(Object.keys(file).filter((key) => !(key in listed!)).sort()).toEqual(["note_list", AUDIO_URL_FIELD, "source_list"])
+      expect(file.note_list).toEqual(notes)
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it("the Code Mode namespace names every read, and sends the model to get_note and get_transcript before get_file", () => {
+    for (const tool of KNOWN_READS) expect(NAMESPACE.description).toContain(tool)
+    expect(NAMESPACE.description).toMatch(/call get_note .* or get_transcript .* first\. get_file can be over 100 KB/)
+    expect(NAMESPACE.description).toContain("adds only source_list")
+  })
+
+  it("the skill says the same, and finds recording ids with list_files", () => {
+    const skill = text("opencode-plaud").replace(/\s+/g, " ")
+    expect(skill).toMatch(/Read `get_note` or `get_transcript` first/)
+    expect(skill).toContain("only for `source_list`")
+    expect(text("opencode-plaud-export")).not.toMatch(/`list_files` or `get_file`/)
   })
 })

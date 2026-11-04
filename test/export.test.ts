@@ -167,7 +167,7 @@ describe("one-step export", () => {
       source: { type: "tool", messageID: "msg_1", id: "call_1" },
     })
     expect(calls.map((call) => [call.id, call.args])).toEqual([["plaud_get_file", { file_id: "rec-1" }]])
-    expect(fetch.mock.calls[0]![0]).toBe(AUDIO_URL)
+    expect(fetch.mock.calls[0]).toEqual([AUDIO_URL, expect.objectContaining({ redirect: "manual" })])
     expect((await stat(roots[0]!)).mode & 0o777).toBe(0o700)
     expect((await stat(join(roots[0]!, "audio"))).mode & 0o777).toBe(0o700)
     expect((await stat(path)).mode & 0o777).toBe(0o600)
@@ -327,7 +327,27 @@ describe("refusals", () => {
     const missing = await exporter({ tools: { ...plaudTools(), plaud_get_file: async () => json({ ...FILE, presigned_url: undefined }) } })
     await expect(missing.run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^CONTENT_UNAVAILABLE: Plaud has no audio/)
     const local = await exporter({ tools: { ...plaudTools(), plaud_get_file: async () => json({ ...FILE, presigned_url: "file:///etc/passwd" }) } })
-    await expect(local.run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^PLAUD_UNREADABLE: .*not https/)
+    await expect(local.run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^PLAUD_UNREADABLE: Plaud returned an audio link that is not a valid https URL\./)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it("refuses an audio link that does not parse with a code and a next step, never the link (PLAUD-1)", async () => {
+    const fetch = audioResponse(new Uint8Array(1))
+    const tools = { ...plaudTools(), plaud_get_file: async () => json({ ...FILE, presigned_url: `https://[audio.plaud.test/rec-1.mp3?${SECRET}` }) }
+    const failure = (await (await exporter({ tools })).run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error & { code?: unknown }
+    expect(failure.message).toBe(
+      "PLAUD_UNREADABLE: Plaud returned an audio link that is not a valid https URL. Next step: Retry later; if it still fails, report it to the plugin's maintainers.",
+    )
+    expect(failure.code).toBe("PLAUD_UNREADABLE")
+    expect(JSON.stringify({ ...failure, stack: failure.stack })).not.toContain(SECRET)
+    expect(fetch).not.toHaveBeenCalled()
+    expect(await tree()).toEqual([])
+  })
+
+  it("refuses an audio link with credentials in it", async () => {
+    const fetch = audioResponse(new Uint8Array(1))
+    const tools = { ...plaudTools(), plaud_get_file: async () => json({ ...FILE, presigned_url: `https://user:pass@audio.plaud.test/rec-1.mp3?${SECRET}` }) }
+    await expect((await exporter({ tools })).run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^PLAUD_UNREADABLE: Plaud returned an audio link that is not a valid https URL\./)
     expect(fetch).not.toHaveBeenCalled()
   })
 
@@ -354,6 +374,70 @@ describe("refusals", () => {
     const echoed = (await (await exporter({ tools })).run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error
     expect(echoed.message).toContain("upstream said [url withheld]")
     expect(echoed.message).not.toContain(SECRET)
+  })
+})
+
+/**
+ * A fetch that answers from a table by URL and, like Node's own, follows redirects itself unless the call says
+ * `redirect: "manual"`. Every URL it was asked for is recorded.
+ */
+function web(routes: Record<string, () => Response>) {
+  const asked: string[] = []
+  const fetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
+    let url = String(input)
+    for (let hops = 0; hops < 20; hops++) {
+      asked.push(url)
+      const response = routes[url]?.() ?? new Response("missing", { status: 404 })
+      const location = response.headers.get("location")
+      if (init?.redirect === "manual" || location === null || response.status < 300 || response.status > 399) return response
+      url = new URL(location, url).href
+    }
+    throw new TypeError("redirect count exceeded")
+  })
+  vi.stubGlobal("fetch", fetch)
+  return { fetch, asked }
+}
+
+const redirect = (location: string, status = 302) => () => new Response(null, { status, headers: { location } })
+const audio = (bytes: string) => () => new Response(bytes, { headers: { "content-type": "audio/mpeg" } })
+
+describe("redirects of the audio link (PLAUD-2)", () => {
+  it("follows https redirects, relative ones too, and names the file from Plaud's link", async () => {
+    const cdn = `https://cdn.plaud.test/a/b?${SECRET}`
+    const { asked } = web({ [AUDIO_URL]: redirect(cdn, 307), [cdn]: redirect(`/final?${SECRET}`, 301), [`https://cdn.plaud.test/final?${SECRET}`]: audio("RIFF") })
+    const result = await (await exporter()).run({ recordingId: "rec-1", kind: "audio" })
+    expect(result.path).toBe(join(roots[0]!, "audio", "rec-1.mp3"))
+    expect(await readFile(result.path, "utf8")).toBe("RIFF")
+    expect(asked).toEqual([AUDIO_URL, cdn, `https://cdn.plaud.test/final?${SECRET}`])
+  })
+
+  it.each([
+    ["plain http", `http://cdn.plaud.test/rec-1.mp3?${SECRET}`],
+    ["a link with credentials", `https://user:pass@cdn.plaud.test/rec-1.mp3?${SECRET}`],
+    ["this machine", `http://127.0.0.1:9/rec-1.mp3?${SECRET}`],
+    ["another scheme", `file:///etc/passwd?${SECRET}`],
+    ["a location that does not parse", `https://[cdn.plaud.test/rec-1.mp3?${SECRET}`],
+  ])("refuses a redirect to %s before fetching it, writes nothing, and never names the link", async (_name, target) => {
+    const { asked } = web({ [AUDIO_URL]: redirect(target), [target]: audio("stolen") })
+    const failure = (await (await exporter()).run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error
+    expect(failure.message).toBe(
+      "PLAUD_UNREADABLE: Plaud's audio link redirected to an address that is not a valid https URL. Next step: Retry later; if it still fails, report it to the plugin's maintainers.",
+    )
+    expect(failure.message).not.toContain("plaud.test")
+    expect(asked).toEqual([AUDIO_URL])
+    expect(await tree()).toEqual([])
+  })
+
+  it("refuses a redirect without a location, and a chain longer than five", async () => {
+    web({ [AUDIO_URL]: () => new Response(null, { status: 302 }) })
+    await expect((await exporter()).run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^PLAUD_UNREADABLE: Plaud's audio link redirected to an address that is not a valid https URL\./)
+
+    const hop = (n: number) => `https://cdn.plaud.test/${n}?${SECRET}`
+    const { asked } = web({ [AUDIO_URL]: redirect(hop(1)), ...Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [hop(n), redirect(hop(n + 1))])) })
+    const failure = (await (await exporter()).run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error
+    expect(failure.message).toBe("PLAUD_UNREADABLE: Plaud's audio link redirected more than 5 times. Next step: Retry later; if it still fails, report it to the plugin's maintainers.")
+    expect(asked).toHaveLength(6)
+    expect(await tree()).toEqual([])
   })
 })
 

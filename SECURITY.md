@@ -15,7 +15,7 @@ Include the plugin version, the OpenCode version, what you did and what happened
 Recordings, transcripts and notes are often highly sensitive. The plugin:
 
 - never sees your Plaud sign-in. OpenCode's MCP OAuth signs you in, and OpenCode stores and refreshes the tokens in its own credential store. The plugin has no option for a token and never reads, logs or stores one;
-- makes one kind of network request of its own: an export's audio download, from the signed audio link Plaud returns. OpenCode's MCP client makes every other request to Plaud's server;
+- makes one kind of network request of its own: an export's audio download, from the signed audio link Plaud returns. The link and every redirect it follows must be https, with no user name or password in them. OpenCode's MCP client makes every other request to Plaud's server;
 - writes files only for `plaud_export`, only inside your export roots, as private files (0600) in private folders (0700) that it creates. It refuses a destination outside the roots, including through a symbolic link, and replaces a file only with `overwrite: true`;
 - stores nothing else and collects no telemetry.
 

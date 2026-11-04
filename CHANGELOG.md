@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- An audio export whose link Plaud sent in a form that does not parse failed with a bare `TypeError` and no next step. It now fails with `PLAUD_UNREADABLE` and a next step, and the error never holds the link.
+- An audio export followed redirects without checking them, so a redirect could lead to plain http. The export now follows redirects itself, at most 5: each one must be https with no user name or password, and one from another machine may not lead to this one. Otherwise it stops with `PLAUD_UNREADABLE` before fetching, and the error names no link. A link with a user name or password is refused the same way.
+
 ## [0.0.1] - 2026-11-03
 
 ### Added

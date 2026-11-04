@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto"
 import { link, lstat, mkdir, open, realpath, rename, unlink } from "node:fs/promises"
 import { basename, dirname, join, relative, resolve, sep } from "node:path"
 import { displayName, signInStep } from "../../domain/auth.js"
-import { secureUrl } from "../../domain/config.js"
+import { onThisMachine, secureUrl } from "../../domain/config.js"
 import { ExportOutput, exportInput, type ExportRequest, type ExportResult } from "../../domain/contract/index.js"
 import { fail, PlaudError } from "../../domain/errors.js"
 import { DEFAULT_TRANSCRIPT_BLOCK, defaultFileName, renderNote, renderTranscript, type ExportSettings } from "../../domain/export.js"
@@ -84,8 +84,9 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
         const recording = recordingMeta(file, recordingId)
 
         if (kind === "audio") {
-          const url = audioUrl(file)
-          if (url === undefined) fail("CONTENT_UNAVAILABLE", "Plaud has no audio for this recording yet.", "Retry once Plaud has processed it, or export its transcript or note.")
+          const link = audioUrl(file)
+          if (link === undefined) fail("CONTENT_UNAVAILABLE", "Plaud has no audio for this recording yet.", "Retry once Plaud has processed it, or export its transcript or note.")
+          const url = audioLink(link)
           const response = await download(url, settings.maxAudioBytes, signal)
           try {
             const name = defaultFileName(recordingId, { audio: { url, contentType: response.headers.get("content-type") } })
@@ -113,8 +114,12 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
   }
 }
 
-/** Reads through the host executor of `<server>_<tool>` with the caller's tool context, so the read's own permission rules apply. */
-export function reader(tools: Awaited<ReturnType<ExportHost["tool"]["list"]>>, account: string, context: ToolContext): Read {
+/**
+ * Reads through the host executor of `<server>_<tool>` with the caller's tool context, so the read's own permission
+ * rules apply. With `passRefusals`, a refused permission check (an error that carries its cause) reaches the caller
+ * untouched, so the tools RPC reports it as PERMISSION_DENIED.
+ */
+export function reader(tools: Awaited<ReturnType<ExportHost["tool"]["list"]>>, account: string, context: ToolContext, passRefusals = false): Read {
   const server = serverName(account)
   return async (tool, args) => {
     const id = `${server}_${tool}`
@@ -125,6 +130,7 @@ export function reader(tools: Awaited<ReturnType<ExportHost["tool"]["list"]>>, a
     } catch (error) {
       // A declined prompt carries no message and, like a cancellation, must reach the host untouched.
       if (context.signal.aborted || !(error instanceof Error) || error.message === "") throw error
+      if (passRefusals && (error as { error?: unknown }).error !== undefined) throw error
       const step = `If a permission rule denies ${id}, allow it for this agent; if ${server} is signed out, run /connect and choose ${displayName(account)}; otherwise retry.`
       fail("PLAUD_READ_FAILED", `${id} failed: ${scrubUrls(error.message)}`, step)
     }
@@ -148,14 +154,48 @@ async function transcript(read: Read, recordingId: string, block: TranscriptBloc
   fail("PLAUD_UNREADABLE", `The ${block} block did not end after ${MAX_TRANSCRIPT_PAGES} pages.`, REPORT_STEP)
 }
 
-async function download(url: string, maxBytes: number, signal: AbortSignal): Promise<Response> {
-  if (!secureUrl(new URL(url))) fail("PLAUD_UNREADABLE", "Plaud returned an audio link that is not https.", REPORT_STEP)
+/**
+ * The signed audio link as a URL, or PLAUD_UNREADABLE. The link is a credential, so no error names it, and the link
+ * is parsed with `URL.parse`, whose failure carries no copy of it either.
+ */
+function audioLink(link: string): URL {
+  const url = URL.parse(link)
+  if (url === null || !safeHop(url)) fail("PLAUD_UNREADABLE", "Plaud returned an audio link that is not a valid https URL.", REPORT_STEP)
+  return url
+}
+
+/** https (plain http only on this machine, as for the url option), with no user name or password in it. */
+function safeHop(url: URL): boolean {
+  return secureUrl(url) && url.username === "" && url.password === ""
+}
+
+const MAX_REDIRECTS = 5
+const REDIRECTS = new Set([301, 302, 303, 307, 308])
+
+/**
+ * Fetches the audio, following redirects by hand: each hop must pass the same check as Plaud's link, and a link
+ * to another machine may not lead to this one.
+ */
+async function download(link: URL, maxBytes: number, signal: AbortSignal): Promise<Response> {
+  let url = link
   let response: Response
-  try {
-    response = await fetch(url, { signal })
-  } catch (error) {
-    if (signal.aborted) throw error
-    fail("EXPORT_FAILED", "The audio download could not start.", "Check the network connection, then retry.")
+  for (let redirects = 0; ; redirects++) {
+    try {
+      response = await fetch(url.href, { signal, redirect: "manual" })
+    } catch (error) {
+      if (signal.aborted) throw error
+      fail("EXPORT_FAILED", "The audio download could not start.", "Check the network connection, then retry.")
+    }
+    if (!REDIRECTS.has(response.status)) break
+    await response.body?.cancel().catch(() => undefined)
+    if (redirects === MAX_REDIRECTS) fail("PLAUD_UNREADABLE", `Plaud's audio link redirected more than ${MAX_REDIRECTS} times.`, REPORT_STEP)
+    const location = response.headers.get("location")
+    const next = location === null ? null : URL.parse(location, url.href)
+    if (next === null || !safeHop(next) || (onThisMachine(next) && !onThisMachine(url))) {
+      // The link and its target are credentials: the message names neither.
+      fail("PLAUD_UNREADABLE", "Plaud's audio link redirected to an address that is not a valid https URL.", REPORT_STEP)
+    }
+    url = next
   }
   const declared = contentLength(response)
   if (!response.ok || (declared !== undefined && declared > maxBytes)) {

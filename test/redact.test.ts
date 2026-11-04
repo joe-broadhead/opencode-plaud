@@ -93,8 +93,38 @@ describe("signed-link withholding", () => {
     const transcript = { output: { segments: [{ content: "see https://example.test" }] }, content: [{ type: "text", text: "see https://example.test" }] }
     expect(after("plaud_get_transcript", transcript)).toEqual(transcript)
     const failed: AfterEvent = { tool: "plaud_get_file", status: "error", error: new Error("offline") }
+    const original = failed.error
     for (const callback of callbacks) callback(failed)
-    expect(failed).toEqual({ tool: "plaud_get_file", status: "error", error: new Error("offline") })
+    expect(failed.error).toBe(original)
+    const elsewhere: AfterEvent = { tool: "github_get_file", status: "error", error: new Error(`failed at ${FILE.presigned_url}`) }
+    for (const callback of callbacks) callback(elsewhere)
+    expect(elsewhere.error.message).toContain(SECRET)
+  })
+
+  it("withholds every link from a failed Plaud call's error text, keeping its class, cause and metadata (PLAUD-4)", async () => {
+    /** Stands in for OpenCode's Tool.Error: built from its fields, with an optional cause. */
+    class ToolError extends Error {
+      readonly error?: unknown
+      readonly metadata?: Record<string, unknown>
+      constructor(fields: { message: string; error?: unknown; metadata?: Record<string, unknown> }) {
+        super(fields.message)
+        if (fields.error !== undefined) this.error = fields.error
+        if (fields.metadata !== undefined) this.metadata = fields.metadata
+      }
+    }
+    const { callbacks } = await hook()
+    const cause = new Error("upstream")
+    const failed: AfterEvent = {
+      tool: "plaud-work_get_file",
+      status: "error",
+      error: new ToolError({ message: `get_file failed: presigned_url=${FILE.presigned_url} (see ${ITEM.data_link}).`, error: cause, metadata: { step: 1 } }),
+    }
+    for (const callback of callbacks) callback(failed)
+    const error = failed.status === "error" ? (failed.error as ToolError) : undefined
+    expect(error).toBeInstanceOf(ToolError)
+    expect(error?.message).toBe("get_file failed: presigned_url=[url withheld] (see [url withheld]).")
+    expect(error?.error).toBe(cause)
+    expect(error?.metadata).toEqual({ step: 1 })
   })
 })
 

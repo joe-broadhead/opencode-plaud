@@ -13,7 +13,7 @@ a single call. Transcripts and notes are written as Markdown.
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `recordingId` | yes | The recording's id, from `list_files` or `get_file`. |
+| `recordingId` | yes | The recording's id, from `list_files`. |
 | `kind` | yes | `audio`, `transcript` or `note`. |
 | `account` | no | The account; omit it for the default account. Another account is the name the user configured, such as `work`. |
 | `block` | no | Only with `kind: "transcript"`: `transaction` (raw, the default), `transaction_polish` (cleaned up), `outline` or `mark_memo` (moments flagged on the device). |
@@ -26,7 +26,7 @@ bytes and its SHA-256. It never returns the content; read it with
 
 ## Rules
 
-1. **Find the id first** with `list_files` or `get_file`. Never guess one.
+1. **Find the id first** with `list_files`. Never guess one.
 2. **Stay inside the export roots.** The default root is `~/Plaud`;
    `/plaud-status` lists the configured ones. Missing folders inside a root
    are created. Omit `destination` unless the user named a file.

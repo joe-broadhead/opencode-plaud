@@ -2,13 +2,49 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.4] - 2026-11-04
 
 ### Added
 
-- A `jelly` section in `package.json`: each tool with its permission, its default effect and whether it only reads, the skill ids, views. Jelly reads it without loading the plugin and applies the declared asks, because its agents have no base allow rule for this plugin's own default rules to follow. `docs/jelly.md` explains it.
-- `title` and `signIns` in the `jelly` section: the name Jelly shows on the plugin's card, and what the plugin signs in to, so that one card can say whether each sign-in is connected and start, renew or end it. `docs/jelly.md` lists them.
-- `plaud_recent`: the newest recordings, one line each, read through the host's `plaud_list_files`; it runs without asking. A Home feed preset in Jelly uses it.
+- Jelly shows the plugin's one-line summary and icon: `jelly.summary`, and `jelly.icon`, shipped as `assets/icon.svg`.
+- Scripts can call `plaud_recent` through the tools RPC, as the method `recent`. Its input is `{ "limit"?: 1 to 20 }`; the account is the envelope's `account`, as for the five reads, and an account the options don't name is `ACCOUNT_UNKNOWN`. It runs under the same rules as for the model: `plaud_recent`, then the account's `list_files`, and a refused read is `PERMISSION_DENIED` naming that read. An input it does not take, such as `account`, is the new code `INPUT_INVALID`. `describe` lists it.
+
+## [0.0.3] - 2026-11-04
+
+### Added
+
+- `plaud_recent` (`tools.plaud.recent` in Code Mode): the newest recordings, one line each, with the title, the start time in UTC and the length. It takes an optional `account` and `limit` (1 to 20, 8 by default), and reads through the account's own `list_files`. It runs without asking: the default rules allow `plaud_recent` by its exact name, and a rule for the account's `list_files` applies to it too. Because it is one tool for every account, a rule can name the account as its resource, such as `{ "action": "plaud_recent", "resource": "work", "effect": "deny" }`. It is not a tools RPC method; a script reads `list_files`.
+- `/plaud-status` counts `plaud_recent` as one of the plugin's own tools, not as an unknown Plaud tool. The block it shows for agents defined in your config has the `plaud_recent` rule; copy it again into those agents.
+- A `jelly` section in `package.json`, for [Jelly](https://heyjelly.ai): the plugin's title, each tool with its permission, its default effect and whether it only reads, the skills, the `plaud*` sign-in, which folds every account into one row, and a Home feed preset, "Recent Plaud recordings", that shows `plaud_recent` every 30 minutes. Jelly reads it without loading the plugin. `docs/jelly.md` explains it.
+
+## [0.0.2] - 2026-11-04
+
+### Added
+
+- OpenCode 2.2.5 is a tested release, next to 2.2.3 and 2.2.4.
+- The status RPC (`plaud.recordings` `status`) has `version`, the plugin's version, and `state`, the most urgent account's state in the shared form: `connected`, `sign_in_required`, `connecting`, `failed`, `disabled` or `not_configured`.
+
+### Changed
+
+- The status RPC uses the field names every plugin of this family shares. Scripts that read it need these changes:
+  - `host` is now `{ version, range, tested }`: `host.warning` is gone, `host.range` is the supported range `>=2.2.3 <2.3.0`, `host.tested` is true only for 2.2.3, 2.2.4 and 2.2.5 (before, for any release in the range), and `host.version` is `null` when OpenCode reports no version;
+  - `unguardedAgents` lists only agents whose own rules would let Plaud's tools run without asking (see Fixed);
+  - `permissionsBlock` is the block for your accounts (see below).
+- The default rules allow each account's five reads by exact name, `plaud_get_file` and `plaud-<alias>_get_file`, instead of the patterns `plaud*_get_file`. A later Plaud tool whose name only ends like a read, such as `plaud_bulk_get_file`, and the tools of a server you named `plaud…` yourself, now ask. If you copied the block into an agent's own rules, copy it again from `/plaud-status`.
+- On a release inside `>=2.2.3 <2.3.0` other than 2.2.3, 2.2.4 and 2.2.5, Plaud sets up normally and prints a warning; status calls the release untested, and its state and next step are what they would be on a tested release. The `OpenCode` row reads, for example, `2.2.5 (tested; supported range >=2.2.3 <2.3.0)`. `HOST_UNTESTED` now says "supports" for the range.
+- The tools RPC uses the shared module of 2026-11-04. An envelope that is not an object is refused with `the envelope must be an object, such as {…}` (was `Expected an object`), and `describe` given any input with `describe takes no input` (was `Expected never at ["sessionID"]`); `docs/scripting.md` lists every envelope message. A refusal names the action whose check was refused. A server that reconnected during a call answers `CONNECTING`, not `CONNECTION_FAILED`.
+- `/plaud-status` has the dialog's title, `Plaud status`, and always shows the `Agents without default rules` row, with `none` when no agent needs the fix.
+- Code Mode's description of the `plaud` namespace names all five reads, `get_current_user` included, and sends the model to `get_note` or `get_transcript` before `get_file`. `get_file` can be over 100 KB for one recording: it repeats what `list_files` and `get_note` return, and adds only `source_list` and the withheld audio link. The `opencode-plaud` skill says the same, and the export skill and `plaud_export`'s `recordingId` description find recording ids with `list_files`.
+
+### Fixed
+
+- Status listed every agent without the default rules, also those whose own rules already ask for every tool, so it could name dozens of agents that need no fix. It now lists an agent only when its own rules would let an unknown Plaud tool run without asking.
+- The README's Uninstall now signs out of every account while the plugin is still installed, checks with `opencode auth list`, and only then removes the plugin; once it is removed, OpenCode can no longer remove the sign-ins. If a sign-out answers `MCP server not found` while the plugin is installed, OpenCode is still loading the plugin for that folder: wait a few seconds and run it again.
+- The README now says what to do after `opencode plugin add` (run `opencode reload`, then `/plaud-status`) and how to update the plugin.
+- `docs/scripting.md` said `opencode api` runs in the directory you call it from. It runs in the OpenCode service's default location, your home directory; the doc now says how to target a project. It also says that `opencode api` exits with status 1 for an RPC error, and that a result with only text has that text as its `output`.
+- A failed Plaud call's error text now has every URL withheld before the model sees it, as completed results already did. Plaud's server puts no link in its errors today; this keeps it so.
+- An audio export whose link Plaud sent in a form that does not parse failed with a bare `TypeError` and no next step. It now fails with `PLAUD_UNREADABLE` and a next step, and the error never holds the link.
+- An audio export followed redirects without checking them, so a redirect could lead to plain http. The export now follows redirects itself, at most 5: each one must be https with no user name or password, and one from another machine may not lead to this one. Otherwise it stops with `PLAUD_UNREADABLE` before fetching, and the error names no link. A link with a user name or password is refused the same way.
 
 ## [0.0.1] - 2026-11-03
 

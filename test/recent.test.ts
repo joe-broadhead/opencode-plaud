@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from "vitest"
 import type { ToolContext } from "../src/host/context.js"
-import { DEFAULT_RULES, RECENT_ACTION } from "../src/host/permissions.js"
-import { line } from "../src/host/tools/recent.js"
+import { defaultRules, evaluate, RECENT_ACTION } from "../src/host/permissions.js"
+import { line, MIN_PAGE_SIZE } from "../src/host/tools/recent.js"
 import { registerTools, type ToolsHost } from "../src/host/tools/index.js"
 
 /**
- * plaud_recent against a fake host: the server's list_files executor answers
- * like the hosted server (inside its untrusted-data envelope), and the tool
- * returns a Home `list` with one line per recording.
+ * plaud_recent against a fake host: each account's list_files executor answers
+ * like the hosted server (inside its untrusted-data envelope) and, like it,
+ * refuses a page_size below 10; the tool returns a Home `list` with one line
+ * per recording.
  */
 
 type Tool = {
@@ -18,9 +19,10 @@ type Tool = {
 }
 
 const RECORDINGS = [
-  { id: "rec-2", name: "Design review", start_at: "2026-10-31T14:05:00Z", duration: 3_780_000 },
-  { id: "rec-1", name: "", created_at: "2026-10-30T09:00:00Z", duration: 20_000 },
+  { id: "rec-3", name: "Design review", start_at: "2026-10-31T14:05:00Z", duration: 3_780_000, presigned_url: "https://files.example.invalid/a.mp3?X-Amz-Signature=s" },
+  { id: "rec-2", name: "", created_at: "2026-10-30T09:00:00Z", duration: 20_000 },
   { name: "No id, skipped" },
+  { id: "rec-1", name: "Two\nlines\tand  tabs" },
 ]
 
 function enveloped(value: unknown) {
@@ -28,9 +30,25 @@ function enveloped(value: unknown) {
   return { content: [{ type: "text", text }] }
 }
 
-async function recent(list: (args: Record<string, unknown>) => unknown) {
+/** Plaud's server: a page_size below 10 is an error, as it is live. */
+function plaud(answer: unknown) {
+  return (args: Record<string, unknown>) => {
+    if (typeof args["page_size"] === "number" && args["page_size"] < 10) throw new Error("page_size must be at least 10")
+    return answer
+  }
+}
+
+async function recent(list: (args: Record<string, unknown>) => unknown, accounts: string[] = []) {
   const added: Tool[] = []
   const calls: { id: string; args: Record<string, unknown> }[] = []
+  const assert = vi.fn(async (_request: Record<string, unknown>) => undefined)
+  const executor = (id: string) => ({
+    id,
+    execute: async (args: Record<string, unknown>) => {
+      calls.push({ id, args })
+      return list(args)
+    },
+  })
   const ctx: ToolsHost = {
     tool: {
       transform: async (callback) => {
@@ -38,20 +56,11 @@ async function recent(list: (args: Record<string, unknown>) => unknown) {
         return { dispose: async () => undefined }
       },
       hook: (async () => ({ dispose: async () => undefined })) as ToolsHost["tool"]["hook"],
-      list: async () =>
-        [
-          {
-            id: "plaud_list_files",
-            execute: async (args: Record<string, unknown>) => {
-              calls.push({ id: "plaud_list_files", args })
-              return list(args)
-            },
-          },
-        ] as never,
+      list: async () => [executor("plaud_list_files"), ...accounts.map((account) => executor(`plaud-${account}_list_files`))] as never,
     },
-    permission: { assert: vi.fn(async () => undefined) },
+    permission: { assert },
   }
-  await registerTools(ctx, { accounts: [], exportRoots: ["/tmp/plaud"], maxAudioBytes: 1, maxTextBytes: 1, exportTimeoutMs: 1_000 })
+  await registerTools(ctx, { accounts, exportRoots: ["/tmp/plaud"], maxAudioBytes: 1, maxTextBytes: 1, exportTimeoutMs: 1_000 })
   const tool = added.find((entry) => entry.name === "recent")
   if (tool === undefined) throw new Error("recent was not registered")
   const run = async (input: unknown) => {
@@ -60,31 +69,58 @@ async function recent(list: (args: Record<string, unknown>) => unknown) {
     const context = { sessionID: "ses_1", agent: "build", messageID: "msg_1", id: "call_1", signal: new AbortController().signal } as unknown as ToolContext
     return (await tool.execute(parsed.value, context)).output
   }
-  return { tool, run, calls }
+  return { tool, run, calls, assert }
 }
 
 describe("plaud_recent", () => {
-  it("lists the newest recordings as a Home list, through the server's own read", async () => {
-    const { tool, run, calls } = await recent(() => enveloped({ type: "files", data: RECORDINGS, page: 1 }))
-    const output = await run({ limit: 5 })
+  it("lists the newest recordings as a Home list, on one line each, through the server's own read", async () => {
+    const { tool, run, calls } = await recent(plaud(enveloped({ type: "files", data: RECORDINGS, page: 1 })))
+    const output = await run({ limit: 12 })
     expect(output).toEqual({
       items: [
-        { id: "rec-2", text: "Design review · 2026-10-31 14:05 UTC · 1 h 3 min" },
-        { id: "rec-1", text: "Untitled recording · 2026-10-30 09:00 UTC · 1 min" },
+        { id: "rec-3", text: "Design review · 2026-10-31 14:05 UTC · 1 h 3 min" },
+        { id: "rec-2", text: "Untitled recording · 2026-10-30 09:00 UTC · 1 min" },
+        { id: "rec-1", text: "Two lines and tabs" },
       ],
       editable: false,
     })
     expect(tool.output.parse(output)).toEqual(output)
-    expect(calls).toEqual([{ id: "plaud_list_files", args: { page_size: 5 } }])
+    expect(JSON.stringify(output)).not.toContain("X-Amz-Signature")
+    expect(calls).toEqual([{ id: "plaud_list_files", args: { page_size: 12 } }])
+  })
+
+  it("never asks Plaud for fewer than 10, and keeps only the limit", async () => {
+    expect(MIN_PAGE_SIZE).toBe(10)
+    const { run, calls } = await recent(plaud(enveloped({ type: "files", data: RECORDINGS, page: 1 })))
+    expect(await run({})).toMatchObject({ items: [{ id: "rec-3" }, { id: "rec-2" }, { id: "rec-1" }] })
+    expect(await run({ limit: 1 })).toEqual({ items: [{ id: "rec-3", text: "Design review · 2026-10-31 14:05 UTC · 1 h 3 min" }], editable: false })
+    expect(await run({ limit: 10 })).toMatchObject({ editable: false })
+    expect(calls.map((call) => call.args)).toEqual([{ page_size: 10 }, { page_size: 10 }, { page_size: 10 }])
+  })
+
+  it("asserts plaud_recent for the account, then reads that account's server", async () => {
+    const { run, calls, assert } = await recent(plaud(enveloped([])), ["work"])
+    await run({ account: "work", limit: 3 })
+    expect(assert).toHaveBeenCalledWith(
+      expect.objectContaining({ action: RECENT_ACTION, resources: ["work"], save: ["work"], metadata: { account: "work", limit: 3 }, source: { type: "tool", messageID: "msg_1", id: "call_1" } }),
+    )
+    expect(calls).toEqual([{ id: "plaud-work_list_files", args: { page_size: 10 } }])
+  })
+
+  it("reads nothing when the assertion is declined", async () => {
+    const { run, calls, assert } = await recent(plaud(enveloped([])))
+    assert.mockRejectedValueOnce(new Error(""))
+    await expect(run({})).rejects.toThrow()
+    expect(calls).toEqual([])
   })
 
   it("says what it could not read, rather than an empty list", async () => {
-    const { run } = await recent(() => enveloped("Not a list"))
+    const { run } = await recent(plaud(enveloped("Not a list")))
     await expect(run({})).rejects.toThrow(/PLAUD_UNREADABLE|instead of a list/)
   })
 
   it("refuses a limit outside 1 to 20", async () => {
-    const { run } = await recent(() => enveloped([]))
+    const { run } = await recent(plaud(enveloped([])))
     await expect(run({ limit: 0 })).rejects.toThrow()
     await expect(run({ limit: 21 })).rejects.toThrow()
   })
@@ -93,7 +129,10 @@ describe("plaud_recent", () => {
     expect(line({ id: "x", name: "a".repeat(300) }).length).toBe(200)
   })
 
-  it("runs without asking by default, like the server's reads", () => {
-    expect(DEFAULT_RULES).toContainEqual({ action: RECENT_ACTION, resource: "*", effect: "allow" })
+  it("runs without asking by default, like the server's reads, by its exact name", () => {
+    const rules = [{ action: "*", resource: "*", effect: "allow" } as const, ...defaultRules(["plaud", "plaud-work"])]
+    expect(defaultRules(["plaud"])).toContainEqual({ action: RECENT_ACTION, resource: "*", effect: "allow" })
+    expect(evaluate(rules, RECENT_ACTION)).toBe("allow")
+    expect(evaluate(rules, "plaud-work_recent")).toBe("ask")
   })
 })

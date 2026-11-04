@@ -1,14 +1,16 @@
 import { describe, expect, it, vi } from "vitest"
 import { signInStep } from "../src/domain/auth.js"
-import { DEFAULT_RULES } from "../src/host/permissions.js"
+import { defaultRules } from "../src/host/permissions.js"
 import { registerRpc } from "../src/host/rpc.js"
 import { Plaud, READY_STEP, RPC_ID, StatusSchema, isStatus, overallState, rulesBlock, statusLines, type Status } from "../src/rpc.js"
 import { agentsFix, buildStatus, readStatus, statusUnavailable, type StatusFacts } from "../src/status.js"
-import { checkHost } from "../src/version.js"
+import { checkHost, PLUGIN_VERSION } from "../src/version.js"
 import { schemaProblems } from "./json-schema.js"
 
 const READS = ["list_files", "get_file", "get_note", "get_transcript", "get_current_user"]
 const BASE_ALLOW = { action: "*", resource: "*", effect: "allow" } as const
+/** The block for the two servers of `facts()`. */
+const DEFAULT_RULES = defaultRules(["plaud", "plaud-work"])
 const guarded = (id: string) => ({ id, permissions: [BASE_ALLOW, ...DEFAULT_RULES] })
 
 function facts(overrides: Partial<StatusFacts> = {}): StatusFacts {
@@ -44,7 +46,10 @@ describe("status model", () => {
     expect(status.tools).toEqual({ visible: 11, unknown: 0, unknownNames: [] })
     expect(status.nextStep).toBe(READY_STEP)
     expect(overallState(status)).toBe("signed_in")
-    expect(statusLines(status).map((line) => line.label)).toEqual(["Connection", "Account", "Access", "Tools", "OpenCode", "Next step"])
+    // The shared status fields (S13).
+    expect(status).toMatchObject({ version: PLUGIN_VERSION, state: "connected", host: { version: "2.2.3", range: ">=2.2.3 <2.3.0", tested: true }, unguardedAgents: [] })
+    expect(statusLines(status).map((line) => line.label)).toEqual(["Connection", "Account", "Access", "Tools", "Agents without default rules", "OpenCode", "Next step"])
+    expect(statusLines(status).find((line) => line.label === "Agents without default rules")).toEqual({ label: "Agents without default rules", value: "none", tone: "info" })
     expect(statusLines(status).at(-1)).toEqual({ label: "Next step", value: READY_STEP, tone: "info" })
     expect(statusLines(status).find((line) => line.label === "Tools")?.value).toBe("11 available")
     expect(statusLines(status).find((line) => line.label === "Access")?.value).toBe("Reads run without asking. Exports ask, and write only in /fixture/Plaud.")
@@ -61,6 +66,7 @@ describe("status model", () => {
   it("counts plaud_recent as the plugin's own tool, not an unknown server tool", () => {
     const status = buildStatus(facts({ tools: [...facts().tools, "plaud_recent"] }))
     expect(status.tools).toEqual({ visible: 12, unknown: 0, unknownNames: [] })
+    expect(statusLines(status).find((line) => line.label === "Tools")?.value).toBe("12 available")
   })
 
   it("maps every OpenCode MCP state, and a server OpenCode does not list", () => {
@@ -73,6 +79,7 @@ describe("status model", () => {
     const servers = ["default", "a", "b", "c", "d"].map((account) => ({ account, name: account === "default" ? "plaud" : `plaud-${account}` }))
     const status = buildStatus(facts({ servers, mcp }))
     expect(status.accounts.map((account) => account.state)).toEqual(["sign_in_needed", "connecting", "failed", "disabled", "missing"])
+    expect(status.state).toBe("sign_in_required")
     expect(status.accounts[2]!.reason).toBe("fetch failed")
     expect(status.nextStep).toBe(signInStep("default"))
     expect(overallState(status)).toBe("sign_in_needed")
@@ -120,6 +127,8 @@ describe("status model", () => {
           { id: "reviewer", permissions: [BASE_ALLOW] },
           { id: "explore", permissions: [BASE_ALLOW, ...DEFAULT_RULES, { action: "*", resource: "*", effect: "deny" }] },
           { id: "locked", permissions: [{ action: "*", resource: "*", effect: "deny" }] },
+          // Its own rules end with an ask for everything, so every Plaud tool already asks there (LIVE-1).
+          { id: "perf-probe", permissions: [BASE_ALLOW, { action: "*", resource: "*", effect: "ask" }] },
         ],
       }),
     )
@@ -139,13 +148,22 @@ describe("status model", () => {
     expect(overallState(status)).toBe("signed_in")
   })
 
-  it("carries the untested-host warning", () => {
-    const host = checkHost("2.3.0", true)
-    const status = buildStatus(facts({ host }))
-    expect(status.host).toEqual({ version: "2.3.0", tested: false, warning: host.tested ? undefined : host.warning })
-    expect(status.nextStep).toBe("If Plaud misbehaves, install an OpenCode release in the tested range.")
-    expect(statusLines(status).find((line) => line.label === "OpenCode")).toMatchObject({ tone: "warning" })
-    expect(statusLines(status).find((line) => line.label === "OpenCode")?.value).toMatch(/allowUntestedHost/)
+  it("calls 2.2.5 tested, and a release inside or outside the range that is not tested untested (INSTALL-4)", () => {
+    const tested = buildStatus(facts({ host: checkHost("2.2.5", false) }))
+    expect(tested.host).toEqual({ version: "2.2.5", range: ">=2.2.3 <2.3.0", tested: true })
+    expect(statusLines(tested).find((line) => line.label === "OpenCode")).toEqual({ label: "OpenCode", value: "2.2.5 (tested; supported range >=2.2.3 <2.3.0)", tone: "info" })
+    // Inside the range, an untested release sets up normally: the state and the next step are unchanged by it (S13).
+    for (const [version, allow, nextStep] of [
+      ["2.2.6", false, READY_STEP],
+      ["2.3.0", true, "If Plaud misbehaves, use a tested OpenCode release: 2.2.3, 2.2.4 or 2.2.5."],
+    ] as const) {
+      const status = buildStatus(facts({ host: checkHost(version, allow) }))
+      expect(status.host).toEqual({ version, range: ">=2.2.3 <2.3.0", tested: false })
+      expect(status.state).toBe("connected")
+      expect(status.nextStep).toBe(nextStep)
+      expect(statusLines(status).find((line) => line.label === "OpenCode")).toEqual({ label: "OpenCode", value: `${version} (untested; supported range >=2.2.3 <2.3.0)`, tone: "warning" })
+    }
+    expect(buildStatus(facts({ host: checkHost("", true) })).host.version).toBeNull()
   })
 
   it("reads OpenCode's MCP list, tools and agents through public APIs", async () => {
@@ -166,7 +184,9 @@ describe("status model", () => {
     expect(status.tools).toEqual({ visible: 2, unknown: 1, unknownNames: ["rename"] })
     expect(status.accounts).toEqual([{ account: "default", server: "plaud", state: "sign_in_needed", userServer: true }])
     expect(status.unguardedAgents).toEqual(["reviewer"])
-    expect(status.host).toEqual({ version: "2.2.4", tested: true })
+    expect(status.host).toEqual({ version: "2.2.4", range: ">=2.2.3 <2.3.0", tested: true })
+    // The block is the one for the configured servers.
+    expect(status.permissionsBlock).toEqual(defaultRules(["plaud"]))
   })
 
   it("never carries a token, a link or a plan", () => {
@@ -183,11 +203,14 @@ describe("status schema", () => {
     expect(schemaProblems(StatusSchema, { ...status, extra: 1 })).toEqual(["$.extra: not allowed"])
     expect(schemaProblems(StatusSchema, { ...status, tools: { ...status.tools, visible: 1.5 } })).toEqual(["$.tools.visible: not an integer"])
     expect(schemaProblems(StatusSchema, { ...status, accounts: [{ ...status.accounts[0], state: "asleep" }] })[0]).toMatch(/^\$\.accounts\[0\]\.state: "asleep" is not one of/)
+    expect(schemaProblems(StatusSchema, { ...status, state: "signed_in" })[0]).toMatch(/^\$\.state: "signed_in" is not one of/)
   })
 
   it("is what the TUI's guard accepts, and nothing else", () => {
     expect(isStatus(buildStatus(facts()))).toBe(true)
     expect(isStatus({ ...buildStatus(facts()), tools: undefined })).toBe(false)
+    expect(isStatus({ ...buildStatus(facts()), next: "x", nextStep: undefined })).toBe(false)
+    expect(isStatus({ ...buildStatus(facts()), host: { version: "2.2.3", tested: true } })).toBe(false)
     expect(isStatus(null)).toBe(false)
   })
 })

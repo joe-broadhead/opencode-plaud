@@ -1,6 +1,6 @@
 {
   "name": "@joe-broadhead/opencode-plaud",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "description": "Unofficial OpenCode plugin for Plaud recordings",
   "type": "module",
   "license": "MIT",
@@ -23,7 +23,7 @@
   },
   "files": [
     "dist",
-    "assets",
+    "assets/icon.svg",
     "skills",
     "README.md",
     "LICENSE",
@@ -39,7 +39,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tui.json --noEmit && tsc -p test/tsconfig.json",
     "lint": "vitest run --project lint",
     "test": "vitest run --project unit",
-    "test:host": "vitest run --project host",
+    "test:host": "node scripts/host-tests.mjs",
     "test:pack": "vitest run --project pack",
     "check": "npm run typecheck && npm run lint && npm run build && npm test && npm run test:host && npm run test:pack",
     "check:upstream": "node scripts/check-upstream.mjs"

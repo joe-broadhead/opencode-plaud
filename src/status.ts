@@ -2,9 +2,9 @@ import { displayName, signInStep } from "./domain/auth.js"
 import { scrubUrls } from "./domain/redact.js"
 import type { PluginContext } from "./host/context.js"
 import { KNOWN_READS, type PlaudServers } from "./host/mcp.js"
-import { DEFAULT_RULES, EXPORT_ACTION, RECENT_ACTION, unguardedAgents, type Rule } from "./host/permissions.js"
-import { READY_STEP, STATE_TEXT, overallState, statusLines, type AccountState, type AccountStatus, type Status } from "./rpc.js"
-import type { HostCheck } from "./version.js"
+import { defaultRules, OWN_TOOLS, unguardedAgents, type Rule } from "./host/permissions.js"
+import { READY_STEP, SHARED_STATE, STATE_TEXT, overallState, statusLines, type AccountState, type AccountStatus, type Status } from "./rpc.js"
+import { PLUGIN_VERSION, TESTED_HOSTS, type HostCheck } from "./version.js"
 
 /**
  * The status model behind `/plaud-status`, the RPC `status` method and the
@@ -40,10 +40,7 @@ const STATE: Record<McpServerInfo["status"]["status"], AccountState> = {
 const SAFE_NAME = /^[A-Za-z0-9_-]{1,64}$/
 const LISTED_UNKNOWN = 10
 
-/** The plugin's own tools; `plaud_` names them too, but they are not the server's. */
-const OWN_TOOLS: readonly string[] = [EXPORT_ACTION, RECENT_ACTION]
-
-/** The Plaud servers' tools, known or not, and the plugin's own. */
+/** The Plaud servers' tools, known or not, and the plugin's own, plaud_export and plaud_recent. */
 function countTools(servers: StatusFacts["servers"], ids: readonly string[]): Status["tools"] {
   const known = new Set<string>(KNOWN_READS)
   let visible = OWN_TOOLS.filter((tool) => ids.includes(tool)).length
@@ -104,6 +101,9 @@ export function agentsFix(agents: readonly string[]): string {
   )
 }
 
+/** The tested releases in words: "2.2.3, 2.2.4 or 2.2.5". */
+const TESTED_TEXT = `${TESTED_HOSTS.slice(0, -1).join(", ")} or ${TESTED_HOSTS.at(-1)}`
+
 export function buildStatus(facts: StatusFacts): Status {
   const accounts = facts.servers.map((server): AccountStatus => {
     const listed = facts.mcp.find((entry) => entry.name === server.name)
@@ -117,19 +117,23 @@ export function buildStatus(facts: StatusFacts): Status {
       ...(facts.inUse.includes(server.name) ? { userServer: true } : {}),
     }
   })
-  const unguarded = unguardedAgents(facts.agents)
+  const block = defaultRules(facts.servers.map((server) => server.name))
+  const unguarded = unguardedAgents(facts.agents, block)
   const nextStep = accounts.map(accountStep).find((step) => step !== undefined)
     ?? (unguarded.length === 0 ? undefined : agentsFix(unguarded))
-    ?? (facts.host.tested ? READY_STEP : "If Plaud misbehaves, install an OpenCode release in the tested range.")
-  return {
+    // A release inside the range sets up normally, tested or not; only one outside it, loaded with allowUntestedHost, adds a step.
+    ?? (facts.host.inRange ? READY_STEP : `If Plaud misbehaves, use a tested OpenCode release: ${TESTED_TEXT}.`)
+  const status = {
+    version: PLUGIN_VERSION,
     accounts,
     exportRoots: [...facts.exportRoots],
     tools: countTools(facts.servers, facts.tools),
-    host: { version: facts.host.version, tested: facts.host.tested, ...(facts.host.tested ? {} : { warning: facts.host.warning }) },
+    host: { version: facts.host.version === "" ? null : facts.host.version, range: facts.host.range, tested: facts.host.tested },
     unguardedAgents: unguarded,
-    permissionsBlock: DEFAULT_RULES.map((rule) => ({ ...rule })),
+    permissionsBlock: block,
     nextStep,
   }
+  return { ...status, state: SHARED_STATE[overallState(status)] }
 }
 
 export interface StatusSources {
@@ -162,10 +166,10 @@ export function summarizeStatus(status: Status): string {
   return `Plaud: ${STATE_TEXT[overallState(status)]}`
 }
 
-/** `/plaud-status` text: the same lines as the TUI dialog, with the rules as JSON to copy. */
+/** `/plaud-status` text: the same lines as the TUI dialog, under the same title, with the rules as JSON to copy. */
 export function formatStatus(status: Status): string {
   return [
-    `**${summarizeStatus(status)}**`,
+    "**Plaud status**",
     "",
     ...statusLines(status).flatMap((line) => [
       `- ${line.label}: ${line.value}`,

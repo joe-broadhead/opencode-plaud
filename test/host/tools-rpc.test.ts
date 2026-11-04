@@ -93,6 +93,8 @@ describe("the tools RPC in OpenCode", () => {
     const result = await call("build", "list_files", { input: { page_size: 5 } })
     expect(result.value.text).toContain(`"id": "rec-1"`)
     expect(result.value.text).toContain(`"duration": 63500`)
+    // A result with no structured content, whose text is not JSON (it is in Plaud's envelope), has its text as output.
+    expect(result.value.output).toBe(result.value.text)
     expect(host.fake.calls.slice(from)).toEqual([{ tool: "list_files", arguments: { page_size: 5 } }])
     const session = await host.opencode.sessions.get({ sessionID: sessions.build! })
     expect(session.tokens).toMatchObject({ input: 0, output: 0 })

@@ -23,6 +23,7 @@
   },
   "files": [
     "dist",
+    "assets",
     "skills",
     "README.md",
     "LICENSE",
@@ -61,6 +62,8 @@
   },
   "jelly": {
     "title": "Plaud",
+    "summary": "Your Plaud recordings, transcripts and notes.",
+    "icon": "assets/icon.svg",
     "tools": [
       {
         "name": "plaud.recent",

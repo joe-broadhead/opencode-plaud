@@ -60,7 +60,7 @@ async function recent(list: (args: Record<string, unknown>) => unknown, accounts
     },
     permission: { assert },
   }
-  await registerTools(ctx, { accounts, exportRoots: ["/tmp/plaud"], maxAudioBytes: 1, maxTextBytes: 1, exportTimeoutMs: 1_000 })
+  await registerTools(ctx, { accounts, exportRoots: ["/tmp/plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 })
   const tool = added.find((entry) => entry.name === "recent")
   if (tool === undefined) throw new Error("recent was not registered")
   const run = async (input: unknown) => {

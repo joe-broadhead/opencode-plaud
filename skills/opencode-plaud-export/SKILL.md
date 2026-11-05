@@ -59,7 +59,7 @@ step; do not retry the same call unchanged.
 | `EXPORT_OUTSIDE_ROOTS` | Choose a destination inside an export root, or omit `destination`. |
 | `EXPORT_BAD_DESTINATION` | Pass a file path, not a folder or a root, or omit `destination`. |
 | `EXPORT_EXISTS` | A file is already there. Ask the user before replacing it or choosing another path. |
-| `EXPORT_TOO_LARGE` | Report the size and the limit (`maxAudioBytes` or `maxTextBytes`). Do not split or retry. |
+| `EXPORT_TOO_LARGE` | Report the size and the limit (`maxAudioBytes`, or 25 MiB for text). Do not split or retry. |
 | `EXPORT_TIMEOUT` | Report it. The user can raise `exportTimeoutMs`. |
 | `EXPORT_FAILED` | The download or the local write failed. Report it and follow the next step. |
 

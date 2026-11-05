@@ -14,7 +14,6 @@ export interface PluginConfig {
   /** Absolute, normalized directories exports may write under; never empty. */
   readonly exportRoots: readonly string[]
   readonly maxAudioBytes: number
-  readonly maxTextBytes: number
   /** Whole-export budget, independent of OpenCode's tool budget. */
   readonly exportTimeoutMs: number
   /** Load on an OpenCode release outside the tested range, with a warning. */

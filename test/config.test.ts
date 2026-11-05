@@ -10,7 +10,6 @@ describe("plugin options", () => {
       url: "https://mcp.plaud.ai/mcp",
       exportRoots: [join(homedir(), "Plaud")],
       maxAudioBytes: 2_147_483_648,
-      maxTextBytes: 26_214_400,
       exportTimeoutMs: 1_800_000,
       allowUntestedHost: false,
     })
@@ -30,7 +29,6 @@ describe("plugin options", () => {
       url: "https://mcp.eu.example.test/mcp",
       exportRoots: ["/srv/plaud"],
       maxAudioBytes: 1_000,
-      maxTextBytes: 2_000,
       exportTimeoutMs: 60_000,
       allowUntestedHost: true,
     }
@@ -69,8 +67,8 @@ describe("plugin options", () => {
     [{ exportRoots: ["~someone/Plaud"] }, "exportRoots.0: must be an absolute path"],
     [{ maxAudioBytes: 0 }, "maxAudioBytes: Too small"],
     [{ maxAudioBytes: 64 * 1024 ** 3 + 1 }, "maxAudioBytes: Too big"],
-    [{ maxTextBytes: 1.5 }, "maxTextBytes: Invalid input: expected int"],
-    [{ maxTextBytes: 2 * 1024 ** 3 + 1 }, "maxTextBytes: Too big"],
+    // Removed in 0.0.5: a text export's cap is fixed at 25 MiB.
+    [{ maxTextBytes: 26_214_400 }, '(options): Unrecognized key: "maxTextBytes"'],
     [{ exportTimeoutMs: 999 }, "exportTimeoutMs: Too small"],
     [{ exportTimeoutMs: 24 * 3_600_000 + 1 }, "exportTimeoutMs: Too big"],
     [{ allowUntestedHost: "yes" }, "allowUntestedHost: Invalid input: expected boolean"],

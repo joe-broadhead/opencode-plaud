@@ -29,7 +29,7 @@ const PLAUD_TOOL = /^plaud.*_/
 
 export type ToolOptions = Pick<
   PluginConfig,
-  "accounts" | "exportRoots" | "maxAudioBytes" | "maxTextBytes" | "exportTimeoutMs"
+  "accounts" | "exportRoots" | "maxAudioBytes" | "exportTimeoutMs"
 >
 
 export type ToolsHost = {

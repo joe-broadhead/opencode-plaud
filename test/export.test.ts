@@ -3,6 +3,7 @@ import { lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, symlink, 
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { MAX_TEXT_BYTES } from "../src/domain/export.js"
 import type { ToolContext } from "../src/host/context.js"
 import { NAMESPACE, registerTools, type ToolOptions, type ToolsHost } from "../src/host/tools/index.js"
 
@@ -96,7 +97,6 @@ function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request
     accounts: ["work"],
     exportRoots: roots,
     maxAudioBytes: 1024 * 1024,
-    maxTextBytes: 1024 * 1024,
     exportTimeoutMs: 30 * 60 * 1000,
     ...options.settings,
   }
@@ -461,9 +461,12 @@ describe("size caps", () => {
     expect(await tree()).toEqual(["Plaud", "Plaud/audio"])
   })
 
-  it("refuses Markdown over the text cap", async () => {
-    const { run } = await exporter({ settings: { maxTextBytes: 100 } })
-    await expect(run({ recordingId: "rec-1", kind: "transcript" })).rejects.toThrow(/^EXPORT_TOO_LARGE: The transcript is \d+ bytes, over maxTextBytes \(100\)/)
+  it("refuses Markdown over the fixed 25 MiB text cap", async () => {
+    const huge = { segments: [{ speaker: "Alice", start_time: 0, content: "a".repeat(MAX_TEXT_BYTES) }], next_cursor: null }
+    const { run } = await exporter({ tools: { ...plaudTools(), plaud_get_transcript: async () => json(huge) } })
+    await expect(run({ recordingId: "rec-1", kind: "transcript" })).rejects.toThrow(
+      /^EXPORT_TOO_LARGE: The transcript is \d+ bytes, over the 25 MiB limit for a text export\. Next step: Export the outline block or the note instead, which are shorter\.$/,
+    )
     expect(await tree()).toEqual(["Plaud", "Plaud/transcript"])
   })
 })

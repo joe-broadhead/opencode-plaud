@@ -5,7 +5,7 @@ import { displayName, signInStep } from "../../domain/auth.js"
 import { onThisMachine, secureUrl } from "../../domain/config.js"
 import { ExportOutput, exportInput, type ExportRequest, type ExportResult } from "../../domain/contract/index.js"
 import { fail, PlaudError } from "../../domain/errors.js"
-import { DEFAULT_TRANSCRIPT_BLOCK, defaultFileName, renderNote, renderTranscript, type ExportSettings } from "../../domain/export.js"
+import { DEFAULT_TRANSCRIPT_BLOCK, defaultFileName, MAX_TEXT_BYTES, renderNote, renderTranscript, type ExportSettings } from "../../domain/export.js"
 import { audioUrl, fileArgs, noteTabs, PLAUD_TOOLS, recordingMeta, resultData, transcriptArgs, transcriptPage } from "../../domain/normalize.js"
 import type { Entry, Utterance } from "../../domain/normalize.js"
 import { underAnyRoot, underRoot } from "../../domain/paths.js"
@@ -103,7 +103,7 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
           ? renderTranscript({ recording, block, exportedAt, ...(await transcript(read, recordingId, block, report)) })
           : renderNote({ recording, exportedAt, tabs: noteTabs(await read(PLAUD_TOOLS.note, fileArgs(recordingId))) })
         const bytes = Buffer.from(markdown, "utf8")
-        if (bytes.byteLength > settings.maxTextBytes) fail("EXPORT_TOO_LARGE", `The ${kind} is ${bytes.byteLength} bytes, over maxTextBytes (${settings.maxTextBytes}).`, "Raise the maxTextBytes plugin option.")
+        if (bytes.byteLength > MAX_TEXT_BYTES) fail("EXPORT_TOO_LARGE", `The ${kind} is ${bytes.byteLength} bytes, over the 25 MiB limit for a text export.`, "Export the outline block or the note instead, which are shorter.")
         return { output: await publish(path, overwrite, (write) => write(bytes)) }
       } catch (error) {
         if (timeout.aborted) fail("EXPORT_TIMEOUT", `The export did not finish within exportTimeoutMs (${settings.exportTimeoutMs} ms).`, "Raise the exportTimeoutMs plugin option, or retry on a faster connection.")

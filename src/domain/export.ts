@@ -10,7 +10,13 @@ import type { PluginConfig, TranscriptBlock } from "./types.js"
  */
 
 /** The options an export runs under. The first export root holds default destinations. */
-export type ExportSettings = Pick<PluginConfig, "exportRoots" | "maxAudioBytes" | "maxTextBytes" | "exportTimeoutMs">
+export type ExportSettings = Pick<PluginConfig, "exportRoots" | "maxAudioBytes" | "exportTimeoutMs">
+
+/**
+ * The largest transcript or note an export writes, 25 MiB: a guard against a runaway, about 50 times the longest
+ * transcript seen live (1,300 segments, about 0.5 MB as Markdown).
+ */
+export const MAX_TEXT_BYTES = 25 * 1024 ** 2
 
 export const DEFAULT_TRANSCRIPT_BLOCK: TranscriptBlock = "transaction"
 

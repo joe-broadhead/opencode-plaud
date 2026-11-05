@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
 
 const SCRIPT = fileURLToPath(new URL("../scripts/check-upstream.mjs", import.meta.url))
-const tool = (name: string, required: string[] = []) => ({ name, inputSchema: { type: "object", required } })
+const tool = (name: string, required: string[] = [], names: string[] = required) => ({
+  name,
+  inputSchema: { type: "object", required, properties: Object.fromEntries(names.map((key) => [key, { type: "string" }])) },
+})
 
 let server: Server | undefined
 afterEach(() => new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve())))
@@ -44,7 +47,13 @@ function run(args: string[], env: Record<string, string>): Promise<{ code: numbe
   })
 }
 
-const KNOWN = [tool("list_files"), tool("get_file", ["file_id"]), tool("get_note", ["file_id"]), tool("get_transcript", ["file_id"]), tool("get_current_user")]
+const KNOWN = [
+  tool("list_files", [], ["page", "page_size", "date_from", "date_to", "query"]),
+  tool("get_file", ["file_id"]),
+  tool("get_note", ["file_id"]),
+  tool("get_transcript", ["file_id"], ["file_id", "block", "cursor", "limit"]),
+  tool("get_current_user"),
+]
 
 describe("check:upstream", () => {
   it("reports no drift when the live tools are the known reads", async () => {
@@ -62,6 +71,14 @@ describe("check:upstream", () => {
     expect(result.code).toBe(0)
     expect(result.stderr).toContain('known read "get_note" is gone')
     expect(result.stderr).toContain('"delete_file" is not a known read, so it asks')
+    expect(result.stdout).not.toContain("no drift")
+  })
+
+  it("warns when a parameter the plugin or its skills use is gone", async () => {
+    const url = await fakeServer([...KNOWN.filter((entry) => entry.name !== "get_transcript"), tool("get_transcript", ["file_id"], ["file_id", "block", "cursor"])])
+    const result = await run(["--url", url], { PLAUD_MCP_TOKEN: "test-token" })
+    expect(result.code).toBe(0)
+    expect(result.stderr).toContain('get_transcript no longer takes "limit"')
     expect(result.stdout).not.toContain("no drift")
   })
 

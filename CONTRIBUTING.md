@@ -58,7 +58,7 @@ Every isolated host runs in a folder under `/tmp`, never below your home folder,
 
 ## Check Plaud's tools (maintainers)
 
-`npm run check:upstream` compares the live Plaud MCP server's tool list with the five tools the plugin treats as known reads. It only warns: a new upstream tool already asks by default, and a known read that disappears needs a plugin change.
+`npm run check:upstream` compares the live Plaud MCP server's tool list with the five tools the plugin treats as known reads, and each read's parameters with the ones the plugin and its skills pass (`PARAMETERS` in the script). It only warns: a new upstream tool already asks by default, and a known read or parameter that disappears needs a plugin change.
 
 ```sh
 PLAUD_MCP_TOKEN=<access token> npm run check:upstream

@@ -103,6 +103,13 @@ describe("skill files", () => {
     expect(exporter).toMatch(/`tools\.plaud\.list_files\(\{ date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD", page_size: \d+ \}\)`/)
   })
 
+  it("teach scripts to use a session created for them", () => {
+    const router = text("opencode-plaud")
+    expect(router).toContain("opencode api post /api/session")
+    expect(router).toContain("`data.id`")
+    expect(router).toMatch(/Never borrow a session/)
+  })
+
   it("match the export contract: fields, result, default destination and every error code", () => {
     const skill = text("opencode-plaud-export")
     const fields = [...skill.matchAll(/^\| `([a-zA-Z]+)` \| (?:yes|no) \|/gm)].map((match) => match[1])

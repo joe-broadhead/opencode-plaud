@@ -59,7 +59,9 @@ its model would have:
   waiting. The plugin's default rules allow the five reads, so an agent with the default rules needs nothing more. An
   agent defined only in your config misses the default rules; `/plaud-status` names it and gives the fix.
 
-Create the session once, with the agent the script runs as, and keep its id:
+Create the session once, with the agent the script runs as, and keep its id, `data.id` in the response. Don't borrow
+an existing session, such as one found in a session list: the script would run as that session's agent, under its
+rules.
 
 ```sh
 opencode api post /api/session -d '{"title":"weekly recordings","agent":"build"}'

@@ -59,7 +59,7 @@ export interface NoteTab {
   kind: string
   title: string
   text: string
-  /** `data_error_code` when Plaud could not load the tab's content. */
+  /** `data_error_code` when the tab has no content and a non-zero code: Plaud could not load it. */
   errorCode?: number
 }
 
@@ -206,9 +206,10 @@ function entry(item: unknown, field: "topic" | "content"): Entry {
 /**
  * `get_note` returns a list with one entry per app tab, named by
  * `data_tab_name` (or `data_title`), its link already resolved into
- * `data_content`. A tab Plaud could not load has a non-zero
- * `data_error_code`. An entry with neither still becomes a tab with empty
- * text rather than vanishing.
+ * `data_content`. A tab with no content and a non-zero `data_error_code`
+ * could not be loaded; live, loaded tabs carry a non-zero code too (10), so
+ * the content wins. An entry with neither still becomes a tab with empty text
+ * rather than vanishing.
  */
 export function noteTabs(payload: unknown): NoteTab[] {
   if (!Array.isArray(payload)) {

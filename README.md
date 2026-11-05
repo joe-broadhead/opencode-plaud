@@ -20,7 +20,7 @@ opencode plugin add @joe-broadhead/opencode-plaud
 
 Run `opencode reload`, or restart OpenCode. Then run `/plaud-status`: it shows `sign-in required` until you sign in.
 
-**Update** with `opencode plugin update @joe-broadhead/opencode-plaud`, then run `opencode reload`. An entry pinned to a version, such as `@joe-broadhead/opencode-plaud@0.0.1`, does not update: remove the `@version` from its `plugins` entry first.
+**Update** with `opencode plugin update @joe-broadhead/opencode-plaud`, then run `opencode reload`. An entry pinned to a version, such as `@joe-broadhead/opencode-plaud@<version>`, does not update: remove the `@version` from its `plugins` entry first.
 
 ## Sign in
 

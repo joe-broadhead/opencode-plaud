@@ -57,7 +57,7 @@ export interface Status {
   /** Absolute folders plaud_export may write in. */
   readonly exportRoots: readonly string[]
   readonly tools: {
-    /** Plaud tools the plugin knows: the reads of every account, and plaud_export. */
+    /** Plaud tools the plugin knows: the reads of every account, plaud_export and plaud_recent. */
     readonly visible: number
     /** Other tools of the Plaud servers; they ask before they run. */
     readonly unknown: number

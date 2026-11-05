@@ -1,7 +1,5 @@
 # Scripting
 
-Unofficial plugin. Not affiliated with Plaud.
-
 A script can read Plaud with no model: a cron job, a shell script, or any program that can reach the OpenCode server.
 It uses the tools RPC, `plaud.recordings.tools`, through `opencode api` or an OpenCode client.
 

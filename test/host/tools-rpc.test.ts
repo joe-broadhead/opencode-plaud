@@ -167,10 +167,11 @@ describe("the tools RPC in OpenCode", () => {
 
   it("refuses recent when the session's rules deny or ask for the read it makes, naming that read", async () => {
     const from = host.fake.calls.length
-    // A deny: OpenCode's own reason names the read.
+    // A deny: the message names the denied read, and the next step that rule (shared module v4).
     const denied = await call("unlisted", "recent", { input: {} })
     expect(denied).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
-    expect(denied.message).toContain("plaud_recent was refused for this session's agent: Permission denied: plaud_list_files")
+    expect(denied.message).toContain("plaud_recent needs plaud_list_files, which a deny rule refuses for this session's agent")
+    expect(denied.next).toMatch(/^Remove or narrow the deny rule for plaud_list_files in the agent "build" or in the session/)
     // An ask: refused at once, with no prompt left waiting, and the message and next step name the read.
     const started = Date.now()
     const asked = await call("hesitant", "recent", { input: {} })
@@ -187,6 +188,8 @@ describe("the tools RPC in OpenCode", () => {
     for (const method of METHODS.slice(1)) expect(await call("locked", method, { input: { file_id: "rec-1" } }), method).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
     expect(await call("locked", "recent", { input: {} })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
     expect(await call("reopen", "recent", { input: {} })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+    // A deny names the denied read and says to change that rule (shared module v4).
+    expect((await call("locked", "get_note", { input: { file_id: "rec-1" } })).next).toMatch(/^Remove or narrow the deny rule for plaud_get_note/)
     expect(toolCalls(from)).toEqual([])
   })
 

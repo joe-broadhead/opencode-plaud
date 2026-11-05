@@ -145,6 +145,7 @@ Members then only sign in, once per account: run `/connect` and choose **Plaud**
 | --- | --- |
 | `AUTH_REQUIRED` from an export | That account's server is not connected or not signed in. Sign in from `/connect`, then retry. |
 | Status names agents that lack the default rules | Agents defined only in your config miss the rules; status lists those whose own rules would run Plaud tools without asking. Put the rules it shows first in **that agent's own** `permissions`, then repeat your top-level rules for Plaud tools after them. Never add them to the top-level `permissions`. See [the example](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#agents-defined-in-your-config). |
+| Status names a shadowed skill | A skill of your own, or a project's, has the id of one of the plugin's skills, so OpenCode loads it instead. Move or rename the file status names, then run `opencode reload`. |
 | `OPTIONS_INVALID` | An option is wrong; the message names each one. Fix it in the plugin's `options`. |
 | `HOST_UNTESTED` | Your OpenCode is outside `>=2.2.3 <2.3.0`. Install a tested release, or set `allowUntestedHost`. |
 | `/plaud-status` and the palette command are missing | The plugin did not start. Open `/plugins` to see the error. |

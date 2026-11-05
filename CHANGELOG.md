@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Status names a skill that shadows one of the plugin's. OpenCode keeps one skill per id, and a skill of your own or a project's wins, so a file such as `~/.config/opencode/skills/opencode-plaud/SKILL.md` stops the plugin's skill from loading. The `Skills` row names it and its path, the next step says to move or rename it, and the status RPC lists it in the new field `shadowedSkills`, as `{ id, path }`.
+
 ### Changed
 
 - The fix for agents without the default rules is one sentence, the same in every plugin of this family: "Put the default rules shown by /plaud-status first in each listed agent's own permissions, in opencode.json or the agent's Markdown file, followed by your top-level rules for Plaud tools." It is the `Next step` row, the status RPC's `nextStep` and the dialog's. The `Agents without default rules` row lists only the agents' names, followed by the rules to copy. Why the rules go in each agent's own permissions is in the configuration docs.

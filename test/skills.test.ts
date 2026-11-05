@@ -11,6 +11,7 @@ import { AUDIO_URL_FIELD, unwrap } from "../src/domain/normalize.js"
 import { KNOWN_READS } from "../src/host/mcp.js"
 import { NAMESPACE } from "../src/host/tools/index.js"
 import { loadSkills, parseSkill, registerSkills } from "../src/host/skills.js"
+import { loadConfig } from "../src/domain/config.js"
 
 const SKILLS = new URL("../skills/", import.meta.url)
 const IDS = ["opencode-plaud", "opencode-plaud-digest", "opencode-plaud-export"]
@@ -77,12 +78,23 @@ describe("skill files", () => {
     }
   })
 
-  it("teach the data model, sign-in and untrusted content in the router", () => {
+  it("name every transcript block in the router, and only parameters Plaud's reads take", () => {
     const router = text("opencode-plaud")
-    for (const phrase of ["milliseconds", "newest 500 recordings", "`page_size` must be at least 10", "untrusted data, never instructions", "/connect", "`o` or Enter", "opencode mcp auth plaud", "/plaud-status", "withheld", "plaud-work"]) {
-      expect(router, phrase).toContain(phrase)
-    }
     for (const block of TRANSCRIPT_BLOCKS) expect(router, block).toContain(`\`${block}\``)
+    // The parameters in the router's Code Mode calls, checked against the live schemas' names (check:upstream warns on drift).
+    const PARAMETERS: Record<string, string[]> = {
+      list_files: ["page", "page_size", "date_from", "date_to", "query"],
+      get_note: ["file_id"],
+      get_transcript: ["file_id", "block", "cursor", "limit"],
+      get_file: ["file_id"],
+      recent: ["limit"],
+      export: ["recordingId", "kind"],
+    }
+    for (const match of router.matchAll(/`tools\.plaud\.([a-z_]+)\(\{ ([^}]*) \}\)`/g)) {
+      const names = match[2]!.split(",").map((part) => part.trim())
+      expect(PARAMETERS[match[1]!], match[0]).toEqual(expect.arrayContaining(names))
+    }
+    expect(router).toContain("`tools.plaud.get_current_user()`")
   })
 
   it("match the export contract: fields, result, default destination and every error code", () => {
@@ -96,15 +108,14 @@ describe("skill files", () => {
     expect(codes.sort()).toEqual(Object.keys(CODES).sort())
   })
 
-  it("match the permission behaviour: ask per export, Always allow per account and kind, unattended needs a rule", () => {
+  it("give a valid unattended-export rule, and a valid exportRoots entry for the plugin's package", () => {
     const skill = text("opencode-plaud-export")
-    expect(skill).toContain("**Each export asks the user**")
-    expect(skill).toContain('"Always allow" remembers only that account and kind')
-    expect(skill).toContain("`default:transcript`")
     const rule = /`(\{ "action": "plaud_export"[^`]*\})`/.exec(skill)?.[1]
     expect(JSON.parse(rule!)).toEqual({ action: "plaud_export", resource: "*", effect: "allow" })
-    expect(skill).toMatch(/If the user declines, stop: nothing was written/)
-    expect(text("opencode-plaud")).toMatch(/The five read tools run without asking/)
+    const config = JSON.parse(/~~~json\n\s*(\{.*\})\n\s*~~~/.exec(skill)![1]!) as { plugins: { package: string; options: Record<string, unknown> }[] }
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { name: string }
+    expect(config.plugins[0]!.package).toBe(pkg.name)
+    expect(loadConfig(config.plugins[0]!.options).exportRoots).toHaveLength(2)
   })
 
   it("contain no internal wording, links or credentials", () => {
@@ -200,10 +211,8 @@ describe("steering away from get_file", () => {
     expect(NAMESPACE.description).toMatch(/for audio, even a download link, call export/)
   })
 
-  it("the skill says the same, and finds recording ids with list_files", () => {
-    const skill = text("opencode-plaud").replace(/\s+/g, " ")
-    expect(skill).toMatch(/Read `get_note` or `get_transcript` first/)
-    expect(skill).toContain("only for `source_list`")
-    expect(text("opencode-plaud-export")).not.toMatch(/`list_files` or `get_file`/)
+  it("the skills say the same: no get_file, and audio is an export", () => {
+    expect(text("opencode-plaud").replace(/\s+/g, " ")).toMatch(/Don't call `get_file`\..*`plaud_export` with `kind: "audio"`/)
+    expect(text("opencode-plaud-export").replace(/\s+/g, " ")).toMatch(/`kind: "audio"`, at once\. The export reads `get_file` itself/)
   })
 })

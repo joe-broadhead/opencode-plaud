@@ -21,7 +21,7 @@ export const STATUS_COMMAND = "plaud.recordings.status"
 const PLAUD_SERVER = /^plaud(-|$)/
 const RETRY = "Run /plaud-status in a session. If that fails too, open /plugins and check plaud.recordings."
 
-export type View =
+type View =
   | { readonly state: "loading" }
   | { readonly state: "ready"; readonly status: Status }
   | { readonly state: "unavailable"; readonly message: string; readonly nextStep: string }

@@ -28,17 +28,17 @@ export const SIGNATURE = "X-Amz-Signature=fixture-secret"
 /** The tool error for `get_file` on the file id `fail`. */
 export const UPSTREAM_FAILURE = `File not found: see https://files.example.invalid/rec-fail.mp3?${SIGNATURE}\nsecond line with more detail`
 /** The tool error for `list_files` with a `page_size` below Plaud's minimum, 10. */
-export const PAGE_SIZE_REFUSED = "page_size must be at least 10"
+const PAGE_SIZE_REFUSED = "page_size must be at least 10"
 export const AUDIO_BYTES = 200_000
 export const MODEL_ID = "fixture-model"
 
 /** A tool call the scripted model makes, in order: the n-th call follows n tool results. */
-export interface ScriptedCall {
+interface ScriptedCall {
   readonly tool: string
   readonly arguments: Record<string, unknown>
 }
 
-export interface FakeCall {
+interface FakeCall {
   readonly tool: string
   readonly arguments: Record<string, unknown>
 }

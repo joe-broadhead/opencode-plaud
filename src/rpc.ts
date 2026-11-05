@@ -12,12 +12,12 @@ import { Rpc } from "@opencode/plugin/rpc"
 
 export const RPC_ID = "plaud.recordings"
 
-export const ACCOUNT_STATES = ["signed_in", "sign_in_needed", "connecting", "failed", "disabled", "missing"] as const
+const ACCOUNT_STATES = ["signed_in", "sign_in_needed", "connecting", "failed", "disabled", "missing"] as const
 export type AccountState = (typeof ACCOUNT_STATES)[number]
 
 /** The shared status states (S13) Plaud reports: the most urgent account's state, in the family's machine form. */
-export const STATES = ["connected", "sign_in_required", "connecting", "failed", "disabled", "not_configured"] as const
-export type State = (typeof STATES)[number]
+const STATES = ["connected", "sign_in_required", "connecting", "failed", "disabled", "not_configured"] as const
+type State = (typeof STATES)[number]
 
 /** Each account state as a shared state. */
 export const SHARED_STATE: Record<AccountState, State> = {
@@ -162,7 +162,7 @@ export function overallState(status: Pick<Status, "accounts">): AccountState {
   return URGENCY.find((state) => states.has(state)) ?? "signed_in"
 }
 
-export interface StatusLine {
+interface StatusLine {
   readonly label: string
   readonly value: string
   readonly tone: Tone

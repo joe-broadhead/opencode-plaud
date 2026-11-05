@@ -3,8 +3,8 @@ import { scrubUrls } from "./domain/redact.js"
 import type { PluginContext } from "./host/context.js"
 import { shadowedSkills, type ListedSkill } from "./host/skills.js"
 import { KNOWN_READS, type PlaudServers } from "./host/mcp.js"
-import { defaultRules, OWN_TOOLS, unguardedAgents, type Rule } from "./host/permissions.js"
-import { READY_STEP, SHARED_STATE, STATE_TEXT, overallState, statusLines, type AccountState, type AccountStatus, type Status } from "./rpc.js"
+import { defaultRules, OWN_TOOLS, unguardedAgents } from "./host/permissions.js"
+import { READY_STEP, SHARED_STATE, STATE_TEXT, overallState, statusLines, type AccountState, type AccountStatus, type Rule, type Status } from "./rpc.js"
 import { PLUGIN_VERSION, TESTED_HOSTS, type HostCheck } from "./version.js"
 
 /**
@@ -141,7 +141,7 @@ export function buildStatus(facts: StatusFacts): Status {
   return { ...status, state: SHARED_STATE[overallState(status)] }
 }
 
-export interface StatusSources {
+interface StatusSources {
   readonly host: HostCheck
   readonly servers: Pick<PlaudServers, "list" | "inUse">
   readonly exportRoots: readonly string[]
@@ -149,7 +149,7 @@ export interface StatusSources {
   readonly skills: readonly ListedSkill[]
 }
 
-export type StatusHost = {
+type StatusHost = {
   readonly mcp: Pick<PluginContext["mcp"], "list">
   readonly tool: Pick<PluginContext["tool"], "list">
   readonly agent: Pick<PluginContext["agent"], "list">

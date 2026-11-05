@@ -139,7 +139,7 @@ export function audioUrl(payload: unknown): string | undefined {
   return isRecord(payload) ? nonEmpty(payload[AUDIO_URL_FIELD]) : undefined
 }
 
-export type TranscriptPage =
+type TranscriptPage =
   | { kind: "items"; utterances: Utterance[]; marks: Entry[]; outlines: Entry[]; count: number; nextCursor?: string }
   | { kind: "unavailable" }
   | { kind: "empty" }

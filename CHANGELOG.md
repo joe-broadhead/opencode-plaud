@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- `opencode-plaud-export` spells out the `list_files` call that finds a recording by date or name, with `start_at` in UTC, so it needs no catalogue search when the main skill isn't loaded. It says that the export itself refuses an existing file with `EXPORT_EXISTS`, so there is no need to list the folder first. When several recordings match, it exports only after the user answers, and never a guess or every match.
+
 ## [0.0.5] - 2026-11-05
 
 ### Added

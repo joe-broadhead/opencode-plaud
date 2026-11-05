@@ -78,7 +78,7 @@ describe("skill files", () => {
     }
   })
 
-  it("name every transcript block in the router, and only parameters Plaud's reads take", () => {
+  it("name every transcript block in the router, and in every skill only parameters Plaud's reads take", () => {
     const router = text("opencode-plaud")
     for (const block of TRANSCRIPT_BLOCKS) expect(router, block).toContain(`\`${block}\``)
     // The parameters in the router's Code Mode calls, checked against the live schemas' names (check:upstream warns on drift).
@@ -90,11 +90,24 @@ describe("skill files", () => {
       recent: ["limit"],
       export: ["recordingId", "kind"],
     }
-    for (const match of router.matchAll(/`tools\.plaud\.([a-z_]+)\(\{ ([^}]*) \}\)`/g)) {
-      const names = match[2]!.split(",").map((part) => part.trim())
-      expect(PARAMETERS[match[1]!], match[0]).toEqual(expect.arrayContaining(names))
+    for (const id of IDS) {
+      for (const match of text(id).matchAll(/`tools\.plaud\.([a-z_]+)\(\{ ([^}]*) \}\)`/g)) {
+        const names = match[2]!.split(",").map((part) => part.split(":")[0]!.trim())
+        expect(PARAMETERS[match[1]!], `${id}: ${match[0]}`).toEqual(expect.arrayContaining(names))
+      }
     }
     expect(router).toContain("`tools.plaud.get_current_user()`")
+    // The export skill often loads without the router, so it spells out both ways to find a recording's id.
+    const exporter = text("opencode-plaud-export")
+    expect(exporter).toContain("`tools.plaud.recent({ limit: 1 })`")
+    expect(exporter).toMatch(/`tools\.plaud\.list_files\(\{ date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD", page_size: \d+ \}\)`/)
+  })
+
+  it("teach scripts to use a session created for them", () => {
+    const router = text("opencode-plaud")
+    expect(router).toContain("opencode api post /api/session")
+    expect(router).toContain("`data.id`")
+    expect(router).toMatch(/Never borrow a session/)
   })
 
   it("match the export contract: fields, result, default destination and every error code", () => {

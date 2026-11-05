@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
+import { DEFAULT_ACCOUNT, loadConfig } from "../src/domain/config.js"
 import { KNOWN_READS } from "../src/host/mcp.js"
 import { defaultRules, evaluate, EXPORT_ACTION, RECENT_ACTION } from "../src/host/permissions.js"
 
@@ -78,5 +79,16 @@ describe("the jelly declaration", () => {
       expect(preset.feed.cadence).toBeGreaterThanOrEqual(30)
       expect(preset.feed.cadence).toBeLessThanOrEqual(86_400)
     }
+  })
+})
+
+describe("the declared accounts", () => {
+  const [signIn] = (pkg.jelly as { signIns: { id: string; server: string; account?: { option: string; required: boolean; reserved: string[]; placeholder: string } }[] }).signIns
+  it("name the accounts option, which an account Jelly adds there parses as, and keep the default account's name", () => {
+    expect(signIn?.server).toBe("plaud*")
+    expect(signIn?.account).toMatchObject({ option: "accounts", required: false, reserved: [DEFAULT_ACCOUNT] })
+    const placeholder = signIn?.account?.placeholder ?? ""
+    expect(loadConfig({ [signIn?.account?.option ?? ""]: [placeholder] }).accounts).toEqual([placeholder])
+    expect(() => loadConfig({ accounts: [DEFAULT_ACCOUNT] })).toThrow()
   })
 })

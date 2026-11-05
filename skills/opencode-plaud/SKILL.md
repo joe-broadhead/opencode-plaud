@@ -48,7 +48,9 @@ account is unclear. Load `opencode-plaud-digest` for a recap across recordings o
   `note`, never "no such recording".
 - **A recording:** `id`, `name`, `start_at` (when it was recorded), `created_at` (the upload), `duration`.
 - **Times** are UTC without a `Z`. Parse them in code with `new Date(start_at + "Z")`, work out weekdays and local
-  dates there, never by hand, and label every time you show with its zone.
+  dates there, never by hand, and label every time you show with its zone. Code Mode has no time-zone data, so
+  `toLocaleString` ignores `timeZone`: format with `getUTC*` and add the user's offset if you know it (from a time
+  tool, say), or show UTC.
 - **Durations** and segment offsets are milliseconds: `5400000` is 1 h 30 min.
 - **`get_transcript`:** blocks `transaction` (raw, with speakers; the default), `transaction_polish` (cleaned up),
   `outline` and `mark_memo` (under `marks`). A page has `segments` (`content`, `speaker`, `start_time`; an outline's

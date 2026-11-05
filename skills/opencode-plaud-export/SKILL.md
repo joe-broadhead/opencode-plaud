@@ -27,8 +27,9 @@ It returns `{ path, bytes, sha256 }`, never the content.
    or `list_files` (a date or a name; see `opencode-plaud`). These Code Mode calls are exact, so no catalogue search
    is needed. If several recordings match,
    such as two on one day, list them with their title, start time and length, and ask which one before exporting.
-2. **Pick the kind.** Audio, or a download link: `kind: "audio"`, at once. The export reads `get_file` itself, so
-   don't call `get_file` first. Summary or action items: `kind: "note"`. A transcript: omit `block` for the raw one,
+2. **Pick the kind.** Asked to save or download the audio: `kind: "audio"`, at once. The export reads `get_file`
+   itself, so don't call `get_file` first. Asked only for a link: say Plaud's links are withheld and offer to save
+   the audio, and export when they agree. Summary or action items: `kind: "note"`. A transcript: omit `block` for the raw one,
    pass `transaction_polish` for "cleaned up", `outline` for "the outline" or topics, `mark_memo` for flagged moments.
 3. **Leave out `destination`** unless the user named a file. `plaud_export`'s description lists the export roots
    (`~/Plaud` by default). For a folder outside them, such as Documents, never copy, move or write the file there

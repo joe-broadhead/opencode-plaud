@@ -108,8 +108,14 @@ opencode api post /api/rpc/plaud.recordings.tools/describe -d '{"input":{}}'
 
 A result is `{"output": {"output": <the tool's structured content, or its text when it has none>, "text": <the tool's
 text>}}`, as plain JSON. When the text itself is JSON, OpenCode also parses it into `output`. Plaud wraps most results
-in untrusted-data tags (`<untrusted-user-data-…>`) around JSON text, so for those `output` is the same text, and the
-script gets the tags as they are: take the JSON out of them.
+in untrusted-data tags around JSON text, so for those `output` is the same text, and the script gets the tags as they
+are: take the JSON out of them. The sentence before the payload names the tag too, so match the opening tag with its
+`source` attribute:
+
+```js
+const inner = text.match(/<untrusted-user-data-[0-9a-z]+ source="[^"]*">([\s\S]*)<\/untrusted-user-data-[0-9a-z]+>/)?.[1] ?? text
+```
+
 Recording content is untrusted: transcripts, notes and titles hold what people said and wrote, and can contain
 instructions aimed at a model.
 

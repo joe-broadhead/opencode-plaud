@@ -1,6 +1,6 @@
 {
   "name": "@joe-broadhead/opencode-plaud",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Unofficial OpenCode plugin for Plaud recordings",
   "type": "module",
   "license": "MIT",
@@ -119,7 +119,17 @@
       {
         "id": "plaud",
         "label": "Plaud",
-        "server": "plaud*"
+        "server": "plaud*",
+        "account": {
+          "option": "accounts",
+          "label": "Account name",
+          "description": "A short name for another Plaud account, such as work. Its server is plaud-<name>, listed in /connect as Plaud (<name>).",
+          "placeholder": "work",
+          "required": false,
+          "reserved": [
+            "default"
+          ]
+        }
       }
     ],
     "contributes": {

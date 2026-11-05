@@ -411,6 +411,8 @@ describe("status", () => {
       // asker's own rules already ask for every Plaud tool (LIVE-1).
       unguardedAgents: ["reviewer"],
       permissionsBlock: BLOCK,
+      // OpenCode lists the plugin's skills under the paths the plugin gave, so none is shadowed.
+      shadowedSkills: [],
       nextStep: "Run /connect and choose Plaud (work), then press o or Enter to open the sign-in page.",
     })
   })

@@ -13,6 +13,8 @@ const BASE_ALLOW = { action: "*", resource: "*", effect: "allow" } as const
 const DEFAULT_RULES = defaultRules(["plaud", "plaud-work"])
 const guarded = (id: string) => ({ id, permissions: [BASE_ALLOW, ...DEFAULT_RULES] })
 
+const OWN_SKILLS = ["opencode-plaud", "opencode-plaud-digest", "opencode-plaud-export"].map((id) => ({ id, path: `/pkg/skills/${id}/SKILL.md` }))
+
 function facts(overrides: Partial<StatusFacts> = {}): StatusFacts {
   return {
     host: checkHost("2.2.3", false),
@@ -28,6 +30,8 @@ function facts(overrides: Partial<StatusFacts> = {}): StatusFacts {
     ],
     tools: [...READS.map((name) => `plaud_${name}`), ...READS.map((name) => `plaud-work_${name}`), "plaud_export", "github_get_me"],
     agents: [guarded("build"), guarded("plan")],
+    skills: OWN_SKILLS,
+    ownSkills: OWN_SKILLS,
     ...overrides,
   }
 }
@@ -167,14 +171,18 @@ describe("status model", () => {
     const mcp = vi.fn(async () => ({ location: {}, data: [{ name: "plaud", status: { status: "needs_auth", error: "401" } }] }))
     const tools = vi.fn(async () => [{ id: "plaud_export" }, { id: "plaud_get_file" }, { id: "plaud_rename" }])
     const agents = vi.fn(async () => ({ location: {}, data: [{ id: "reviewer", permissions: [BASE_ALLOW] }] }))
+    const skills = vi.fn(async () => ({ location: {}, data: [{ id: "opencode-plaud", path: "/home/u/.config/opencode/skills/opencode-plaud/SKILL.md" }] }))
     const status = await readStatus(
-      { mcp: { list: mcp }, tool: { list: tools }, agent: { list: agents } } as never,
+      { mcp: { list: mcp }, tool: { list: tools }, agent: { list: agents }, skill: { list: skills } } as never,
       {
         host: checkHost("2.2.4", false),
         servers: { list: [{ account: "default", name: "plaud" }], inUse: () => ["plaud"] },
         exportRoots: ["/fixture/Plaud"],
+        skills: OWN_SKILLS,
       },
     )
+    expect(skills).toHaveBeenCalledOnce()
+    expect(status.shadowedSkills).toEqual([{ id: "opencode-plaud", path: "/home/u/.config/opencode/skills/opencode-plaud/SKILL.md" }])
     expect(mcp).toHaveBeenCalledOnce()
     expect(tools).toHaveBeenCalledOnce()
     expect(agents).toHaveBeenCalledOnce()
@@ -184,6 +192,27 @@ describe("status model", () => {
     expect(status.host).toEqual({ version: "2.2.4", range: ">=2.2.3 <2.3.0", tested: true })
     // The block is the one for the configured servers.
     expect(status.permissionsBlock).toEqual(defaultRules(["plaud"]))
+  })
+
+  it("names a skill that shadows one of the plugin's, after the sign-in and agent fixes", () => {
+    const path = "/home/u/.config/opencode/skills/opencode-plaud-export/SKILL.md"
+    const skills = [...OWN_SKILLS.filter((skill) => skill.id !== "opencode-plaud-export"), { id: "opencode-plaud-export", path }]
+    const status = buildStatus(facts({ skills }))
+    expect(schemaProblems(StatusSchema, status)).toEqual([])
+    expect(status).toMatchObject({ state: "connected", shadowedSkills: [{ id: "opencode-plaud-export", path }] })
+    expect(status.nextStep).toBe(`Move or rename the skill at ${path}, so that this plugin's opencode-plaud-export skill loads, then run opencode reload.`)
+    const lines = statusLines(status)
+    expect(lines.map((line) => line.label)).toEqual(["Connection", "Account", "Access", "Skills", "Tools", "Agents without default rules", "OpenCode", "Next step"])
+    expect(lines.find((line) => line.label === "Skills")).toEqual({
+      label: "Skills",
+      value: `opencode-plaud-export is shadowed by ${path}, so agents load that file instead of this plugin's skill`,
+      tone: "warning",
+    })
+    // The agents fix comes first: those agents run exports without asking.
+    expect(buildStatus(facts({ skills, agents: [{ id: "reviewer", permissions: [BASE_ALLOW] }] })).nextStep).toBe(AGENTS_STEP)
+    // A skill list without the plugin's skills, or with them, shadows nothing.
+    expect(buildStatus(facts({ skills: [] })).shadowedSkills).toEqual([])
+    expect(buildStatus(facts()).shadowedSkills).toEqual([])
   })
 
   it("never carries a token, a link or a plan", () => {

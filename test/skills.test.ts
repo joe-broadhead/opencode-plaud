@@ -129,7 +129,7 @@ describe("skill loading", () => {
           },
         },
       } as never,
-      SKILLS,
+      await loadSkills(SKILLS),
     )
     expect(typeof registration.dispose).toBe("function")
     expect(added).toHaveLength(3)

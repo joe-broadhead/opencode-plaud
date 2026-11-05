@@ -1,6 +1,7 @@
 import { displayName, signInStep } from "./domain/auth.js"
 import { scrubUrls } from "./domain/redact.js"
 import type { PluginContext } from "./host/context.js"
+import { shadowedSkills, type ListedSkill } from "./host/skills.js"
 import { KNOWN_READS, type PlaudServers } from "./host/mcp.js"
 import { defaultRules, OWN_TOOLS, unguardedAgents, type Rule } from "./host/permissions.js"
 import { READY_STEP, SHARED_STATE, STATE_TEXT, overallState, statusLines, type AccountState, type AccountStatus, type Status } from "./rpc.js"
@@ -26,6 +27,9 @@ export interface StatusFacts {
   /** The IDs of every tool OpenCode has registered, such as `plaud_get_file`. */
   readonly tools: readonly string[]
   readonly agents: readonly { readonly id: string; readonly permissions: readonly Rule[] }[]
+  /** OpenCode's skill list, and the plugin's own skills with the paths it gave them. */
+  readonly skills: readonly ListedSkill[]
+  readonly ownSkills: readonly ListedSkill[]
 }
 
 const STATE: Record<McpServerInfo["status"]["status"], AccountState> = {
@@ -94,6 +98,11 @@ function accountStep(account: AccountStatus): string | undefined {
 export const AGENTS_STEP =
   "Put the default rules shown by /plaud-status first in each listed agent's own permissions, in opencode.json or the agent's Markdown file, followed by your top-level rules for Plaud tools."
 
+/** A user's or a project's skill with a plugin skill's id wins in OpenCode, so the plugin's never loads. */
+function shadowStep(skill: ListedSkill): string {
+  return `Move or rename the skill at ${skill.path}, so that this plugin's ${skill.id} skill loads, then run opencode reload.`
+}
+
 /** The tested releases in words: "2.2.3, 2.2.4 or 2.2.5". */
 const TESTED_TEXT = `${TESTED_HOSTS.slice(0, -1).join(", ")} or ${TESTED_HOSTS.at(-1)}`
 
@@ -112,8 +121,10 @@ export function buildStatus(facts: StatusFacts): Status {
   })
   const block = defaultRules(facts.servers.map((server) => server.name))
   const unguarded = unguardedAgents(facts.agents, block)
+  const shadowed = shadowedSkills(facts.skills, facts.ownSkills)
   const nextStep = accounts.map(accountStep).find((step) => step !== undefined)
     ?? (unguarded.length === 0 ? undefined : AGENTS_STEP)
+    ?? (shadowed[0] === undefined ? undefined : shadowStep(shadowed[0]))
     // A release inside the range sets up normally, tested or not; only one outside it, loaded with allowUntestedHost, adds a step.
     ?? (facts.host.inRange ? READY_STEP : `If Plaud misbehaves, use a tested OpenCode release: ${TESTED_TEXT}.`)
   const status = {
@@ -124,6 +135,7 @@ export function buildStatus(facts: StatusFacts): Status {
     host: { version: facts.host.version === "" ? null : facts.host.version, range: facts.host.range, tested: facts.host.tested },
     unguardedAgents: unguarded,
     permissionsBlock: block,
+    shadowedSkills: shadowed,
     nextStep,
   }
   return { ...status, state: SHARED_STATE[overallState(status)] }
@@ -133,16 +145,25 @@ export interface StatusSources {
   readonly host: HostCheck
   readonly servers: Pick<PlaudServers, "list" | "inUse">
   readonly exportRoots: readonly string[]
+  /** The plugin's own skills, as it registers them. */
+  readonly skills: readonly ListedSkill[]
 }
 
 export type StatusHost = {
   readonly mcp: Pick<PluginContext["mcp"], "list">
   readonly tool: Pick<PluginContext["tool"], "list">
   readonly agent: Pick<PluginContext["agent"], "list">
+  readonly skill: Pick<PluginContext["skill"], "list">
 }
 
 export async function readStatus(ctx: StatusHost, sources: StatusSources): Promise<Status> {
-  const [mcp, tools, agents] = await Promise.all([ctx.mcp.list(), ctx.tool.list(), ctx.agent.list()])
+  const [mcp, tools, agents, skills] = await Promise.all([
+    ctx.mcp.list(),
+    ctx.tool.list(),
+    ctx.agent.list(),
+    // A skill list the host cannot give reports nothing shadowed, rather than failing status.
+    ctx.skill.list().then((listed) => listed.data, () => []),
+  ])
   return buildStatus({
     host: sources.host,
     servers: sources.servers.list,
@@ -151,6 +172,8 @@ export async function readStatus(ctx: StatusHost, sources: StatusSources): Promi
     mcp: mcp.data,
     tools: tools.map((tool) => tool.id),
     agents: agents.data,
+    skills,
+    ownSkills: sources.skills,
   })
 }
 

@@ -19,6 +19,7 @@ function status(overrides: Partial<Status> = {}): Status {
     host: { version: "2.2.3", range: ">=2.2.3 <2.3.0", tested: true },
     unguardedAgents: [],
     permissionsBlock: DEFAULT_RULES.map((rule) => ({ ...rule })),
+    shadowedSkills: [],
     nextStep: "Run /connect and choose Plaud, then press o or Enter to open the sign-in page.",
     ...overrides,
   }

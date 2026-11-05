@@ -16,12 +16,12 @@ import { type ExportHost, reader } from "./export.js"
  * fetched by the plugin itself. Names and times only: no links, no content.
  */
 
-export const DEFAULT_LIMIT = 8
+const DEFAULT_LIMIT = 8
 /** Plaud's server refuses a `page_size` below 10, so a smaller limit still asks for 10 and keeps the first ones. */
 export const MIN_PAGE_SIZE = 10
 
 /** The tools RPC's method name for plaud_recent. */
-export const RECENT_METHOD = "recent"
+const RECENT_METHOD = "recent"
 
 /**
  * plaud_recent's spec. For the tools RPC (`passRefusals`), a read the session's rules refuse reaches the module as

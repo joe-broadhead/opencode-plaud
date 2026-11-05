@@ -6,7 +6,7 @@ import { Plugin } from "@opencode/plugin"
  * host does, without a model turn.
  */
 
-export interface Probe {
+interface Probe {
   readonly plugin: Plugin.Plugin
   context(directory: string): Plugin.Context
 }

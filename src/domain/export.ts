@@ -60,7 +60,7 @@ function audioExtension(url: URL, contentType: string | null): string {
   return AUDIO_TYPES[contentType?.split(";")[0]?.trim().toLowerCase() ?? ""] ?? ".bin"
 }
 
-export interface TranscriptDocument {
+interface TranscriptDocument {
   recording: RecordingMeta
   block: TranscriptBlock
   utterances: Utterance[]
@@ -69,7 +69,7 @@ export interface TranscriptDocument {
   exportedAt: Date
 }
 
-export interface NoteDocument {
+interface NoteDocument {
   recording: RecordingMeta
   tabs: NoteTab[]
   exportedAt: Date

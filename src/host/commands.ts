@@ -12,7 +12,7 @@ export const STATUS_COMMAND = {
   description: "Plaud: show each account's sign-in state, the export folders and the next step",
 } as const
 
-export type CommandsHost = {
+type CommandsHost = {
   readonly command: Pick<PluginContext["command"], "transform">
   readonly session: Pick<PluginContext["session"], "synthetic">
 }

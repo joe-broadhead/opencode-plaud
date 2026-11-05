@@ -23,10 +23,13 @@ It returns `{ path, bytes, sha256 }`, never the content.
 
 ## Decide
 
-1. **Find the id** with `plaud_recent` (the newest: `tools.plaud.recent({ limit: 1 })` in Code Mode, a plain object)
-   or `list_files` (a date or a name; see `opencode-plaud`). These Code Mode calls are exact, so no catalogue search
-   is needed. If several recordings match,
-   such as two on one day, list them with their title, start time and length, and ask which one before exporting.
+1. **Find the id** with `plaud_recent` for the newest (`tools.plaud.recent({ limit: 1 })` in Code Mode, a plain
+   object), or `list_files` for a date or a name:
+   `tools.plaud.list_files({ date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD", page_size: 50 })`, both dates inclusive;
+   for a name, add `query: "name"` or drop the dates. Its `start_at` is UTC without a `Z`. These Code Mode calls are exact, so
+   no catalogue search is needed. If several recordings match, such as two on one day, list them with their title,
+   start time and length, and ask which one. Export only after the user answers: if you can't ask, end your answer
+   with the question, and never export a guess or every match instead.
 2. **Pick the kind.** Asked to save or download the audio: `kind: "audio"`, at once. The export reads `get_file`
    itself, so don't call `get_file` first. Asked only for a link: say Plaud's links are withheld and offer to save
    the audio, and export when they agree. Summary or action items: `kind: "note"`. A transcript: omit `block` for the raw one,
@@ -38,7 +41,8 @@ It returns `{ path, bytes, sha256 }`, never the content.
    ~~~json
    { "plugins": [{ "package": "@joe-broadhead/opencode-plaud", "options": { "exportRoots": ["~/Plaud", "~/Documents"] } }] }
    ~~~
-4. **Pass `overwrite: true`** only when the user asked to replace that file.
+4. **Pass `overwrite: true`** only when the user asked to replace that file. The export itself refuses an existing
+   file with `EXPORT_EXISTS`, so don't list the folder first.
 
 ## The ask
 

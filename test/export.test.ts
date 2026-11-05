@@ -236,6 +236,14 @@ describe("one-step export", () => {
     expect(text).toContain("## AI summary\n\n- Ship on Friday.\n\n## Decisions\n\n_Plaud could not load this tab (error code 3)._\n")
   })
 
+  it("writes a tab's content even when it carries a non-zero data_error_code, as loaded tabs do live", async () => {
+    const notes = [{ ...NOTES[0], data_error_code: 10 }]
+    const { run } = await exporter({ tools: { ...plaudTools(), plaud_get_note: async () => json(notes) } })
+    const text = await readFile((await run({ recordingId: "rec-1", kind: "note" })).path, "utf8")
+    expect(text).toContain("## AI summary\n\n- Ship on Friday.\n")
+    expect(text).not.toContain("could not load")
+  })
+
   it("reports progress while streaming audio", async () => {
     audioResponse(new Uint8Array(10))
     const { run, progress } = await exporter()

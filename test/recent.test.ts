@@ -89,6 +89,12 @@ describe("plaud_recent", () => {
     expect(calls).toEqual([{ id: "plaud_list_files", args: { page_size: 12 } }])
   })
 
+  it("skips an entry with no id and still fills the limit from the rest of the page", async () => {
+    const { run } = await recent(plaud(enveloped({ type: "files", data: RECORDINGS, page: 1 })))
+    // The third entry has no id; the fourth fills its place.
+    expect(((await run({ limit: 3 })) as { items: { id: string }[] }).items.map((item) => item.id)).toEqual(["rec-3", "rec-2", "rec-1"])
+  })
+
   it("never asks Plaud for fewer than 10, and keeps only the limit", async () => {
     expect(MIN_PAGE_SIZE).toBe(10)
     const { run, calls } = await recent(plaud(enveloped({ type: "files", data: RECORDINGS, page: 1 })))

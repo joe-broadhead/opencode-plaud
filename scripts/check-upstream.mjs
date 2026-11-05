@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Maintainer check: compare the Plaud MCP server's live tool list with the
- * tools this plugin treats as known reads. It only warns. A new upstream
- * tool already asks by default; a missing known read needs a plugin change.
+ * tools this plugin treats as known reads, and their parameters with the ones
+ * the plugin and its skills use. It only warns. A new upstream tool already
+ * asks by default; a missing known read or parameter needs a plugin change.
  *
  *   PLAUD_MCP_TOKEN=<OAuth access token> npm run check:upstream [-- --url <server URL>]
  *
@@ -83,10 +84,23 @@ try {
   process.exit(2)
 }
 
+/** The parameters the plugin's code (exports, plaud_recent) and its skills pass to each read. */
+const PARAMETERS = {
+  list_files: ["page", "page_size", "date_from", "date_to", "query"],
+  get_file: ["file_id"],
+  get_note: ["file_id"],
+  get_transcript: ["file_id", "block", "cursor", "limit"],
+  get_current_user: [],
+}
+
 const live = new Map(tools.map((tool) => [tool.name, tool]))
 const warnings = [
   ...KNOWN_READS.filter((name) => !live.has(name)).map((name) => `known read "${name}" is gone; plaud*_${name} no longer exists`),
   ...[...live.keys()].filter((name) => !KNOWN_READS.includes(name)).map((name) => `"${name}" is not a known read, so it asks; add it to KNOWN_READS only if it is a harmless read`),
+  ...KNOWN_READS.filter((name) => live.has(name)).flatMap((name) => {
+    const properties = Object.keys(live.get(name).inputSchema?.properties ?? {})
+    return (PARAMETERS[name] ?? []).filter((key) => !properties.includes(key)).map((key) => `${name} no longer takes "${key}", which the plugin or its skills pass; update them`)
+  }),
 ]
 for (const name of KNOWN_READS.filter((name) => live.has(name))) {
   const required = live.get(name).inputSchema?.required ?? []

@@ -274,7 +274,7 @@ describe("refusals", () => {
     await writeFile(existing, "keep me")
     const { run } = await exporter()
     await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(
-      `EXPORT_EXISTS: A file already exists at ${existing}. Next step: Pass overwrite: true to replace it, or choose another destination.`,
+      `EXPORT_EXISTS: A file already exists at ${existing}. Next step: Ask the user whether to replace it; if they agree, pass overwrite: true, or else choose another destination.`,
     )
     expect(await readFile(existing, "utf8")).toBe("keep me")
     expect(await readdir(join(roots[0]!, "note"))).toEqual(["rec-1.md"])
@@ -306,7 +306,7 @@ describe("refusals", () => {
     const tools = { ...plaudTools(), plaud_get_file: async () => Promise.reject(new Error("Permission denied: plaud_get_file")) }
     const { run } = await exporter({ tools })
     await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(
-      "PLAUD_READ_FAILED: plaud_get_file failed: Permission denied: plaud_get_file. Next step: If a permission rule denies plaud_get_file, allow it for this agent;",
+      "PLAUD_READ_FAILED: plaud_get_file failed: Permission denied: plaud_get_file. Next step: Retry once; if it fails again, ask the user to run /plaud-status and follow its next step.",
     )
     expect(await tree()).toEqual([])
   })
@@ -339,7 +339,7 @@ describe("refusals", () => {
     const tools = { ...plaudTools(), plaud_get_file: async () => json({ ...FILE, presigned_url: `https://[audio.plaud.test/rec-1.mp3?${SECRET}` }) }
     const failure = (await (await exporter({ tools })).run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error & { code?: unknown }
     expect(failure.message).toBe(
-      "PLAUD_UNREADABLE: Plaud returned an audio link that is not a valid https URL. Next step: Retry later; if it still fails, report it to the plugin's maintainers.",
+      "PLAUD_UNREADABLE: Plaud returned an audio link that is not a valid https URL. Next step: Update opencode-plaud and retry later; if it still fails, report it to the plugin's maintainers.",
     )
     expect(failure.code).toBe("PLAUD_UNREADABLE")
     expect(JSON.stringify({ ...failure, stack: failure.stack })).not.toContain(SECRET)
@@ -424,7 +424,7 @@ describe("redirects of the audio link (PLAUD-2)", () => {
     const { asked } = web({ [AUDIO_URL]: redirect(target), [target]: audio("stolen") })
     const failure = (await (await exporter()).run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error
     expect(failure.message).toBe(
-      "PLAUD_UNREADABLE: Plaud's audio link redirected to an address that is not a valid https URL. Next step: Retry later; if it still fails, report it to the plugin's maintainers.",
+      "PLAUD_UNREADABLE: Plaud's audio link redirected to an address that is not a valid https URL. Next step: Update opencode-plaud and retry later; if it still fails, report it to the plugin's maintainers.",
     )
     expect(failure.message).not.toContain("plaud.test")
     expect(asked).toEqual([AUDIO_URL])
@@ -438,7 +438,7 @@ describe("redirects of the audio link (PLAUD-2)", () => {
     const hop = (n: number) => `https://cdn.plaud.test/${n}?${SECRET}`
     const { asked } = web({ [AUDIO_URL]: redirect(hop(1)), ...Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [hop(n), redirect(hop(n + 1))])) })
     const failure = (await (await exporter()).run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error
-    expect(failure.message).toBe("PLAUD_UNREADABLE: Plaud's audio link redirected more than 5 times. Next step: Retry later; if it still fails, report it to the plugin's maintainers.")
+    expect(failure.message).toBe("PLAUD_UNREADABLE: Plaud's audio link redirected more than 5 times. Next step: Update opencode-plaud and retry later; if it still fails, report it to the plugin's maintainers.")
     expect(asked).toHaveLength(6)
     expect(await tree()).toEqual([])
   })
@@ -449,7 +449,7 @@ describe("size caps", () => {
     audioResponse(new Uint8Array(10), { "content-length": "2000" })
     const { run } = await exporter({ settings: { maxAudioBytes: 1000 } })
     await expect(run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(
-      "EXPORT_TOO_LARGE: The audio is 2000 bytes, over maxAudioBytes (1000). Next step: Raise the maxAudioBytes plugin option.",
+      "EXPORT_TOO_LARGE: The audio is 2000 bytes, over maxAudioBytes (1000). Next step: Ask the user to raise the maxAudioBytes plugin option.",
     )
     expect(await tree()).toEqual([])
   })
@@ -523,7 +523,7 @@ describe("time budget", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ pull: () => new Promise<void>(() => undefined) }))))
     const { run } = await exporter({ settings: { exportTimeoutMs: 200 } })
     await expect(run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(
-      "EXPORT_TIMEOUT: The export did not finish within exportTimeoutMs (200 ms). Next step: Raise the exportTimeoutMs plugin option, or retry on a faster connection.",
+      "EXPORT_TIMEOUT: The export did not finish within exportTimeoutMs (200 ms). Next step: Ask the user to raise the exportTimeoutMs plugin option, or retry on a faster connection.",
     )
     expect(await tree()).toEqual(["Plaud", "Plaud/audio"])
   })

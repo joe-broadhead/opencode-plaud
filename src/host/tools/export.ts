@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from "node:crypto"
 import { link, lstat, mkdir, open, realpath, rename, unlink } from "node:fs/promises"
 import { basename, dirname, join, relative, resolve, sep } from "node:path"
-import { displayName, signInStep } from "../../domain/auth.js"
+import { signInStep } from "../../domain/auth.js"
 import { onThisMachine, secureUrl } from "../../domain/config.js"
 import { ExportOutput, exportInput, type ExportRequest, type ExportResult } from "../../domain/contract/index.js"
-import { fail, PlaudError } from "../../domain/errors.js"
+import { fail, PlaudError, UNREADABLE_STEP } from "../../domain/errors.js"
 import { DEFAULT_TRANSCRIPT_BLOCK, defaultFileName, MAX_TEXT_BYTES, renderNote, renderTranscript, type ExportSettings } from "../../domain/export.js"
 import { audioUrl, fileArgs, noteTabs, PLAUD_TOOLS, recordingMeta, resultData, transcriptArgs, transcriptPage } from "../../domain/normalize.js"
 import type { Entry, Utterance } from "../../domain/normalize.js"
@@ -28,7 +28,6 @@ const PROGRESS_INTERVAL_MS = 1_000
 const MAX_TRANSCRIPT_PAGES = 1_000
 /** Filesystems without hard links; publication then checks and renames. */
 const NO_HARD_LINKS = new Set(["EPERM", "ENOTSUP", "EOPNOTSUPP", "ENOSYS"])
-const REPORT_STEP = "Retry later; if it still fails, report it to the plugin's maintainers."
 
 export interface ExportHost {
   readonly tool: Pick<PluginContext["tool"], "list">
@@ -106,7 +105,7 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
         if (bytes.byteLength > MAX_TEXT_BYTES) fail("EXPORT_TOO_LARGE", `The ${kind} is ${bytes.byteLength} bytes, over the 25 MiB limit for a text export.`, "Export the outline block or the note instead, which are shorter.")
         return { output: await publish(path, overwrite, (write) => write(bytes)) }
       } catch (error) {
-        if (timeout.aborted) fail("EXPORT_TIMEOUT", `The export did not finish within exportTimeoutMs (${settings.exportTimeoutMs} ms).`, "Raise the exportTimeoutMs plugin option, or retry on a faster connection.")
+        if (timeout.aborted) fail("EXPORT_TIMEOUT", `The export did not finish within exportTimeoutMs (${settings.exportTimeoutMs} ms).`, "Ask the user to raise the exportTimeoutMs plugin option, or retry on a faster connection.")
         if (error instanceof PlaudError || context.signal.aborted || !isSystemError(error)) throw error
         fail("EXPORT_FAILED", `Writing the export failed (${error.code}).`, "Check the free disk space and the export folder's permissions, then retry.")
       }
@@ -131,8 +130,8 @@ export function reader(tools: Awaited<ReturnType<ExportHost["tool"]["list"]>>, a
       // A declined prompt carries no message and, like a cancellation, must reach the host untouched.
       if (context.signal.aborted || !(error instanceof Error) || error.message === "") throw error
       if (passRefusals && (error as { error?: unknown }).error !== undefined) throw error
-      const step = `If a permission rule denies ${id}, allow it for this agent; if ${server} is signed out, run /connect and choose ${displayName(account)}; otherwise retry.`
-      fail("PLAUD_READ_FAILED", `${id} failed: ${scrubUrls(error.message)}`, step)
+      // The detail names a deny; status tells a sign-in, a failed connection and a missing server apart.
+      fail("PLAUD_READ_FAILED", `${id} failed: ${scrubUrls(error.message)}`, "Retry once; if it fails again, ask the user to run /plaud-status and follow its next step.")
     }
   }
 }
@@ -151,7 +150,7 @@ async function transcript(read: Read, recordingId: string, block: TranscriptBloc
     if (page.nextCursor === undefined || page.count === 0) return collected
     cursor = page.nextCursor
   }
-  fail("PLAUD_UNREADABLE", `The ${block} block did not end after ${MAX_TRANSCRIPT_PAGES} pages.`, REPORT_STEP)
+  fail("PLAUD_UNREADABLE", `The ${block} block did not end after ${MAX_TRANSCRIPT_PAGES} pages.`, UNREADABLE_STEP)
 }
 
 /**
@@ -160,7 +159,7 @@ async function transcript(read: Read, recordingId: string, block: TranscriptBloc
  */
 function audioLink(link: string): URL {
   const url = URL.parse(link)
-  if (url === null || !safeHop(url)) fail("PLAUD_UNREADABLE", "Plaud returned an audio link that is not a valid https URL.", REPORT_STEP)
+  if (url === null || !safeHop(url)) fail("PLAUD_UNREADABLE", "Plaud returned an audio link that is not a valid https URL.", UNREADABLE_STEP)
   return url
 }
 
@@ -188,19 +187,19 @@ async function download(link: URL, maxBytes: number, signal: AbortSignal): Promi
     }
     if (!REDIRECTS.has(response.status)) break
     await response.body?.cancel().catch(() => undefined)
-    if (redirects === MAX_REDIRECTS) fail("PLAUD_UNREADABLE", `Plaud's audio link redirected more than ${MAX_REDIRECTS} times.`, REPORT_STEP)
+    if (redirects === MAX_REDIRECTS) fail("PLAUD_UNREADABLE", `Plaud's audio link redirected more than ${MAX_REDIRECTS} times.`, UNREADABLE_STEP)
     const location = response.headers.get("location")
     const next = location === null ? null : URL.parse(location, url.href)
     if (next === null || !safeHop(next) || (onThisMachine(next) && !onThisMachine(url))) {
       // The link and its target are credentials: the message names neither.
-      fail("PLAUD_UNREADABLE", "Plaud's audio link redirected to an address that is not a valid https URL.", REPORT_STEP)
+      fail("PLAUD_UNREADABLE", "Plaud's audio link redirected to an address that is not a valid https URL.", UNREADABLE_STEP)
     }
     url = next
   }
   const declared = contentLength(response)
   if (!response.ok || (declared !== undefined && declared > maxBytes)) {
     await response.body?.cancel().catch(() => undefined)
-    if (response.ok) fail("EXPORT_TOO_LARGE", `The audio is ${declared} bytes, over maxAudioBytes (${maxBytes}).`, "Raise the maxAudioBytes plugin option.")
+    if (response.ok) fail("EXPORT_TOO_LARGE", `The audio is ${declared} bytes, over maxAudioBytes (${maxBytes}).`, "Ask the user to raise the maxAudioBytes plugin option.")
     fail("EXPORT_FAILED", `Plaud's audio server refused the download (HTTP ${response.status}).`, "Retry; each export fetches a fresh audio link.")
   }
   return response
@@ -217,7 +216,7 @@ async function stream(response: Response, write: Write, maxBytes: number, report
       const { done, value } = await bounded(body.read(), signal)
       if (done) return
       bytes += value.byteLength
-      if (bytes > maxBytes) fail("EXPORT_TOO_LARGE", `The audio grew past maxAudioBytes (${maxBytes}) during the download.`, "Raise the maxAudioBytes plugin option.")
+      if (bytes > maxBytes) fail("EXPORT_TOO_LARGE", `The audio grew past maxAudioBytes (${maxBytes}) during the download.`, "Ask the user to raise the maxAudioBytes plugin option.")
       await write(value)
       report({ phase: "audio", bytes, ...(total === undefined ? {} : { totalBytes: total }) })
     }
@@ -299,7 +298,7 @@ function outsideRoots(path: string, roots: readonly string[]): never {
 }
 
 function alreadyExists(path: string): never {
-  fail("EXPORT_EXISTS", `A file already exists at ${path}.`, "Pass overwrite: true to replace it, or choose another destination.")
+  fail("EXPORT_EXISTS", `A file already exists at ${path}.`, "Ask the user whether to replace it; if they agree, pass overwrite: true, or else choose another destination.")
 }
 
 /** Settles with `work`, or rejects as soon as the signal aborts, even when `work` ignores the signal. */

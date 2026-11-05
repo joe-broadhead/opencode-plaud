@@ -5,7 +5,7 @@ This repository builds `@joe-broadhead/opencode-plaud`, an unofficial OpenCode p
 ## Platform
 
 - Use only public APIs of `@opencode/plugin` that exist in OpenCode 2.2.3. The supported host range is exactly `>=2.2.3 <2.3.0`. Never write it as `^2.2.3`, which would accept an untested 2.3.
-- Test against stock OpenCode 2.2.3, 2.2.4 and 2.2.5, never a fork or a patched host. `TESTED_HOSTS` in `src/version.ts` is the one list of tested releases; tests and CI read it, and no other file lists them.
+- Test against stock OpenCode 2.2.3, 2.2.4 and 2.2.5, never a fork or a patched host. `TESTED_HOSTS` in `src/version.ts` is the one list of tested releases; tests and CI read it, no other code lists them, and only the README's Requirements, SECURITY and `docs/configuration.md` (`allowUntestedHost`) state them for users; a test checks all four.
 - Call `ctx.permission.assert(input)` with the input only: no signal and no second argument. Rethrow what it throws.
 - A plugin tool that returns `output` declares an `output` schema.
 - Tests never import host source. Use the public `@opencode/plugin`, `@opencode/sdk` and `@opencode/client` packages. Write test doubles as narrow `Pick<Plugin.Context, ...>` fakes, not full context objects.
@@ -40,7 +40,7 @@ Also forbidden, though no scan can find them: imported OAuth grants, V1 APIs, mi
 
 ## Plugin
 
-- The plugin id is `plaud.recordings`, the TUI id `plaud.recordings.tui`, the RPC id `plaud.recordings`, with the one method `status`, and the tools RPC id `plaud.recordings.tools`, with `describe` and one method per known read. Keep them stable.
+- The plugin id is `plaud.recordings`, the TUI id `plaud.recordings.tui`, the RPC id `plaud.recordings`, with the one method `status`, and the tools RPC id `plaud.recordings.tools`, with `describe`, one method per known read, and `recent`. Keep them stable.
 - The servers are `plaud` and `plaud-<alias>`. The plugin's own tools are `plaud_export` and `plaud_recent`. The skills are `opencode-plaud`, `opencode-plaud-export` and `opencode-plaud-digest`.
 - Permissions are default rules inserted with `ctx.agent.transform` right after each agent's base allow: `plaud*_*` asks, each configured server's five reads are allowed by exact name, `plaud_export` asks, and `plaud_recent` is allowed by its exact name. The only permission hook is the tools RPC's, above.
 - The status RPC's shared fields are `version`, `state`, `host` (`version`, `range`, `tested`), `unguardedAgents` and `nextStep`, with the same names and meanings in every plugin of this family. Keep them.

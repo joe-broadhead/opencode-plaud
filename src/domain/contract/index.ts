@@ -3,7 +3,7 @@ import * as z from "zod"
 import { EXPORT_KINDS, TRANSCRIPT_BLOCKS } from "../types.js"
 
 /**
- * The contract of `plaud_export`, the plugin's only tool. The schemas go to
+ * The contracts of the plugin's own tools, `plaud_export` and `plaud_recent`. The schemas go to
  * the host as they are, so validation, the JSON Schema the model sees and the
  * TypeScript types all come from here.
  */

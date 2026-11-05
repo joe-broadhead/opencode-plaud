@@ -7,7 +7,7 @@ Read [AGENTS.md](AGENTS.md) first: it has the rules every change follows. [docs/
 You need:
 
 - Node 24 or later, with npm. The embedded OpenCode host in the host tests needs Node 24.
-- [Bun](https://bun.sh) on `PATH`, for the TUI render test and the pack test. CI uses Bun 1.4.4, the Bun inside stock OpenCode 2.2.3, 2.2.4 and 2.2.5.
+- [Bun](https://bun.sh) on `PATH`, for the TUI render test and the pack test. CI uses Bun 1.4.4, the Bun inside the stock OpenCode releases in `TESTED_HOSTS` (`src/version.ts`).
 - macOS or Linux.
 
 ```sh
@@ -39,7 +39,7 @@ One command runs every check, in this order. Each stage is also a script of its 
 | lint | `npm run lint` | Import boundaries in `src/`, and the forbidden host APIs in `src/`, `test/` and `scripts/` (see [AGENTS.md](AGENTS.md#forbidden)), with the tools RPC's counted exceptions. |
 | build | `npm run build` | Cleans `dist/`, then bundles `dist/index.js` (the server part) and `dist/tui.js` (the TUI part, after Solid's JSX transform), each one self-contained file with the RPC contract inlined and no relative imports; zod goes into the server part only. It checks that `NOTICE` covers exactly the packages each bundle contains (`node scripts/build.mjs --notice` rewrites it). The build fails if an output imports a module that is neither bundled nor provided by OpenCode. |
 | unit | `npm test` | The plugin's modules against narrow fakes, `scripts/check-upstream.mjs` against a fake server, and a render of the built `dist/tui.js` under Bun. |
-| host | `npm run test:host` | The built plugin in an embedded OpenCode host (`@opencode/sdk`), once per tested release (`TESTED_HOSTS` in `src/version.ts`: 2.2.3, 2.2.4 and 2.2.5), on a loopback fake Plaud server, with the network blocked and every OpenCode path inside a temporary folder: registration, the default rules, user rules, saved approvals, exports, the signed links (in Code Mode and in direct calls by a scripted loopback model), the tools RPC for scripts, setup refusals and the status views. |
+| host | `npm run test:host` | The built plugin in an embedded OpenCode host (`@opencode/sdk`), once per release in `TESTED_HOSTS` (`src/version.ts`), on a loopback fake Plaud server, with the network blocked and every OpenCode path inside a temporary folder: registration, the default rules, user rules, saved approvals, exports, the signed links (in Code Mode and in direct calls by a scripted loopback model), the tools RPC for scripts, setup refusals and the status views. |
 | pack | `npm run test:pack` | Packs the tarball, installs it alone with scripts off, and loads it in each tested stock OpenCode release (`opencode serve`, on its own port), where it also calls the tools RPC as a script. It also checks the file list, that `dist/` holds only the two self-contained entries with no relative, dynamic or required module, that `dist/tui.js` has no zod and stays under 30 KB, the size, the missing dependencies and peers, and the built `dist/` for forbidden APIs, and imports each export under Bun. |
 
 ### Environment variables

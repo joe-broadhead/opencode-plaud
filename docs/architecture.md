@@ -39,7 +39,7 @@ The skills are read from the package's `skills/` folder at setup. OpenCode provi
 `src/index.ts` runs these steps in order:
 
 1. Validate the options (`src/domain/config.ts`). A problem stops setup with `OPTIONS_INVALID`.
-2. Check the OpenCode version against `>=2.2.3 <2.3.0` (`src/version.ts`). Outside it, setup stops with `HOST_UNTESTED`, unless `allowUntestedHost` is set. A release inside it that is not in `TESTED_HOSTS` (2.2.3, 2.2.4 and 2.2.5, the one list the tests and CI read) starts with a warning.
+2. Check the OpenCode version against `>=2.2.3 <2.3.0` (`src/version.ts`). Outside it, setup stops with `HOST_UNTESTED`, unless `allowUntestedHost` is set. A release inside it that is not in `TESTED_HOSTS` (the one list of tested releases, which the tests and CI read) starts with a warning.
 3. Register one MCP server per account (`src/host/mcp.ts`), and name each one's `/connect` entry (`src/host/integration.ts`).
 4. Insert the default permission rules (`src/host/permissions.ts`).
 5. Add `plaud_export`, `plaud_recent` and the signed-link hook (`src/host/tools/`).

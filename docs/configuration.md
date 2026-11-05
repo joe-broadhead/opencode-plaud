@@ -20,7 +20,6 @@ Give options with the object form of the plugin entry:
         "accounts": ["work"],
         "exportRoots": ["~/Plaud"],
         "maxAudioBytes": 2147483648,
-        "maxTextBytes": 26214400,
         "exportTimeoutMs": 1800000,
         "url": "https://mcp.plaud.ai/mcp",
         "allowUntestedHost": false
@@ -35,8 +34,7 @@ Give options with the object form of the plugin entry:
 | `accounts` | `[]` | Extra Plaud accounts. Each alias gets its own server, `plaud-<alias>`. The default account, server `plaud`, always exists. |
 | `url` | `https://mcp.plaud.ai/mcp` | Plaud's MCP server, for every account. |
 | `exportRoots` | `["~/Plaud"]` | The folders `plaud_export` may write in. The first one holds default destinations: `<kind>/<recordingId>.<ext>`, and `transcript/<recordingId>.<block>.md` for a transcript. |
-| `maxAudioBytes` | `2147483648` (2 GiB) | The largest audio file an export writes. |
-| `maxTextBytes` | `26214400` (25 MiB) | The largest transcript or note file an export writes. |
+| `maxAudioBytes` | `2147483648` (2 GiB) | The largest audio file an export writes. A transcript or note file is held to a fixed 25 MiB. |
 | `exportTimeoutMs` | `1800000` (30 minutes) | How long one export may take, in milliseconds. |
 | `allowUntestedHost` | `false` | Start on an OpenCode release outside the supported range, with a warning. |
 
@@ -45,7 +43,7 @@ Rules for the values:
 - **`accounts`**: each alias uses lowercase letters, digits and `-`, starts with a letter or digit, and has at most 32 characters. Aliases are unique, and `default` is reserved for the `plaud` server's account.
 - **`url`**: an `https` URL. Plain `http` is accepted only for `localhost`, `127.0.0.1` and `[::1]`. Change it only if Plaud gives you another address, for example for another region.
 - **`exportRoots`**: at least one folder. Each is an absolute path, `~`, or a path that starts with `~/`. The plugin expands `~` to your home folder, normalizes the paths and drops duplicates. A folder is created (mode 0700) the first time an export needs it.
-- **`maxAudioBytes`**: a whole number from 1 to 64 GiB. **`maxTextBytes`**: a whole number from 1 to 2 GiB.
+- **`maxAudioBytes`**: a whole number from 1 to 64 GiB.
 - **`exportTimeoutMs`**: a whole number from 1000 (1 second) to 86400000 (24 hours). The time starts after you approve the export, so time spent on the prompt does not count. It is separate from OpenCode's own tool time limits.
 - **`allowUntestedHost`**: the plugin supports OpenCode `>=2.2.3 <2.3.0` and is tested on 2.2.3, 2.2.4 and 2.2.5. Inside the range it always starts; on a release there that is not tested, it prints a warning and `/plaud-status` calls it untested. Outside the range, which includes prereleases and development builds, it does not start, unless this option is set: then it starts, prints a warning, and `/plaud-status` calls the release untested.
 
@@ -210,7 +208,7 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | `EXPORT_OUTSIDE_ROOTS` | export | The destination is outside the export roots. |
 | `EXPORT_BAD_DESTINATION` | export | The destination is a folder or a root, or the recording id cannot be a file name. |
 | `EXPORT_EXISTS` | export | A file exists and `overwrite` is not true. |
-| `EXPORT_TOO_LARGE` | export | The file is over `maxAudioBytes` or `maxTextBytes`. |
+| `EXPORT_TOO_LARGE` | export | The audio is over `maxAudioBytes`, or a transcript or note is over 25 MiB. |
 | `EXPORT_TIMEOUT` | export | The export took longer than `exportTimeoutMs`. |
 | `EXPORT_FAILED` | export | The download or the local write failed. |
 

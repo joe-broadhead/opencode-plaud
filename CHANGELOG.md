@@ -13,6 +13,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - The fix for agents without the default rules is one sentence, the same in every plugin of this family: "Put the default rules shown by /plaud-status first in each listed agent's own permissions, in opencode.json or the agent's Markdown file, followed by your top-level rules for Plaud tools." It is the `Next step` row, the status RPC's `nextStep` and the dialog's. The `Agents without default rules` row lists only the agents' names, followed by the rules to copy. Why the rules go in each agent's own permissions is in the configuration docs.
 - The tools RPC uses the shared module v4. When a deny rule refuses a script's call, `PERMISSION_DENIED` names the denied action, such as `plaud_list_files` under `recent`, and its next step says to remove or narrow that deny rule, add a later allow rule for it to the session, or use a session whose agent allows it. A refused ask keeps its next step.
 
+### Removed
+
+- The `maxTextBytes` option. A transcript or note export is now held to a fixed 25 MiB, about 50 times the longest transcript seen, so there is nothing to tune. Remove `maxTextBytes` from the plugin's options: OpenCode refuses to start the plugin with an unknown option (`OPTIONS_INVALID`). `maxAudioBytes` stays.
+
 ### Fixed
 
 - `plaud_recent` shows each recording's start time in UTC, as Plaud recorded it. Plaud sends its times as UTC with no zone, and the plugin read them as the machine's local time, so every time was off by the machine's offset from UTC. An export's frontmatter `date` is now the recording's local calendar date on your machine, as documented; before, it was the UTC date.

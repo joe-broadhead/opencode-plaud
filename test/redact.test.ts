@@ -36,7 +36,7 @@ async function hook() {
     },
     permission: { assert: async () => undefined },
   }
-  await registerTools(ctx, { accounts: [], exportRoots: ["/tmp/plaud"], maxAudioBytes: 1, maxTextBytes: 1, exportTimeoutMs: 1_000 })
+  await registerTools(ctx, { accounts: [], exportRoots: ["/tmp/plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 })
   /** Runs the hooks on a completed result, like the host does after a tool call. */
   return { callbacks, after: (tool: string, result: { output?: unknown; content?: unknown }) => {
     const event: AfterEvent = { tool, status: "completed", result }

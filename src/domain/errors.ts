@@ -31,6 +31,9 @@ export class PlaudError extends Error {
   }
 }
 
+/** PLAUD_UNREADABLE's next step: Plaud returned something this release cannot use, so a newer one may. */
+export const UNREADABLE_STEP = "Update opencode-plaud and retry later; if it still fails, report it to the plugin's maintainers."
+
 export function fail(code: ErrorCode, detail: string, nextStep: string): never {
   throw new PlaudError(code, detail, nextStep)
 }

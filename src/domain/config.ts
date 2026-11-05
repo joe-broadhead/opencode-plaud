@@ -17,7 +17,6 @@ export const DEFAULT_ACCOUNT = "default"
 
 const DEFAULT_EXPORT_ROOT = "~/Plaud"
 const DEFAULT_MAX_AUDIO_BYTES = 2 * 1024 ** 3
-const DEFAULT_MAX_TEXT_BYTES = 25 * 1024 ** 2
 const DEFAULT_EXPORT_TIMEOUT_MS = 30 * 60_000
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"])
@@ -55,7 +54,6 @@ const Options = z.strictObject({
   url: serverUrl.default(DEFAULT_URL),
   exportRoots: z.array(root).min(1, { message: "list at least one directory" }).default(() => [DEFAULT_EXPORT_ROOT]),
   maxAudioBytes: z.number().int().positive().max(64 * 1024 ** 3).default(DEFAULT_MAX_AUDIO_BYTES),
-  maxTextBytes: z.number().int().positive().max(2 * 1024 ** 3).default(DEFAULT_MAX_TEXT_BYTES),
   // Milliseconds. The ceiling stays far below the 2^31 - 1 ms that timers can hold.
   exportTimeoutMs: z.number().int().min(1_000).max(24 * 3_600_000).default(DEFAULT_EXPORT_TIMEOUT_MS),
   allowUntestedHost: z.boolean().default(false),

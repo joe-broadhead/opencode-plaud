@@ -91,7 +91,7 @@ async function modelHook() {
       },
       permission: { assert: async () => undefined },
     } as never,
-    { accounts: [], exportRoots: ["/fixture/Plaud"], maxAudioBytes: 1, maxTextBytes: 1, exportTimeoutMs: 1_000 },
+    { accounts: [], exportRoots: ["/fixture/Plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 },
   )
   return (tool: string, result: Result) => {
     const event = { status: "completed", tool, result: structuredClone(result) }

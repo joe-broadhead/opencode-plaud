@@ -3,7 +3,7 @@ import * as z from "zod"
 import { EXPORT_KINDS, TRANSCRIPT_BLOCKS } from "../types.js"
 
 /**
- * The contract of `plaud_export`, the plugin's only tool. The schemas go to
+ * The contracts of the plugin's own tools, `plaud_export` and `plaud_recent`. The schemas go to
  * the host as they are, so validation, the JSON Schema the model sees and the
  * TypeScript types all come from here.
  */
@@ -16,7 +16,7 @@ export function exportInput(accounts: readonly [string, ...string[]]) {
         .enum(accounts)
         .optional()
         .describe(`Account to export from; defaults to "${accounts[0]}"`),
-      recordingId: z.string().min(1).max(200).describe("Plaud recording id, from list_files"),
+      recordingId: z.string().min(1).max(200).describe("Plaud recording id: list_files' or recent's id"),
       kind: z.enum(EXPORT_KINDS).describe("audio: the recording's audio file; transcript or note: a Markdown file"),
       block: z
         .enum(TRANSCRIPT_BLOCKS)
@@ -30,7 +30,7 @@ export function exportInput(accounts: readonly [string, ...string[]]) {
         .refine((value) => isAbsolute(value), { message: "must be an absolute path" })
         .optional()
         .describe(
-          "Absolute file path inside an export root; defaults to <first export root>/<kind>/<recordingId>.<ext>, and for a transcript to <first export root>/transcript/<recordingId>.<block>.md",
+          "Absolute file path inside an export root (~ is not expanded); defaults to <first export root>/<kind>/<recordingId>.<ext>, and for a transcript to <first export root>/transcript/<recordingId>.<block>.md",
         ),
       overwrite: z.boolean().optional().describe("Replace an existing file at the destination; off by default"),
     })
@@ -74,7 +74,12 @@ export const RecentMethodInput = z.strictObject({ limit: recentLimit })
  */
 export const RecentOutput = z.strictObject({
   items: z
-    .array(z.strictObject({ id: z.string().min(1).max(128), text: z.string().min(1).max(200) }))
+    .array(
+      z.strictObject({
+        id: z.string().min(1).max(128).describe("The recording's id: file_id for get_note and get_transcript, recordingId for export"),
+        text: z.string().min(1).max(200),
+      }),
+    )
     .max(20)
     .describe("One line per recording: its title, when it started and how long it is"),
   editable: z.literal(false),

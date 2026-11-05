@@ -3,7 +3,7 @@ import { signInStep } from "../src/domain/auth.js"
 import { defaultRules } from "../src/host/permissions.js"
 import { registerRpc } from "../src/host/rpc.js"
 import { Plaud, READY_STEP, RPC_ID, StatusSchema, isStatus, overallState, rulesBlock, statusLines, type Status } from "../src/rpc.js"
-import { agentsFix, buildStatus, readStatus, statusUnavailable, type StatusFacts } from "../src/status.js"
+import { AGENTS_STEP, buildStatus, readStatus, statusUnavailable, type StatusFacts } from "../src/status.js"
 import { checkHost, PLUGIN_VERSION } from "../src/version.js"
 import { schemaProblems } from "./json-schema.js"
 
@@ -12,6 +12,8 @@ const BASE_ALLOW = { action: "*", resource: "*", effect: "allow" } as const
 /** The block for the two servers of `facts()`. */
 const DEFAULT_RULES = defaultRules(["plaud", "plaud-work"])
 const guarded = (id: string) => ({ id, permissions: [BASE_ALLOW, ...DEFAULT_RULES] })
+
+const OWN_SKILLS = ["opencode-plaud", "opencode-plaud-digest", "opencode-plaud-export"].map((id) => ({ id, path: `/pkg/skills/${id}/SKILL.md` }))
 
 function facts(overrides: Partial<StatusFacts> = {}): StatusFacts {
   return {
@@ -28,6 +30,8 @@ function facts(overrides: Partial<StatusFacts> = {}): StatusFacts {
     ],
     tools: [...READS.map((name) => `plaud_${name}`), ...READS.map((name) => `plaud-work_${name}`), "plaud_export", "github_get_me"],
     agents: [guarded("build"), guarded("plan")],
+    skills: OWN_SKILLS,
+    ownSkills: OWN_SKILLS,
     ...overrides,
   }
 }
@@ -134,16 +138,13 @@ describe("status model", () => {
     )
     expect(status.unguardedAgents).toEqual(["reviewer"])
     expect(status.permissionsBlock).toEqual(DEFAULT_RULES)
-    expect(status.nextStep).toBe(agentsFix(["reviewer"]))
-    const fix = status.nextStep
-    expect(fix).toMatch(/^Put the block first in the own permissions of reviewer /)
-    expect(fix).toContain("agents.<id>.permissions")
-    expect(fix).toMatch(/followed by your top-level rules for Plaud's actions\./)
-    expect(fix).toMatch(/Don't add the block to the top-level permissions/)
+    // The family's one sentence, verbatim, with no agent names (TRIAGE 1).
+    expect(status.nextStep).toBe(AGENTS_STEP)
+    expect(AGENTS_STEP).toBe("Put the default rules shown by /plaud-status first in each listed agent's own permissions, in opencode.json or the agent's Markdown file, followed by your top-level rules for Plaud tools.")
     expect(JSON.parse(rulesBlock(status)!)).toEqual(DEFAULT_RULES)
     const agents = statusLines(status).find((line) => line.label === "Agents without default rules")
     expect(agents).toMatchObject({ tone: "warning", block: rulesBlock(status) })
-    expect(agents?.value).toMatch(/^reviewer\. Exports and other Plaud tools run there without asking\./)
+    expect(agents?.value).toBe("reviewer")
     expect(statusLines(status).map((line) => line.label)).toEqual(["Connection", "Account", "Access", "Tools", "Agents without default rules", "OpenCode", "Next step"])
     expect(overallState(status)).toBe("signed_in")
   })
@@ -170,14 +171,18 @@ describe("status model", () => {
     const mcp = vi.fn(async () => ({ location: {}, data: [{ name: "plaud", status: { status: "needs_auth", error: "401" } }] }))
     const tools = vi.fn(async () => [{ id: "plaud_export" }, { id: "plaud_get_file" }, { id: "plaud_rename" }])
     const agents = vi.fn(async () => ({ location: {}, data: [{ id: "reviewer", permissions: [BASE_ALLOW] }] }))
+    const skills = vi.fn(async () => ({ location: {}, data: [{ id: "opencode-plaud", path: "/home/u/.config/opencode/skills/opencode-plaud/SKILL.md" }] }))
     const status = await readStatus(
-      { mcp: { list: mcp }, tool: { list: tools }, agent: { list: agents } } as never,
+      { mcp: { list: mcp }, tool: { list: tools }, agent: { list: agents }, skill: { list: skills } } as never,
       {
         host: checkHost("2.2.4", false),
         servers: { list: [{ account: "default", name: "plaud" }], inUse: () => ["plaud"] },
         exportRoots: ["/fixture/Plaud"],
+        skills: OWN_SKILLS,
       },
     )
+    expect(skills).toHaveBeenCalledOnce()
+    expect(status.shadowedSkills).toEqual([{ id: "opencode-plaud", path: "/home/u/.config/opencode/skills/opencode-plaud/SKILL.md" }])
     expect(mcp).toHaveBeenCalledOnce()
     expect(tools).toHaveBeenCalledOnce()
     expect(agents).toHaveBeenCalledOnce()
@@ -187,6 +192,27 @@ describe("status model", () => {
     expect(status.host).toEqual({ version: "2.2.4", range: ">=2.2.3 <2.3.0", tested: true })
     // The block is the one for the configured servers.
     expect(status.permissionsBlock).toEqual(defaultRules(["plaud"]))
+  })
+
+  it("names a skill that shadows one of the plugin's, after the sign-in and agent fixes", () => {
+    const path = "/home/u/.config/opencode/skills/opencode-plaud-export/SKILL.md"
+    const skills = [...OWN_SKILLS.filter((skill) => skill.id !== "opencode-plaud-export"), { id: "opencode-plaud-export", path }]
+    const status = buildStatus(facts({ skills }))
+    expect(schemaProblems(StatusSchema, status)).toEqual([])
+    expect(status).toMatchObject({ state: "connected", shadowedSkills: [{ id: "opencode-plaud-export", path }] })
+    expect(status.nextStep).toBe(`Move or rename the skill at ${path}, so that this plugin's opencode-plaud-export skill loads, then run opencode reload.`)
+    const lines = statusLines(status)
+    expect(lines.map((line) => line.label)).toEqual(["Connection", "Account", "Access", "Skills", "Tools", "Agents without default rules", "OpenCode", "Next step"])
+    expect(lines.find((line) => line.label === "Skills")).toEqual({
+      label: "Skills",
+      value: `opencode-plaud-export is shadowed by ${path}, so agents load that file instead of this plugin's skill`,
+      tone: "warning",
+    })
+    // The agents fix comes first: those agents run exports without asking.
+    expect(buildStatus(facts({ skills, agents: [{ id: "reviewer", permissions: [BASE_ALLOW] }] })).nextStep).toBe(AGENTS_STEP)
+    // A skill list without the plugin's skills, or with them, shadows nothing.
+    expect(buildStatus(facts({ skills: [] })).shadowedSkills).toEqual([])
+    expect(buildStatus(facts()).shadowedSkills).toEqual([])
   })
 
   it("never carries a token, a link or a plan", () => {

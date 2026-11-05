@@ -40,7 +40,7 @@ export type Host = OpenCodeClient & {
 }
 type PluginEntry = Awaited<ReturnType<Host["plugin"]["list"]>>["data"][number]
 type ToolContext = Parameters<Awaited<ReturnType<ReturnType<ReturnType<typeof createProbe>["context"]>["tool"]["list"]>>[number]["execute"]>[1]
-export interface HostEvent {
+interface HostEvent {
   readonly type: string
   readonly data?: Record<string, unknown>
 }
@@ -51,7 +51,7 @@ export interface Rule {
   readonly effect: "allow" | "deny" | "ask"
 }
 
-export interface HostOptions {
+interface HostOptions {
   /** Plugin options. `url` defaults to the fake's signed-in endpoint and `exportRoots` to a fresh folder. */
   readonly options?: Record<string, unknown>
   /** Other opencode.json keys, such as `permissions`, `agents` and `mcp`; a function receives the fake's URLs. */
@@ -61,7 +61,7 @@ export interface HostOptions {
 }
 
 /** A tool call's outcome as the calling tool sees it. */
-export type Outcome = { readonly ok: true; readonly result: unknown } | { readonly ok: false; readonly error: string }
+type Outcome = { readonly ok: true; readonly result: unknown } | { readonly ok: false; readonly error: string }
 
 export interface Harness {
   readonly opencode: Host

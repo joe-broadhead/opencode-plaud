@@ -28,17 +28,17 @@ export const SIGNATURE = "X-Amz-Signature=fixture-secret"
 /** The tool error for `get_file` on the file id `fail`. */
 export const UPSTREAM_FAILURE = `File not found: see https://files.example.invalid/rec-fail.mp3?${SIGNATURE}\nsecond line with more detail`
 /** The tool error for `list_files` with a `page_size` below Plaud's minimum, 10. */
-export const PAGE_SIZE_REFUSED = "page_size must be at least 10"
+const PAGE_SIZE_REFUSED = "page_size must be at least 10"
 export const AUDIO_BYTES = 200_000
 export const MODEL_ID = "fixture-model"
 
 /** A tool call the scripted model makes, in order: the n-th call follows n tool results. */
-export interface ScriptedCall {
+interface ScriptedCall {
   readonly tool: string
   readonly arguments: Record<string, unknown>
 }
 
-export interface FakeCall {
+interface FakeCall {
   readonly tool: string
   readonly arguments: Record<string, unknown>
 }
@@ -90,9 +90,9 @@ export async function startFakePlaud(): Promise<FakePlaud> {
   const recording = (id: string) => ({
     id,
     name: "Weekly sync",
-    created_at: "2026-10-01T09:00:00Z",
+    created_at: "2026-10-01T09:00:00",
     serial_number: "P0000000000",
-    start_at: "2026-10-01T09:00:00Z",
+    start_at: "2026-10-01T09:00:00",
     duration: 63_500,
   })
   const note = (id: string) => ({
@@ -105,10 +105,10 @@ export async function startFakePlaud(): Promise<FakePlaud> {
     data_path: `note/${id}-note.md`,
     data_error_code: 0,
   })
-  const segments: Record<string, unknown[]> = {
-    first: [{ start_time: 0, end_time: 4_700, content: "Hello.", speaker: "Alice", original_speaker: "Speaker 1", segment_uid: "s-1" }],
-    cur_2: [{ start_time: 61_000, end_time: 63_440, content: "Bye.", speaker: "Bob", original_speaker: "Speaker 2", segment_uid: "s-2" }],
-  }
+  const segments = [
+    { start_time: 0, end_time: 4_700, content: "Hello.", speaker: "Alice", original_speaker: "Speaker 1", segment_uid: "s-1" },
+    { start_time: 61_000, end_time: 63_440, content: "Bye.", speaker: "Bob", original_speaker: "Speaker 2", segment_uid: "s-2" },
+  ]
   const answer = (tool: string, args: Record<string, unknown>): unknown => {
     const id = String(args.file_id)
     switch (tool) {
@@ -124,10 +124,13 @@ export async function startFakePlaud(): Promise<FakePlaud> {
       case "get_note":
         return [note(id)]
       case "get_transcript": {
-        const cursor = typeof args.cursor === "string" ? args.cursor : "first"
-        const page = segments[cursor] ?? []
-        const next = cursor === "first" ? "cur_2" : null
-        return { file_id: id, block: args.block ?? "transaction", total: 2, offset: cursor === "first" ? 0 : 1, limit: 1, returned: page.length, next_cursor: next, segments: page }
+        // Pages honour `limit`, as Plaud's do (1 to 500). Plaud's default is 50; this one's is 1, so that a read
+        // without `limit` pages through the two segments.
+        const offset = typeof args.cursor === "string" ? Number(args.cursor.replace(/^cur_/, "")) : 0
+        const limit = typeof args.limit === "number" ? args.limit : 1
+        const page = segments.slice(offset, offset + limit)
+        const next = offset + limit < segments.length ? `cur_${offset + limit}` : null
+        return { file_id: id, block: args.block ?? "transaction", total: segments.length, offset, limit, returned: page.length, next_cursor: next, segments: page }
       }
       default:
         return { deleted: 0 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fail, PlaudError } from "../src/domain/errors.js"
+import { fail, PlaudError, UNREADABLE_STEP } from "../src/domain/errors.js"
 
 describe("errors", () => {
   it("carry a code, a human message and a next step", () => {
@@ -13,6 +13,10 @@ describe("errors", () => {
     expect(new PlaudError("PLAUD_READ_FAILED", "plaud_get_file failed: Permission denied", "Retry.").message).toBe(
       "PLAUD_READ_FAILED: plaud_get_file failed: Permission denied. Next step: Retry.",
     )
+  })
+
+  it("share one next step for a payload the plugin cannot read", () => {
+    expect(UNREADABLE_STEP).toBe("Update opencode-plaud and retry later; if it still fails, report it to the plugin's maintainers.")
   })
 
   it("are thrown by fail", () => {

@@ -8,8 +8,8 @@ import {
   RECENT_ACTION,
   registerPermissions,
   unguardedAgents,
-  type Rule,
 } from "../src/host/permissions.js"
+import type { Rule } from "../src/rpc.js"
 
 type AgentEditor = Parameters<Parameters<Plugin.Context["agent"]["transform"]>[0]>[0]
 type Agent = { id: string; permissions: Rule[] }

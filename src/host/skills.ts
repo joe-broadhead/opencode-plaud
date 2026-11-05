@@ -55,10 +55,25 @@ export async function loadSkills(directory: URL): Promise<Skill.Info[]> {
   )
 }
 
-/** Reads the skills, then adds them in a synchronous transform. */
-export async function registerSkills(ctx: { readonly skill: Pick<PluginContext["skill"], "transform"> }, directory: URL): Promise<Registration> {
-  const skills = await loadSkills(directory)
+/** Adds the skills read by `loadSkills` in a synchronous transform. */
+export async function registerSkills(ctx: { readonly skill: Pick<PluginContext["skill"], "transform"> }, skills: readonly Skill.Info[]): Promise<Registration> {
   return ctx.skill.transform((editor) => {
     for (const skill of skills) editor.add(skill)
   })
+}
+
+/** A skill as OpenCode lists it: its id and the file it was read from. */
+export interface ListedSkill {
+  readonly id: string
+  readonly path: string
+}
+
+/**
+ * The listed skills with one of the plugin's skill ids that come from another file. OpenCode keeps one skill per id,
+ * and a user's or a project's own skill wins, so the plugin's never loads.
+ */
+export function shadowedSkills(listed: readonly ListedSkill[], own: readonly ListedSkill[]): ListedSkill[] {
+  return listed
+    .filter((skill) => own.some((bundled) => bundled.id === skill.id && bundled.path !== skill.path))
+    .map((skill) => ({ id: skill.id, path: skill.path }))
 }

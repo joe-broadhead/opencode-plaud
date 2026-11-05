@@ -31,6 +31,7 @@ const status = (overrides = {}) => ({
   host: { version: "2.2.3", range: RANGE, tested: true },
   unguardedAgents: [],
   permissionsBlock: RULES,
+  shadowedSkills: [],
   nextStep: "Run /connect and choose Plaud, then press o or Enter to open the sign-in page.",
   ...overrides,
 })

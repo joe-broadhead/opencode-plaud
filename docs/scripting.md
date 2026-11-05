@@ -132,7 +132,7 @@ A refusal or failure is the RPC error `failed`, with a message `CODE: what happe
 | `SESSION_UNKNOWN` | OpenCode says the session does not exist. Any other failure to look the session up is OpenCode's own error. |
 | `SESSION_AGENT_REQUIRED` | The session names no agent, or an agent that does not exist. |
 | `ACCOUNT_UNKNOWN` | `account` is neither `default` nor an alias from the plugin's `accounts` option. |
-| `PERMISSION_DENIED` | The agent's or the session's rules deny the tool, or ask for an approval. The message names the action whose check was refused: for `recent`, `plaud_recent`, or the account's `list_files` it reads through. |
+| `PERMISSION_DENIED` | The agent's or the session's rules deny the tool, or ask for an approval. The message names the action that was refused: for `recent`, `plaud_recent`, or the account's `list_files` it reads through. For a deny, the next step says to remove or narrow that deny rule, add a later allow rule for it to the session, or use a session whose agent allows it. |
 | `AUTH_REQUIRED`, `CONNECTING`, `CONNECTION_FAILED`, `DISABLED`, `NOT_REGISTERED` | The account's server needs a sign-in, is still connecting (or reconnected during the call: call again), could not connect, is disabled, or is missing. `/plaud-status` gives the next step for each account. For `recent`, `AUTH_REQUIRED` covers all of these: OpenCode lists no `list_files` for the account. |
 | `TOOL_UNAVAILABLE` | The account's server is connected, but OpenCode does not list the tool. |
 | `UPSTREAM_ERROR` | Plaud answered with an error, such as a recording that does not exist. The message holds the first line of Plaud's text, at most 300 characters, with tokens and URL query strings removed. |

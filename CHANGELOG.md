@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - The fix for agents without the default rules is one sentence, the same in every plugin of this family: "Put the default rules shown by /plaud-status first in each listed agent's own permissions, in opencode.json or the agent's Markdown file, followed by your top-level rules for Plaud tools." It is the `Next step` row, the status RPC's `nextStep` and the dialog's. The `Agents without default rules` row lists only the agents' names, followed by the rules to copy. Why the rules go in each agent's own permissions is in the configuration docs.
+- The tools RPC uses the shared module v4. When a deny rule refuses a script's call, `PERMISSION_DENIED` names the denied action, such as `plaud_list_files` under `recent`, and its next step says to remove or narrow that deny rule, add a later allow rule for it to the session, or use a session whose agent allows it. A refused ask keeps its next step.
 
 ### Fixed
 

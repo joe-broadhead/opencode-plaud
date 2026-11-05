@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- The fix for agents without the default rules is one sentence, the same in every plugin of this family: "Put the default rules shown by /plaud-status first in each listed agent's own permissions, in opencode.json or the agent's Markdown file, followed by your top-level rules for Plaud tools." It is the `Next step` row, the status RPC's `nextStep` and the dialog's. The `Agents without default rules` row lists only the agents' names, followed by the rules to copy. Why the rules go in each agent's own permissions is in the configuration docs.
+
 ### Fixed
 
 - `plaud_recent` shows each recording's start time in UTC, as Plaud recorded it. Plaud sends its times as UTC with no zone, and the plugin read them as the machine's local time, so every time was off by the machine's offset from UTC. An export's frontmatter `date` is now the recording's local calendar date on your machine, as documented; before, it was the UTC date.

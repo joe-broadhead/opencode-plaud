@@ -3,7 +3,7 @@ import { signInStep } from "../src/domain/auth.js"
 import { defaultRules } from "../src/host/permissions.js"
 import { registerRpc } from "../src/host/rpc.js"
 import { Plaud, READY_STEP, RPC_ID, StatusSchema, isStatus, overallState, rulesBlock, statusLines, type Status } from "../src/rpc.js"
-import { agentsFix, buildStatus, readStatus, statusUnavailable, type StatusFacts } from "../src/status.js"
+import { AGENTS_STEP, buildStatus, readStatus, statusUnavailable, type StatusFacts } from "../src/status.js"
 import { checkHost, PLUGIN_VERSION } from "../src/version.js"
 import { schemaProblems } from "./json-schema.js"
 
@@ -134,16 +134,13 @@ describe("status model", () => {
     )
     expect(status.unguardedAgents).toEqual(["reviewer"])
     expect(status.permissionsBlock).toEqual(DEFAULT_RULES)
-    expect(status.nextStep).toBe(agentsFix(["reviewer"]))
-    const fix = status.nextStep
-    expect(fix).toMatch(/^Put the block first in the own permissions of reviewer /)
-    expect(fix).toContain("agents.<id>.permissions")
-    expect(fix).toMatch(/followed by your top-level rules for Plaud's actions\./)
-    expect(fix).toMatch(/Don't add the block to the top-level permissions/)
+    // The family's one sentence, verbatim, with no agent names (TRIAGE 1).
+    expect(status.nextStep).toBe(AGENTS_STEP)
+    expect(AGENTS_STEP).toBe("Put the default rules shown by /plaud-status first in each listed agent's own permissions, in opencode.json or the agent's Markdown file, followed by your top-level rules for Plaud tools.")
     expect(JSON.parse(rulesBlock(status)!)).toEqual(DEFAULT_RULES)
     const agents = statusLines(status).find((line) => line.label === "Agents without default rules")
     expect(agents).toMatchObject({ tone: "warning", block: rulesBlock(status) })
-    expect(agents?.value).toMatch(/^reviewer\. Exports and other Plaud tools run there without asking\./)
+    expect(agents?.value).toBe("reviewer")
     expect(statusLines(status).map((line) => line.label)).toEqual(["Connection", "Account", "Access", "Tools", "Agents without default rules", "OpenCode", "Next step"])
     expect(overallState(status)).toBe("signed_in")
   })

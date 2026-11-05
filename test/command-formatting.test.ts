@@ -63,7 +63,7 @@ describe("/plaud-status text", () => {
 
   it("adds the rules as JSON to copy under the agents line while an agent misses them", () => {
     const text = formatStatus(status({ unguardedAgents: ["reviewer"], nextStep: "fix reviewer" }))
-    expect(text).toMatch(/- Agents without default rules: reviewer\.[^\n]*\n\n```json\n/)
+    expect(text).toMatch(/- Agents without default rules: reviewer\n\n```json\n/)
     expect(text).toMatch(/```\n\n- OpenCode: /)
     const block = /```json\n(.*?)\n```/s.exec(text)?.[1]
     expect(JSON.parse(block!)).toEqual(DEFAULT_RULES)

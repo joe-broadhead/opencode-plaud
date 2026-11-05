@@ -203,7 +203,7 @@ export function statusLines(status: Status): StatusLine[] {
       ? { label: "Agents without default rules", value: "none", tone: "info" }
       : {
           label: "Agents without default rules",
-          value: `${status.unguardedAgents.join(", ")}. Exports and other Plaud tools run there without asking. The rules:`,
+          value: status.unguardedAgents.join(", "),
           tone: "warning",
           block,
         },

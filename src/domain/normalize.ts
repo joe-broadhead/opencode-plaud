@@ -1,5 +1,5 @@
 import type { TranscriptBlock } from "./types.js"
-import { fail } from "./errors.js"
+import { fail, UNREADABLE_STEP } from "./errors.js"
 
 /**
  * Everything this plugin knows about Plaud's MCP tools lives here: tool
@@ -63,7 +63,6 @@ export interface NoteTab {
   errorCode?: number
 }
 
-const UNREADABLE_NEXT_STEP = "Update opencode-plaud; if it still fails, report it to the plugin's maintainers."
 
 /**
  * Plaud wraps recording data in an envelope: a sentence that names a random
@@ -105,7 +104,7 @@ function contentText(content: unknown): string | undefined {
 /** Recording metadata for an export's frontmatter. Only the object shape is required. */
 export function recordingMeta(payload: unknown, recordingId: string): RecordingMeta {
   if (!isRecord(payload)) {
-    fail("PLAUD_UNREADABLE", `get_file returned ${describe(payload)} instead of a recording.`, UNREADABLE_NEXT_STEP)
+    fail("PLAUD_UNREADABLE", `get_file returned ${describe(payload)} instead of a recording.`, UNREADABLE_STEP)
   }
   const createdAt = iso(payload["created_at"]) ?? iso(payload["start_at"])
   const startedAt = iso(payload["start_at"])
@@ -127,7 +126,7 @@ export function recordingMeta(payload: unknown, recordingId: string): RecordingM
 export function recordingList(payload: unknown): RecordingMeta[] {
   const list = Array.isArray(payload) ? payload : isRecord(payload) ? payload["data"] : undefined
   if (!Array.isArray(list)) {
-    fail("PLAUD_UNREADABLE", `list_files returned ${describe(payload)} instead of a list of recordings.`, UNREADABLE_NEXT_STEP)
+    fail("PLAUD_UNREADABLE", `list_files returned ${describe(payload)} instead of a list of recordings.`, UNREADABLE_STEP)
   }
   return list.flatMap((item) => {
     const id = isRecord(item) ? identifier(item["id"]) : undefined
@@ -156,7 +155,7 @@ export function transcriptPage(payload: unknown, block: TranscriptBlock): Transc
     const items = transcriptItems(payload)
     if (items === undefined) {
       if (Object.keys(payload).length === 0) return { kind: "empty" }
-      fail("PLAUD_UNREADABLE", "get_transcript returned no list of transcript items.", UNREADABLE_NEXT_STEP)
+      fail("PLAUD_UNREADABLE", "get_transcript returned no list of transcript items.", UNREADABLE_STEP)
     }
     return itemsPage(items, block, nonEmpty(payload["next_cursor"]))
   }
@@ -166,7 +165,7 @@ export function transcriptPage(payload: unknown, block: TranscriptBlock): Transc
     if (text.length === 0 || /has no content for this recording|no highlight was recorded/i.test(text)) return { kind: "empty" }
     return itemsPage([payload], block)
   }
-  fail("PLAUD_UNREADABLE", `get_transcript returned ${describe(payload)}.`, UNREADABLE_NEXT_STEP)
+  fail("PLAUD_UNREADABLE", `get_transcript returned ${describe(payload)}.`, UNREADABLE_STEP)
 }
 
 function transcriptItems(payload: Record<string, unknown>): unknown[] | undefined {
@@ -213,7 +212,7 @@ function entry(item: unknown, field: "topic" | "content"): Entry {
  */
 export function noteTabs(payload: unknown): NoteTab[] {
   if (!Array.isArray(payload)) {
-    fail("PLAUD_UNREADABLE", `get_note returned ${describe(payload)} instead of a list of note tabs.`, UNREADABLE_NEXT_STEP)
+    fail("PLAUD_UNREADABLE", `get_note returned ${describe(payload)} instead of a list of note tabs.`, UNREADABLE_STEP)
   }
   return payload.map((item) => {
     if (!isRecord(item)) return { kind: "note", title: "Note", text: json(item) }

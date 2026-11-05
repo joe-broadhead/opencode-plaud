@@ -194,10 +194,10 @@ describe("steering away from get_file", () => {
     }
   })
 
-  it("the Code Mode namespace names every read, and sends the model to get_note and get_transcript before get_file", () => {
+  it("the Code Mode namespace names every read, steers away from get_file, and sends audio to export", () => {
     for (const tool of KNOWN_READS) expect(NAMESPACE.description).toContain(tool)
-    expect(NAMESPACE.description).toMatch(/call get_note .* or get_transcript .* first\. get_file can be over 100 KB/)
-    expect(NAMESPACE.description).toContain("adds only source_list")
+    expect(NAMESPACE.description).toContain("Don't call get_file")
+    expect(NAMESPACE.description).toMatch(/for audio, even a download link, call export/)
   })
 
   it("the skill says the same, and finds recording ids with list_files", () => {

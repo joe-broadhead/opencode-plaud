@@ -196,8 +196,9 @@ describe("one-step export", () => {
     expect(assert.mock.calls[0]![0]).toMatchObject({ resources: ["work:transcript"], save: ["work:transcript"], metadata: { account: "work", block: "transaction" } })
     expect(calls.map((call) => [call.id, call.args])).toEqual([
       ["plaud-work_get_file", { file_id: "rec-1" }],
-      ["plaud-work_get_transcript", { file_id: "rec-1", block: "transaction" }],
-      ["plaud-work_get_transcript", { file_id: "rec-1", block: "transaction", cursor: "cur_2" }],
+      // 500 segments a page, Plaud's maximum, so a long transcript takes a few reads, not dozens (PLAUD-R7).
+      ["plaud-work_get_transcript", { file_id: "rec-1", block: "transaction", limit: 500 }],
+      ["plaud-work_get_transcript", { file_id: "rec-1", block: "transaction", limit: 500, cursor: "cur_2" }],
     ])
   })
 

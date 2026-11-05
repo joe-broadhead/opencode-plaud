@@ -30,8 +30,8 @@ const FILE = {
 describe("Plaud tool arguments", () => {
   it("names the recording with file_id and passes the block and cursor", () => {
     expect(fileArgs("rec_01")).toEqual({ file_id: "rec_01" })
-    expect(transcriptArgs("rec_01", "outline")).toEqual({ file_id: "rec_01", block: "outline" })
-    expect(transcriptArgs("rec_01", "transaction", "cur_2")).toEqual({ file_id: "rec_01", block: "transaction", cursor: "cur_2" })
+    expect(transcriptArgs("rec_01", "outline")).toEqual({ file_id: "rec_01", block: "outline", limit: 500 })
+    expect(transcriptArgs("rec_01", "transaction", "cur_2")).toEqual({ file_id: "rec_01", block: "transaction", limit: 500, cursor: "cur_2" })
   })
 })
 

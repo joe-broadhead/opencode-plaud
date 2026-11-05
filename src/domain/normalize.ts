@@ -26,8 +26,12 @@ export function fileArgs(recordingId: string): Record<string, unknown> {
   return { file_id: recordingId }
 }
 
+/** Plaud's largest `get_transcript` page, in segments; its default is 50. */
+const TRANSCRIPT_PAGE = 500
+
+/** The arguments of one `get_transcript` page, at the largest page size, so a long transcript takes a few reads. */
 export function transcriptArgs(recordingId: string, block: TranscriptBlock, cursor?: string): Record<string, unknown> {
-  return { file_id: recordingId, block, ...(cursor === undefined ? {} : { cursor }) }
+  return { file_id: recordingId, block, limit: TRANSCRIPT_PAGE, ...(cursor === undefined ? {} : { cursor }) }
 }
 
 export interface RecordingMeta {

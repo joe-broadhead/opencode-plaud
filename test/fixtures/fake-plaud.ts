@@ -105,10 +105,10 @@ export async function startFakePlaud(): Promise<FakePlaud> {
     data_path: `note/${id}-note.md`,
     data_error_code: 0,
   })
-  const segments: Record<string, unknown[]> = {
-    first: [{ start_time: 0, end_time: 4_700, content: "Hello.", speaker: "Alice", original_speaker: "Speaker 1", segment_uid: "s-1" }],
-    cur_2: [{ start_time: 61_000, end_time: 63_440, content: "Bye.", speaker: "Bob", original_speaker: "Speaker 2", segment_uid: "s-2" }],
-  }
+  const segments = [
+    { start_time: 0, end_time: 4_700, content: "Hello.", speaker: "Alice", original_speaker: "Speaker 1", segment_uid: "s-1" },
+    { start_time: 61_000, end_time: 63_440, content: "Bye.", speaker: "Bob", original_speaker: "Speaker 2", segment_uid: "s-2" },
+  ]
   const answer = (tool: string, args: Record<string, unknown>): unknown => {
     const id = String(args.file_id)
     switch (tool) {
@@ -124,10 +124,13 @@ export async function startFakePlaud(): Promise<FakePlaud> {
       case "get_note":
         return [note(id)]
       case "get_transcript": {
-        const cursor = typeof args.cursor === "string" ? args.cursor : "first"
-        const page = segments[cursor] ?? []
-        const next = cursor === "first" ? "cur_2" : null
-        return { file_id: id, block: args.block ?? "transaction", total: 2, offset: cursor === "first" ? 0 : 1, limit: 1, returned: page.length, next_cursor: next, segments: page }
+        // Pages honour `limit`, as Plaud's do (1 to 500). Plaud's default is 50; this one's is 1, so that a read
+        // without `limit` pages through the two segments.
+        const offset = typeof args.cursor === "string" ? Number(args.cursor.replace(/^cur_/, "")) : 0
+        const limit = typeof args.limit === "number" ? args.limit : 1
+        const page = segments.slice(offset, offset + limit)
+        const next = offset + limit < segments.length ? `cur_${offset + limit}` : null
+        return { file_id: id, block: args.block ?? "transaction", total: segments.length, offset, limit, returned: page.length, next_cursor: next, segments: page }
       }
       default:
         return { deleted: 0 }

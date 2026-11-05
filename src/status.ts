@@ -86,20 +86,13 @@ function accountStep(account: AccountStatus): string | undefined {
 }
 
 /**
- * Agents defined only in the user's config are created after plugins run,
- * so they miss the default rules. The fix goes in each such agent's own
- * permissions, never the top-level ones: those also come after Explore's own
- * `* * deny` and would loosen it.
+ * The fix for agents defined only in the user's config, which OpenCode creates
+ * after plugins run, so they miss the default rules: the family's one sentence,
+ * with no agent names (the Agents row lists them). Why the rules go in each
+ * agent's own permissions, not the top-level ones, is in docs/configuration.md.
  */
-export function agentsFix(agents: readonly string[]): string {
-  const list = agents.join(", ")
-  return (
-    `Put the block first in the own permissions of ${list} (agents.<id>.permissions in opencode.json, or the agent file's frontmatter), ` +
-    "followed by your top-level rules for Plaud's actions. " +
-    "OpenCode adds agents defined in your config after plugins load, so they miss the default rules. " +
-    "Don't add the block to the top-level permissions: that would loosen stricter agents such as Explore."
-  )
-}
+export const AGENTS_STEP =
+  "Put the default rules shown by /plaud-status first in each listed agent's own permissions, in opencode.json or the agent's Markdown file, followed by your top-level rules for Plaud tools."
 
 /** The tested releases in words: "2.2.3, 2.2.4 or 2.2.5". */
 const TESTED_TEXT = `${TESTED_HOSTS.slice(0, -1).join(", ")} or ${TESTED_HOSTS.at(-1)}`
@@ -120,7 +113,7 @@ export function buildStatus(facts: StatusFacts): Status {
   const block = defaultRules(facts.servers.map((server) => server.name))
   const unguarded = unguardedAgents(facts.agents, block)
   const nextStep = accounts.map(accountStep).find((step) => step !== undefined)
-    ?? (unguarded.length === 0 ? undefined : agentsFix(unguarded))
+    ?? (unguarded.length === 0 ? undefined : AGENTS_STEP)
     // A release inside the range sets up normally, tested or not; only one outside it, loaded with allowUntestedHost, adds a step.
     ?? (facts.host.inRange ? READY_STEP : `If Plaud misbehaves, use a tested OpenCode release: ${TESTED_TEXT}.`)
   const status = {

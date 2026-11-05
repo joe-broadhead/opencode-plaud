@@ -429,7 +429,7 @@ describe("status", () => {
     expect(lines).toContain("- Connection: default: connected; work: sign-in required; team: connected")
     expect(lines).toContain("- Account: default (server plaud), work (server plaud-work, from your OpenCode config), team (server plaud-team)")
     expect(lines).toContain("- Tools: 12 available, 2 unknown: delete_everything (they ask before running)")
-    expect(lines.filter((line) => line.startsWith("- Agents without default rules: reviewer."))).toHaveLength(1)
+    expect(lines.filter((line) => line === "- Agents without default rules: reviewer")).toHaveLength(1)
     expect(lines).toContain('  {"action":"plaud*_*","resource":"*","effect":"ask"},')
     expect(host.events.filter((event) => event.type === "session.execution.started" && event.data?.sessionID === sessionID)).toEqual([])
   })

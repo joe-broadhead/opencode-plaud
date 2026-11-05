@@ -1,5 +1,5 @@
 import type { TranscriptBlock } from "./types.js"
-import { fail } from "./errors.js"
+import { fail, UNREADABLE_STEP } from "./errors.js"
 
 /**
  * Everything this plugin knows about Plaud's MCP tools lives here: tool
@@ -26,8 +26,12 @@ export function fileArgs(recordingId: string): Record<string, unknown> {
   return { file_id: recordingId }
 }
 
+/** Plaud's largest `get_transcript` page, in segments; its default is 50. */
+const TRANSCRIPT_PAGE = 500
+
+/** The arguments of one `get_transcript` page, at the largest page size, so a long transcript takes a few reads. */
 export function transcriptArgs(recordingId: string, block: TranscriptBlock, cursor?: string): Record<string, unknown> {
-  return { file_id: recordingId, block, ...(cursor === undefined ? {} : { cursor }) }
+  return { file_id: recordingId, block, limit: TRANSCRIPT_PAGE, ...(cursor === undefined ? {} : { cursor }) }
 }
 
 export interface RecordingMeta {
@@ -55,11 +59,10 @@ export interface NoteTab {
   kind: string
   title: string
   text: string
-  /** `data_error_code` when Plaud could not load the tab's content. */
+  /** `data_error_code` when the tab has no content and a non-zero code: Plaud could not load it. */
   errorCode?: number
 }
 
-const UNREADABLE_NEXT_STEP = "Update opencode-plaud; if it still fails, report it to the plugin's maintainers."
 
 /**
  * Plaud wraps recording data in an envelope: a sentence that names a random
@@ -101,7 +104,7 @@ function contentText(content: unknown): string | undefined {
 /** Recording metadata for an export's frontmatter. Only the object shape is required. */
 export function recordingMeta(payload: unknown, recordingId: string): RecordingMeta {
   if (!isRecord(payload)) {
-    fail("PLAUD_UNREADABLE", `get_file returned ${describe(payload)} instead of a recording.`, UNREADABLE_NEXT_STEP)
+    fail("PLAUD_UNREADABLE", `get_file returned ${describe(payload)} instead of a recording.`, UNREADABLE_STEP)
   }
   const createdAt = iso(payload["created_at"]) ?? iso(payload["start_at"])
   const startedAt = iso(payload["start_at"])
@@ -123,7 +126,7 @@ export function recordingMeta(payload: unknown, recordingId: string): RecordingM
 export function recordingList(payload: unknown): RecordingMeta[] {
   const list = Array.isArray(payload) ? payload : isRecord(payload) ? payload["data"] : undefined
   if (!Array.isArray(list)) {
-    fail("PLAUD_UNREADABLE", `list_files returned ${describe(payload)} instead of a list of recordings.`, UNREADABLE_NEXT_STEP)
+    fail("PLAUD_UNREADABLE", `list_files returned ${describe(payload)} instead of a list of recordings.`, UNREADABLE_STEP)
   }
   return list.flatMap((item) => {
     const id = isRecord(item) ? identifier(item["id"]) : undefined
@@ -136,7 +139,7 @@ export function audioUrl(payload: unknown): string | undefined {
   return isRecord(payload) ? nonEmpty(payload[AUDIO_URL_FIELD]) : undefined
 }
 
-export type TranscriptPage =
+type TranscriptPage =
   | { kind: "items"; utterances: Utterance[]; marks: Entry[]; outlines: Entry[]; count: number; nextCursor?: string }
   | { kind: "unavailable" }
   | { kind: "empty" }
@@ -152,7 +155,7 @@ export function transcriptPage(payload: unknown, block: TranscriptBlock): Transc
     const items = transcriptItems(payload)
     if (items === undefined) {
       if (Object.keys(payload).length === 0) return { kind: "empty" }
-      fail("PLAUD_UNREADABLE", "get_transcript returned no list of transcript items.", UNREADABLE_NEXT_STEP)
+      fail("PLAUD_UNREADABLE", "get_transcript returned no list of transcript items.", UNREADABLE_STEP)
     }
     return itemsPage(items, block, nonEmpty(payload["next_cursor"]))
   }
@@ -162,7 +165,7 @@ export function transcriptPage(payload: unknown, block: TranscriptBlock): Transc
     if (text.length === 0 || /has no content for this recording|no highlight was recorded/i.test(text)) return { kind: "empty" }
     return itemsPage([payload], block)
   }
-  fail("PLAUD_UNREADABLE", `get_transcript returned ${describe(payload)}.`, UNREADABLE_NEXT_STEP)
+  fail("PLAUD_UNREADABLE", `get_transcript returned ${describe(payload)}.`, UNREADABLE_STEP)
 }
 
 function transcriptItems(payload: Record<string, unknown>): unknown[] | undefined {
@@ -203,13 +206,14 @@ function entry(item: unknown, field: "topic" | "content"): Entry {
 /**
  * `get_note` returns a list with one entry per app tab, named by
  * `data_tab_name` (or `data_title`), its link already resolved into
- * `data_content`. A tab Plaud could not load has a non-zero
- * `data_error_code`. An entry with neither still becomes a tab with empty
- * text rather than vanishing.
+ * `data_content`. A tab with no content and a non-zero `data_error_code`
+ * could not be loaded; live, loaded tabs carry a non-zero code too (10), so
+ * the content wins. An entry with neither still becomes a tab with empty text
+ * rather than vanishing.
  */
 export function noteTabs(payload: unknown): NoteTab[] {
   if (!Array.isArray(payload)) {
-    fail("PLAUD_UNREADABLE", `get_note returned ${describe(payload)} instead of a list of note tabs.`, UNREADABLE_NEXT_STEP)
+    fail("PLAUD_UNREADABLE", `get_note returned ${describe(payload)} instead of a list of note tabs.`, UNREADABLE_STEP)
   }
   return payload.map((item) => {
     if (!isRecord(item)) return { kind: "note", title: "Note", text: json(item) }
@@ -243,10 +247,15 @@ function milliseconds(value: unknown): number | undefined {
   return rounded >= 0 ? rounded : undefined
 }
 
-/** An ISO timestamp, normalised. */
+/**
+ * An ISO timestamp, normalised. Plaud sends UTC times with no zone, such as
+ * `2026-10-31T14:05:00`, which `Date.parse` would read as the machine's local
+ * time; a date-time with no zone gets `Z`, as Plaud's own server does.
+ */
 function iso(value: unknown): string | undefined {
   if (typeof value !== "string" || value.trim().length === 0) return undefined
-  const parsed = Date.parse(value)
+  const text = value.trim()
+  const parsed = Date.parse(/T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(text) ? `${text}Z` : text)
   return Number.isNaN(parsed) ? undefined : new Date(parsed).toISOString()
 }
 

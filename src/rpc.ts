@@ -12,12 +12,12 @@ import { Rpc } from "@opencode/plugin/rpc"
 
 export const RPC_ID = "plaud.recordings"
 
-export const ACCOUNT_STATES = ["signed_in", "sign_in_needed", "connecting", "failed", "disabled", "missing"] as const
+const ACCOUNT_STATES = ["signed_in", "sign_in_needed", "connecting", "failed", "disabled", "missing"] as const
 export type AccountState = (typeof ACCOUNT_STATES)[number]
 
 /** The shared status states (S13) Plaud reports: the most urgent account's state, in the family's machine form. */
-export const STATES = ["connected", "sign_in_required", "connecting", "failed", "disabled", "not_configured"] as const
-export type State = (typeof STATES)[number]
+const STATES = ["connected", "sign_in_required", "connecting", "failed", "disabled", "not_configured"] as const
+type State = (typeof STATES)[number]
 
 /** Each account state as a shared state. */
 export const SHARED_STATE: Record<AccountState, State> = {
@@ -57,7 +57,7 @@ export interface Status {
   /** Absolute folders plaud_export may write in. */
   readonly exportRoots: readonly string[]
   readonly tools: {
-    /** Plaud tools the plugin knows: the reads of every account, and plaud_export. */
+    /** Plaud tools the plugin knows: the reads of every account, plaud_export and plaud_recent. */
     readonly visible: number
     /** Other tools of the Plaud servers; they ask before they run. */
     readonly unknown: number
@@ -70,6 +70,8 @@ export interface Status {
   readonly unguardedAgents: readonly string[]
   /** The default rules for the configured accounts, to add to each unguarded agent's own permissions. */
   readonly permissionsBlock: readonly Rule[]
+  /** Skills with one of the plugin's skill ids that OpenCode loads instead of the plugin's, such as one in your own skills folder. */
+  readonly shadowedSkills: readonly { readonly id: string; readonly path: string }[]
   /** The most urgent thing to do. */
   readonly nextStep: string
 }
@@ -99,9 +101,10 @@ export const StatusSchema = object(
     host: object({ version: { type: ["string", "null"] }, range: text, tested: flag }, ["version", "range", "tested"]),
     unguardedAgents: texts,
     permissionsBlock: { type: "array", items: rule },
+    shadowedSkills: { type: "array", items: object({ id: text, path: text }, ["id", "path"]) },
     nextStep: text,
   },
-  ["version", "state", "accounts", "exportRoots", "tools", "host", "unguardedAgents", "permissionsBlock", "nextStep"],
+  ["version", "state", "accounts", "exportRoots", "tools", "host", "unguardedAgents", "permissionsBlock", "shadowedSkills", "nextStep"],
 )
 
 export const Plaud = Rpc.define({
@@ -124,7 +127,7 @@ export function isStatus(value: unknown): value is Status {
   const host = candidate.host as Record<string, unknown> | undefined
   return typeof candidate.version === "string" && STATES.includes(candidate.state as State)
     && Array.isArray(candidate.accounts) && Array.isArray(candidate.exportRoots) && Array.isArray(candidate.unguardedAgents)
-    && Array.isArray(candidate.permissionsBlock) && typeof candidate.nextStep === "string"
+    && Array.isArray(candidate.permissionsBlock) && Array.isArray(candidate.shadowedSkills) && typeof candidate.nextStep === "string"
     && typeof tools?.visible === "number" && typeof tools.unknown === "number" && Array.isArray(tools.unknownNames)
     && (typeof host?.version === "string" || host?.version === null) && typeof host.range === "string" && typeof host.tested === "boolean"
 }
@@ -159,7 +162,7 @@ export function overallState(status: Pick<Status, "accounts">): AccountState {
   return URGENCY.find((state) => states.has(state)) ?? "signed_in"
 }
 
-export interface StatusLine {
+interface StatusLine {
   readonly label: string
   readonly value: string
   readonly tone: Tone
@@ -172,7 +175,7 @@ export const READY_STEP = "Nothing to do."
 
 /**
  * The status as labelled lines, in the order every view shows them:
- * Connection, Account, Access, Tools, Agents without default rules (with
+ * Connection, Account, Access, Skills (only when one is shadowed), Tools, Agents without default rules (with
  * the rules to copy), OpenCode, then one Next step.
  */
 export function statusLines(status: Status): StatusLine[] {
@@ -191,6 +194,13 @@ export function statusLines(status: Status): StatusLine[] {
     },
     { label: "Access", value: `Reads run without asking. Exports ask, and write only in ${status.exportRoots.join(", ")}.`, tone: "info" },
   ]
+  if (status.shadowedSkills.length > 0) {
+    lines.push({
+      label: "Skills",
+      value: status.shadowedSkills.map((skill) => `${skill.id} is shadowed by ${skill.path}, so agents load that file instead of this plugin's skill`).join("; "),
+      tone: "warning",
+    })
+  }
   const { visible, unknown, unknownNames } = status.tools
   lines.push({
     label: "Tools",
@@ -203,7 +213,7 @@ export function statusLines(status: Status): StatusLine[] {
       ? { label: "Agents without default rules", value: "none", tone: "info" }
       : {
           label: "Agents without default rules",
-          value: `${status.unguardedAgents.join(", ")}. Exports and other Plaud tools run there without asking. The rules:`,
+          value: status.unguardedAgents.join(", "),
           tone: "warning",
           block,
         },

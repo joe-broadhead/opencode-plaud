@@ -20,7 +20,7 @@ opencode plugin add @joe-broadhead/opencode-plaud
 
 Run `opencode reload`, or restart OpenCode. Then run `/plaud-status`: it shows `sign-in required` until you sign in.
 
-**Update** with `opencode plugin update @joe-broadhead/opencode-plaud`, then run `opencode reload`. An entry pinned to a version, such as `@joe-broadhead/opencode-plaud@0.0.1`, does not update: remove the `@version` from its `plugins` entry first.
+**Update** with `opencode plugin update @joe-broadhead/opencode-plaud`, then run `opencode reload`. An entry pinned to a version, such as `@joe-broadhead/opencode-plaud@<version>`, does not update: remove the `@version` from its `plugins` entry first.
 
 ## Sign in
 
@@ -45,7 +45,7 @@ Ask about your recordings, for example "what did I record this week?" or "save t
 | `plaud_list_files` | `tools.plaud.list_files` | List or search recordings | runs |
 | `plaud_get_note` | `tools.plaud.get_note` | The recording's notes, such as its summary | runs |
 | `plaud_get_transcript` | `tools.plaud.get_transcript` | One transcript block, a page at a time | runs |
-| `plaud_get_file` | `tools.plaud.get_file` | One recording in full, often over 100 KB; the skill and Code Mode's description send the model to the notes or the transcript first | runs |
+| `plaud_get_file` | `tools.plaud.get_file` | One recording in full: 150 to 320 KB, mostly the raw transcript and the notes again. The skill and Code Mode's description steer the model away from it, to the notes, the transcript, or `plaud_export` for audio | runs |
 | `plaud_get_current_user` | `tools.plaud.get_current_user` | The signed-in account | runs |
 | `plaud_recent` | `tools.plaud.recent` | The newest recordings, one line each: title, start time and length | runs |
 | `plaud_export` | `tools.plaud.export` | Save audio, a transcript or a note as a file | asks |
@@ -145,6 +145,7 @@ Members then only sign in, once per account: run `/connect` and choose **Plaud**
 | --- | --- |
 | `AUTH_REQUIRED` from an export | That account's server is not connected or not signed in. Sign in from `/connect`, then retry. |
 | Status names agents that lack the default rules | Agents defined only in your config miss the rules; status lists those whose own rules would run Plaud tools without asking. Put the rules it shows first in **that agent's own** `permissions`, then repeat your top-level rules for Plaud tools after them. Never add them to the top-level `permissions`. See [the example](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#agents-defined-in-your-config). |
+| Status names a shadowed skill | A skill of your own, or a project's, has the id of one of the plugin's skills, so OpenCode loads it instead. Move or rename the file status names, then run `opencode reload`. |
 | `OPTIONS_INVALID` | An option is wrong; the message names each one. Fix it in the plugin's `options`. |
 | `HOST_UNTESTED` | Your OpenCode is outside `>=2.2.3 <2.3.0`. Install a tested release, or set `allowUntestedHost`. |
 | `/plaud-status` and the palette command are missing | The plugin did not start. Open `/plugins` to see the error. |

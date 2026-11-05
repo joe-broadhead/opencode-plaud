@@ -19,8 +19,8 @@ type Tool = {
 }
 
 const RECORDINGS = [
-  { id: "rec-3", name: "Design review", start_at: "2026-10-31T14:05:00Z", duration: 3_780_000, presigned_url: "https://files.example.invalid/a.mp3?X-Amz-Signature=s" },
-  { id: "rec-2", name: "", created_at: "2026-10-30T09:00:00Z", duration: 20_000 },
+  { id: "rec-3", name: "Design review", start_at: "2026-10-31T14:05:00", duration: 3_780_000, presigned_url: "https://files.example.invalid/a.mp3?X-Amz-Signature=s" },
+  { id: "rec-2", name: "", created_at: "2026-10-30T09:00:00", duration: 20_000 },
   { name: "No id, skipped" },
   { id: "rec-1", name: "Two\nlines\tand  tabs" },
 ]
@@ -60,7 +60,7 @@ async function recent(list: (args: Record<string, unknown>) => unknown, accounts
     },
     permission: { assert },
   }
-  await registerTools(ctx, { accounts, exportRoots: ["/tmp/plaud"], maxAudioBytes: 1, maxTextBytes: 1, exportTimeoutMs: 1_000 })
+  await registerTools(ctx, { accounts, exportRoots: ["/tmp/plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 })
   const tool = added.find((entry) => entry.name === "recent")
   if (tool === undefined) throw new Error("recent was not registered")
   const run = async (input: unknown) => {
@@ -87,6 +87,12 @@ describe("plaud_recent", () => {
     expect(tool.output.parse(output)).toEqual(output)
     expect(JSON.stringify(output)).not.toContain("X-Amz-Signature")
     expect(calls).toEqual([{ id: "plaud_list_files", args: { page_size: 12 } }])
+  })
+
+  it("skips an entry with no id and still fills the limit from the rest of the page", async () => {
+    const { run } = await recent(plaud(enveloped({ type: "files", data: RECORDINGS, page: 1 })))
+    // The third entry has no id; the fourth fills its place.
+    expect(((await run({ limit: 3 })) as { items: { id: string }[] }).items.map((item) => item.id)).toEqual(["rec-3", "rec-2", "rec-1"])
   })
 
   it("never asks Plaud for fewer than 10, and keeps only the limit", async () => {

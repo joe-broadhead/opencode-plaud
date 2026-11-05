@@ -411,6 +411,8 @@ describe("status", () => {
       // asker's own rules already ask for every Plaud tool (LIVE-1).
       unguardedAgents: ["reviewer"],
       permissionsBlock: BLOCK,
+      // OpenCode lists the plugin's skills under the paths the plugin gave, so none is shadowed.
+      shadowedSkills: [],
       nextStep: "Run /connect and choose Plaud (work), then press o or Enter to open the sign-in page.",
     })
   })
@@ -429,7 +431,7 @@ describe("status", () => {
     expect(lines).toContain("- Connection: default: connected; work: sign-in required; team: connected")
     expect(lines).toContain("- Account: default (server plaud), work (server plaud-work, from your OpenCode config), team (server plaud-team)")
     expect(lines).toContain("- Tools: 12 available, 2 unknown: delete_everything (they ask before running)")
-    expect(lines.filter((line) => line.startsWith("- Agents without default rules: reviewer."))).toHaveLength(1)
+    expect(lines.filter((line) => line === "- Agents without default rules: reviewer")).toHaveLength(1)
     expect(lines).toContain('  {"action":"plaud*_*","resource":"*","effect":"ask"},')
     expect(host.events.filter((event) => event.type === "session.execution.started" && event.data?.sessionID === sessionID)).toEqual([])
   })

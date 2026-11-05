@@ -1,7 +1,11 @@
+import { mkdirSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../../src/domain/redact.js"
+import { Plaud } from "../../src/rpc.js"
 import { SIGNATURE, UPSTREAM_FAILURE } from "../fixtures/fake-plaud.js"
 import { startHost, type Harness, type Rule } from "./harness.js"
+import { WORKER_ROOT } from "./setup.js"
 
 /**
  * The tools RPC, `plaud.recordings.tools`, in a real OpenCode host: a script calls Plaud's reads with no model, as a
@@ -9,7 +13,8 @@ import { startHost, type Harness, type Rule } from "./harness.js"
  * `plaud-team` server, and `work` is a `plaud-work` server the user defined, which still needs sign-in. Two agents
  * exist only in the user's config, so they carry exactly their own rules after the host's: `locked` denies every
  * Plaud tool, and `careful` asks before notes. `recent` is the plugin's own plaud_recent, which reads the envelope's
- * account through that account's list_files.
+ * account through that account's list_files. The user's own skills folder holds a skill with the id of one of the
+ * plugin's, which OpenCode loads instead, so status names it.
  */
 
 const RPC = "plaud.recordings.tools"
@@ -33,10 +38,16 @@ const call = (session: string, method: string, envelope: Record<string, unknown>
 /** The fake's tool calls since `from`. */
 const toolCalls = (from = 0) => host.fake.calls.slice(from).map((entry) => entry.tool)
 
+/** The user's own skill under a plugin skill's id. */
+const SHADOW = join(WORKER_ROOT, "user-skills", "opencode-plaud-digest", "SKILL.md")
+
 beforeAll(async () => {
+  mkdirSync(dirname(SHADOW), { recursive: true })
+  writeFileSync(SHADOW, "---\nname: opencode-plaud-digest\ndescription: The user's own digest skill.\n---\n\nThe user's own digest steps.\n")
   host = await startHost({
     options: { accounts: ["work", "team"] },
     config: (fake) => ({
+      skills: [dirname(dirname(SHADOW))],
       agents: {
         locked: { description: "Denies Plaud", mode: "subagent", permissions: [rule("plaud*_*", "deny")] },
         careful: { description: "Asks before notes", mode: "subagent", permissions: [rule("plaud*_get_note", "ask")] },
@@ -167,10 +178,11 @@ describe("the tools RPC in OpenCode", () => {
 
   it("refuses recent when the session's rules deny or ask for the read it makes, naming that read", async () => {
     const from = host.fake.calls.length
-    // A deny: OpenCode's own reason names the read.
+    // A deny: the message names the denied read, and the next step that rule (shared module v4).
     const denied = await call("unlisted", "recent", { input: {} })
     expect(denied).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
-    expect(denied.message).toContain("plaud_recent was refused for this session's agent: Permission denied: plaud_list_files")
+    expect(denied.message).toContain("plaud_recent needs plaud_list_files, which a deny rule refuses for this session's agent")
+    expect(denied.next).toMatch(/^Remove or narrow the deny rule for plaud_list_files in the agent "build" or in the session/)
     // An ask: refused at once, with no prompt left waiting, and the message and next step name the read.
     const started = Date.now()
     const asked = await call("hesitant", "recent", { input: {} })
@@ -187,6 +199,8 @@ describe("the tools RPC in OpenCode", () => {
     for (const method of METHODS.slice(1)) expect(await call("locked", method, { input: { file_id: "rec-1" } }), method).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
     expect(await call("locked", "recent", { input: {} })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
     expect(await call("reopen", "recent", { input: {} })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+    // A deny names the denied read and says to change that rule (shared module v4).
+    expect((await call("locked", "get_note", { input: { file_id: "rec-1" } })).next).toMatch(/^Remove or narrow the deny rule for plaud_get_note/)
     expect(toolCalls(from)).toEqual([])
   })
 
@@ -231,5 +245,14 @@ describe("the tools RPC in OpenCode", () => {
       expect(await script("list_files", envelope), JSON.stringify(envelope)).toMatchObject({ type: "rpc.invalid_input" })
     }
     expect(toolCalls(from)).toEqual([])
+  })
+})
+
+describe("a skill that shadows one of the plugin's", () => {
+  it("wins in OpenCode, and status names its file", async () => {
+    const listed = (await host.opencode.skill.list({ location: host.location })).data.filter((skill) => skill.id === "opencode-plaud-digest")
+    expect(listed.map((skill) => skill.path)).toEqual([SHADOW])
+    const status = (await host.opencode.rpc(Plaud).status({}, { location: host.location })) as { shadowedSkills: unknown }
+    expect(status.shadowedSkills).toEqual([{ id: "opencode-plaud-digest", path: SHADOW }])
   })
 })

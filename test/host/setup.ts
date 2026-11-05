@@ -26,7 +26,8 @@ Object.assign(process.env, {
   TMP: join(root, "tmp"),
   TEMP: join(root, "tmp"),
   LANG: "en_US.UTF-8",
-  TZ: "UTC",
+  // Not UTC, so a Plaud time read as local time, not UTC, shows in the results.
+  TZ: "Asia/Tokyo",
   NODE_ENV: "test",
   ...(sdkDir ? { HOST_SDK_DIR: sdkDir } : {}),
 })

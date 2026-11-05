@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.5] - 2026-11-05
+
+### Added
+
+- Status names a skill that shadows one of the plugin's. OpenCode keeps one skill per id, and a skill of your own or a project's wins, so a file such as `~/.config/opencode/skills/opencode-plaud/SKILL.md` stops the plugin's skill from loading. The `Skills` row names it and its path, the next step says to move or rename it, and the status RPC lists it in the new field `shadowedSkills`, as `{ id, path }`.
+
+### Changed
+
+- The fix for agents without the default rules is one sentence, the same in every plugin of this family: "Put the default rules shown by /plaud-status first in each listed agent's own permissions, in opencode.json or the agent's Markdown file, followed by your top-level rules for Plaud tools." It is the `Next step` row, the status RPC's `nextStep` and the dialog's. The `Agents without default rules` row lists only the agents' names, followed by the rules to copy. Why the rules go in each agent's own permissions is in the configuration docs.
+- A transcript export reads 500 segments a page, Plaud's maximum, instead of Plaud's default of 50, so a long transcript takes a few reads instead of dozens.
+- Four error next steps now lead to the right call. `EXPORT_EXISTS` says to ask the user before passing `overwrite: true`. `EXPORT_TOO_LARGE` and `EXPORT_TIMEOUT` say to ask the user to raise `maxAudioBytes` or `exportTimeoutMs`, which only the user can change. `PLAUD_READ_FAILED` gives one step: retry once, then run `/plaud-status` and follow its next step. `PLAUD_UNREADABLE` has one next step everywhere: update the plugin and retry later, then report it.
+- Tool text the model always sees. Code Mode's `plaud` namespace says not to call `get_file`, which returns 150 to 320 KB, mostly the raw transcript and the notes again, and to call `export` for audio, even for a download link. It also says that times such as `start_at` are UTC without a `Z`. `plaud_export` says that each export first asks the user and shows the account, kind, recording and destination, that nothing is written if they decline, and that another folder must be added to `exportRoots`; its `destination` says that `~` is not expanded. `plaud_recent` says that each item's `id` is the recording's `file_id`, and to use `list_files` for more than 20 recordings, a date range or a name search.
+- The three skills teach the choices agents got wrong. `opencode-plaud` gives the exact Code Mode calls with their parameters, so no catalogue search is needed, and how to read a result safely out of Plaud's untrusted-data tags. It says when a list is enough and when to read a note or a transcript, that `start_at` is UTC without a `Z`, how to tell the last `list_files` page, how to page a long transcript with `limit` up to 500, and not to call `get_file`. `opencode-plaud-digest` uses `list_files`' `date_from` and `date_to`, and says how Plaud's server draws the day boundaries. `opencode-plaud-export` sends audio straight to `plaud_export`, picks the transcript block from the user's words, and says how to add an export root instead of copying a file elsewhere. The descriptions fire on Plaud and voice recordings, not on meetings in general.
+- `docs/scripting.md` shows how to take a result's JSON out of Plaud's untrusted-data tags.
+- The tools RPC uses the shared module v4. When a deny rule refuses a script's call, `PERMISSION_DENIED` names the denied action, such as `plaud_list_files` under `recent`, and its next step says to remove or narrow that deny rule, add a later allow rule for it to the session, or use a session whose agent allows it. A refused ask keeps its next step.
+
+### Removed
+
+- The `maxTextBytes` option. A transcript or note export is now held to a fixed 25 MiB, about 50 times the longest transcript seen, so there is nothing to tune. Remove `maxTextBytes` from the plugin's options: OpenCode refuses to start the plugin with an unknown option (`OPTIONS_INVALID`). `maxAudioBytes` stays.
+
+### Fixed
+
+- `plaud_recent` shows each recording's start time in UTC, as Plaud recorded it. Plaud sends its times as UTC with no zone, and the plugin read them as the machine's local time, so every time was off by the machine's offset from UTC. An export's frontmatter `date` is now the recording's local calendar date on your machine, as documented; before, it was the UTC date.
+
 ## [0.0.4] - 2026-11-04
 
 ### Added

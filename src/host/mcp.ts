@@ -23,7 +23,7 @@ export interface McpServer {
   readonly name: string
 }
 
-export interface McpOptions {
+interface McpOptions {
   /** Extra account aliases; the default account always exists. */
   readonly accounts: readonly string[]
   readonly url: string

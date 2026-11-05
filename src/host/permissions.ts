@@ -1,5 +1,7 @@
 import type { PluginContext, Registration } from "./context.js"
 import { KNOWN_READS } from "./mcp.js"
+// The status RPC's plain rule is the one Rule type: the TUI bundle reads src/rpc.ts and must not import this file.
+import type { Rule } from "../rpc.js"
 
 /**
  * Default permission rules. OpenCode evaluates an agent's rules in order and
@@ -25,7 +27,6 @@ import { KNOWN_READS } from "./mcp.js"
  */
 
 type AgentEditor = Parameters<Parameters<PluginContext["agent"]["transform"]>[0]>[0]
-export type Rule = Readonly<ReturnType<AgentEditor["list"]>[number]["permissions"][number]>
 
 /** The permission action of the plugin's export tool. `plaud*_*` matches it too. */
 export const EXPORT_ACTION = "plaud_export"

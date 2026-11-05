@@ -10,7 +10,13 @@ import type { PluginConfig, TranscriptBlock } from "./types.js"
  */
 
 /** The options an export runs under. The first export root holds default destinations. */
-export type ExportSettings = Pick<PluginConfig, "exportRoots" | "maxAudioBytes" | "maxTextBytes" | "exportTimeoutMs">
+export type ExportSettings = Pick<PluginConfig, "exportRoots" | "maxAudioBytes" | "exportTimeoutMs">
+
+/**
+ * The largest transcript or note an export writes, 25 MiB: a guard against a runaway, about 50 times the longest
+ * transcript seen live (1,300 segments, about 0.5 MB as Markdown).
+ */
+export const MAX_TEXT_BYTES = 25 * 1024 ** 2
 
 export const DEFAULT_TRANSCRIPT_BLOCK: TranscriptBlock = "transaction"
 
@@ -54,7 +60,7 @@ function audioExtension(url: URL, contentType: string | null): string {
   return AUDIO_TYPES[contentType?.split(";")[0]?.trim().toLowerCase() ?? ""] ?? ".bin"
 }
 
-export interface TranscriptDocument {
+interface TranscriptDocument {
   recording: RecordingMeta
   block: TranscriptBlock
   utterances: Utterance[]
@@ -63,7 +69,7 @@ export interface TranscriptDocument {
   exportedAt: Date
 }
 
-export interface NoteDocument {
+interface NoteDocument {
   recording: RecordingMeta
   tabs: NoteTab[]
   exportedAt: Date
@@ -113,7 +119,7 @@ export function renderNote(doc: NoteDocument): string {
   return finish(lines)
 }
 
-/** Local calendar date the recording started, from an ISO timestamp. */
+/** The machine's local calendar date the recording started, from a UTC ISO timestamp. */
 function recordedOn(recording: RecordingMeta): string | undefined {
   const timestamp = recording.startedAt ?? recording.createdAt
   if (timestamp === undefined) return undefined

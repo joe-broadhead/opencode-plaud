@@ -1,6 +1,6 @@
 {
   "name": "@joe-broadhead/opencode-plaud",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Unofficial OpenCode plugin for Plaud recordings",
   "type": "module",
   "license": "MIT",
@@ -37,7 +37,7 @@
     "clean": "node scripts/clean.mjs",
     "build": "npm run clean && node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tui.json --noEmit && tsc -p test/tsconfig.json",
-    "lint": "vitest run --project lint",
+    "lint": "vitest run --project lint && node scripts/check-copies.mjs",
     "test": "vitest run --project unit",
     "test:host": "node scripts/host-tests.mjs",
     "test:pack": "vitest run --project pack",
@@ -119,7 +119,17 @@
       {
         "id": "plaud",
         "label": "Plaud",
-        "server": "plaud*"
+        "server": "plaud*",
+        "account": {
+          "option": "accounts",
+          "label": "Account name",
+          "description": "A short name for another Plaud account, such as work. Its server is plaud-<name>, listed in /connect as Plaud (<name>).",
+          "placeholder": "work",
+          "required": false,
+          "reserved": [
+            "default"
+          ]
+        }
       }
     ],
     "contributes": {

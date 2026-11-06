@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.7] - 2026-11-06
+
+### Added
+
+- The `jelly` declaration's `plaud` sign-in declares its accounts: `"account": { "option": "accounts", "required": false, "reserved": ["default"], … }`. A Jelly host asks for another account's name and adds it to `accounts`, read from this declaration, so Jelly keeps no Plaud code of its own; the `default` account needs no name, and no account may take it. It needs Jelly 0.3.2 or later; an older Jelly refuses the declaration's new key.
+
+### Changed
+
+- The declaration test uses the shared kit, `test/support/jelly-kit.ts`, which checks the `jelly` declaration against Jelly's plugin authors' standard: its keys, title, summary, icon, skills, tool names and effects, sign-in labels, and `docs/jelly.md`. The test keeps only what this plugin alone declares.
+- `npm run check` runs `scripts/check-copies.mjs`, which fails when the shared part of `src/host/tools-rpc.ts` or the kit differs from the copy every plugin carries. The tools RPC's header no longer names `check-copy.mjs`, which no plugin had.
+
 ## [0.0.6] - 2026-11-05
 
 ### Changed

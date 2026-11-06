@@ -45,7 +45,7 @@ The plugin declares no views. It offers one Home feed preset:
 
 ## Signing in
 
-`jelly.signIns` declares one sign-in, `plaud`, for the servers `plaud*`: `plaud` and every `plaud-<alias>`, so accounts fold into one row. Each signs in with OpenCode's MCP OAuth; Jelly finishes it through the loopback on the desktop, and from the address the browser landed on in a web tab.
+`jelly.signIns` declares one sign-in, `plaud`, for the servers `plaud*`: `plaud` and every `plaud-<alias>`, so accounts fold into one row. Each signs in with OpenCode's MCP OAuth; Jelly finishes it through the loopback on the desktop, and from the address the browser landed on in a web tab. The sign-in declares its accounts (`account`): Jelly asks for another account's name and adds it to the `accounts` option. It is `required: false`, because the `default` account behind `plaud` needs no name, and `reserved: ["default"]`, so no account takes that name. A Jelly before 0.3.2 refuses this declaration's new key.
 
 Jelly folds the declared sign-ins into this plugin's one card, which shows each as Connected, Not signed in or Sign in again (expired or revoked), and starts, renews and signs out of each. An agent's `jelly_connection_request`, or a tool result that names this plugin's "Run /connect and choose …" next step, opens the same card. The plugin still signs in through OpenCode, as it does without Jelly; the declaration only tells Jelly which of the engine's integrations and servers are this plugin's.
 
@@ -53,3 +53,5 @@ Jelly folds the declared sign-ins into this plugin's one card, which shows each 
 
 Jelly's curated catalogue pins an exact version. Publish each release under a new version, so
 that a review in Jelly can tell the two apart.
+
+The declaration test runs the shared kit, `test/support/jelly-kit.ts`, which checks the declaration and this page against Jelly's plugin authors' standard. `scripts/check-copies.mjs` holds the kit, and the shared part of the tools RPC (`src/host/tools-rpc.ts`), equal to the copy every plugin carries.

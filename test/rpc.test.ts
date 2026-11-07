@@ -155,8 +155,8 @@ describe("status model", () => {
     expect(statusLines(tested).find((line) => line.label === "OpenCode")).toEqual({ label: "OpenCode", value: "2.2.5 (tested; supported range >=2.2.3 <2.3.0)", tone: "info" })
     // Inside the range, an untested release sets up normally: the state and the next step are unchanged by it (S13).
     for (const [version, allow, nextStep] of [
-      ["2.2.6", false, READY_STEP],
-      ["2.3.0", true, "If Plaud misbehaves, use a tested OpenCode release: 2.2.3, 2.2.4 or 2.2.5."],
+      ["2.2.99", false, READY_STEP],
+      ["2.3.0", true, "If Plaud misbehaves, use a tested OpenCode release: 2.2.3, 2.2.4, 2.2.5 or 2.2.6."],
     ] as const) {
       const status = buildStatus(facts({ host: checkHost(version, allow) }))
       expect(status.host).toEqual({ version, range: ">=2.2.3 <2.3.0", tested: false })

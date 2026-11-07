@@ -10,7 +10,7 @@ export const PLUGIN_VERSION: string = __PLUGIN_VERSION__
 export const SUPPORTED_HOSTS = ">=2.2.3 <2.3.0"
 
 /** The releases every host, pack and stock check runs on: the one list the tests and CI read. */
-export const TESTED_HOSTS: readonly string[] = ["2.2.3", "2.2.4", "2.2.5"]
+export const TESTED_HOSTS: readonly string[] = ["2.2.3", "2.2.4", "2.2.5", "2.2.6"]
 
 /**
  * The host check: `range` is the supported range, `tested` is true only for a release in `TESTED_HOSTS`, and

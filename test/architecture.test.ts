@@ -66,6 +66,7 @@ describe("source layout", () => {
 const EXEMPT: Readonly<Record<string, readonly Exemption[]>> = {
   "src/host/tools-rpc.ts": ["evaluate hook", "error tags"],
   "test/tools-rpc.test.ts": ["error tags"],
+  "test/resolve.test.ts": ["error tags"],
 }
 
 describe("forbidden host APIs", () => {

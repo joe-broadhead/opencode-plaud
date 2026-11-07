@@ -58,9 +58,21 @@ describe("documented errors", () => {
   it("lists every code a script can get in docs/scripting.md, and no other", () => {
     // Plaud's servers are all the plugin's own (managed: () => true), so a script never gets SERVER_CONFLICT.
     const shared = union(read(RPC_MODULE), "Code").filter((code) => code !== "SERVER_CONFLICT")
-    // The `recent` method runs plaud_recent's own spec, so it can raise these PlaudErrors too.
-    const recent = ["INPUT_INVALID", "AUTH_REQUIRED", "PLAUD_READ_FAILED", "PLAUD_UNREADABLE"]
-    for (const code of recent) expect(read("src/host/tools/recent.ts") + read("src/host/tools/export.ts") + read("src/domain/normalize.ts")).toContain(`"${code}"`)
+    // The `recent` and `export` methods run the plugin's own specs, so they can raise these PlaudErrors too.
+    const recent = [
+      "INPUT_INVALID",
+      "AUTH_REQUIRED",
+      "PLAUD_READ_FAILED",
+      "PLAUD_UNREADABLE",
+      "CONTENT_UNAVAILABLE",
+      "EXPORT_BAD_DESTINATION",
+      "EXPORT_EXISTS",
+      "EXPORT_FAILED",
+      "EXPORT_OUTSIDE_ROOTS",
+      "EXPORT_TIMEOUT",
+      "EXPORT_TOO_LARGE",
+    ]
+    for (const code of recent) expect(read("src/host/tools/recent.ts") + read("src/host/tools/export.ts") + read("src/domain/normalize.ts") + read("src/domain/paths.ts")).toContain(`"${code}"`)
     expect([...new Set([...shared, ...recent])].sort()).toEqual([...documented("docs/scripting.md")].sort())
   })
 })

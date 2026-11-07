@@ -274,10 +274,10 @@ async function serve(version: string, name = `host-${version}`, config: Record<s
     if (!response.ok) throw new Error(`${method} ${path}: ${response.status} ${text.slice(0, 500)}`)
     return text === "" ? undefined : JSON.parse(text)
   }
-  /** One tools RPC call: `{ value }` with the method's output, or the error's type, code and message. */
-  const script = async (method: string, input: unknown): Promise<Record<string, any>> => {
+  /** One tools RPC call: `{ value }` with the method's output, or the error's type, code and message. `null` names no location. */
+  const script = async (method: string, input: unknown, location: string | null = directory): Promise<Record<string, any>> => {
     const url = new URL(`/api/rpc/plaud.recordings.tools/${method}`, `http://127.0.0.1:${port}`)
-    url.searchParams.set("location[directory]", directory)
+    if (location !== null) url.searchParams.set("location[directory]", location)
     const response = await fetch(url, { method: "POST", headers: { authorization, "content-type": "application/json" }, body: JSON.stringify({ input }) })
     const body = (await response.json()) as Record<string, any>
     if (response.ok) return { value: body.output }
@@ -377,7 +377,8 @@ describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
         const { value } = await host.script("describe", {})
         return value?.methods?.every((method: { available: boolean }) => method.available) ? value : undefined
       })
-      expect(described.methods.map((method: { name: string }) => method.name)).toEqual([...READS, "recent"])
+      expect(described.methods.map((method: { name: string }) => method.name)).toEqual([...READS, "recent", "export"])
+      expect(described.methods.map((method: { class: string }) => method.class)).toEqual([...READS.map(() => "read"), "read", "export"])
       const session = async (body: Record<string, unknown>) => ((await host.api("POST", "/api/session", { location: { directory: host.directory }, ...body })) as { data: { id: string } }).data.id
       const sessions = {
         build: await session({ agent: "build" }),
@@ -386,6 +387,7 @@ describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
         narrow: await session({ agent: "build", permissions: [rule("plaud_get_file", "deny")] }),
         reopen: await session({ agent: "locked", permissions: [rule("plaud_list_files", "allow")] }),
         reckless: await session({ agent: "build", permissions: [rule("plaud*_*", "allow")] }),
+        granted: await session({ agent: "build", permissions: [rule("plaud_export", "allow")] }),
       }
       const call = (name: keyof typeof sessions, method: string, input: unknown = { file_id: "rec-1" }) => host.script(method, { sessionID: sessions[name], input })
       const calls = () => fake.calls.length
@@ -414,7 +416,7 @@ describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
       const started = Date.now()
       const asked = await call("careful", "get_note")
       expect(asked).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
-      expect(asked.message).toMatch(/cannot answer an approval prompt/)
+      expect(asked.message).toMatch(/would ask for this session's agent, and a script cannot answer/)
       expect(Date.now() - started).toBeLessThan(5_000)
       const { data: pending } = (await host.api("GET", "/api/permission/request")) as { data: unknown[] }
       expect(pending.filter((request) => JSON.stringify(request).includes(sessions.careful))).toEqual([])
@@ -427,15 +429,32 @@ describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
       expect((await call("reopen", "list_files", {})).value).toMatchObject({ text: expect.stringContaining("rec-1") })
       expect(await call("reopen", "get_current_user", {})).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
 
-      // plaud_export and an unknown tool are no methods, even with an allow rule.
+      // An unknown tool is no method, even with an allow rule.
       from = calls()
-      for (const method of ["export", "plaud_export", "delete_everything"]) {
+      for (const method of ["plaud_export", "delete_everything"]) {
         const refused = await call("reckless", method, {})
         expect(refused.value, method).toBeUndefined()
         expect(refused.type, method).not.toBe("failed")
       }
       expect(calls()).toBe(from)
-      expect(existsSync(join(work, `tools-${version}`, "exports"))).toBe(false)
+
+      // export asks by default, so a script is refused before any read; a session's own allow runs it and writes the file.
+      const exports = join(work, `tools-${version}`, "exports")
+      const refusedExport = await call("build", "export", { recordingId: "rec-1", kind: "note" })
+      expect(refusedExport).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+      expect(refusedExport.message).toContain("plaud_export would ask for this session's agent")
+      expect(existsSync(exports)).toBe(false)
+      const exported = await call("granted", "export", { recordingId: "rec-1", kind: "note" })
+      expect(exported.value).toMatchObject({ path: expect.stringContaining(exports), bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) })
+      expect(existsSync(exported.value.path)).toBe(true)
+
+      // The location decides: another location answers rpc.unavailable, and the query names this one.
+      const elsewhere = join(work, `tools-${version}`, "elsewhere")
+      mkdirSync(elsewhere, { recursive: true })
+      const missing = await host.script("list_files", { sessionID: sessions.build, input: {} }, elsewhere)
+      expect(missing.status).toBe(400)
+      expect(missing.message).toMatch(/unavailable/i)
+      expect((await host.script("list_files", { sessionID: sessions.build, input: {} }, null)).value).toBeDefined()
     } catch (error) {
       throw new Error(`${(error as Error).message}\n--- opencode ${version} log ---\n${host.log().slice(-3000)}`)
     } finally {

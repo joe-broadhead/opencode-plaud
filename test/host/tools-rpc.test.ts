@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../../src/domain/redact.js"
@@ -18,7 +18,7 @@ import { WORKER_ROOT } from "./setup.js"
  */
 
 const RPC = "plaud.recordings.tools"
-const METHODS = ["describe", "list_files", "get_file", "get_note", "get_transcript", "get_current_user"]
+const METHODS = ["describe", "list_files", "get_file", "get_note", "get_transcript", "get_current_user", "export"]
 const RECENT = { items: [{ id: "rec-1", text: "Weekly sync · 2026-10-01 09:00 UTC · 1 min" }], editable: false }
 const rule = (action: string, effect: Rule["effect"]): Rule => ({ action, resource: "*", effect })
 
@@ -77,6 +77,8 @@ beforeAll(async () => {
   // plaud_recent is allowed, but the read it makes is denied, or asks.
   sessions.unlisted = await create({ agent: "build", permissions: [rule("plaud_list_files", "deny")] })
   sessions.hesitant = await create({ agent: "build", permissions: [rule("plaud_list_files", "ask")] })
+  // A script's own grant for one export, and nothing else: v2 needs a prior allow before an export writes a file.
+  sessions.granted = await create({ agent: "build", permissions: [rule("plaud_export", "allow")] })
 })
 
 afterAll(async () => {
@@ -84,26 +86,47 @@ afterAll(async () => {
 })
 
 describe("the tools RPC in OpenCode", () => {
-  it("describes exactly the five reads, with the default account's live schemas", async () => {
+  it("describes every method with its class: the five reads, recent and export", async () => {
     const { value } = await script("describe", {})
     expect(value.id).toBe(RPC)
     expect(value.call).toContain(`"account":"<account>"`)
-    expect(value.methods.map((method: { name: string }) => method.name)).toEqual([...METHODS.slice(1), "recent"])
-    for (const method of value.methods.slice(0, -1)) expect(method).toMatchObject({ kind: "mcp", tool: `plaud_${method.name}`, action: `plaud_${method.name}`, available: true })
-    expect(value.methods.at(-1)).toMatchObject({ kind: "plugin", tool: "recent", action: "plaud_recent", available: true, input: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false } })
-    expect(Object.keys(value.methods.at(-1).input.properties)).toEqual(["limit"])
+    expect(value.methods.map((method: { name: string }) => method.name)).toEqual(["list_files", "get_file", "get_note", "get_transcript", "get_current_user", "recent", "export"])
+    for (const method of value.methods.slice(0, 5)) expect(method).toMatchObject({ kind: "mcp", class: "read", tool: `plaud_${method.name}`, action: `plaud_${method.name}`, available: true })
+    expect(value.methods[5]).toMatchObject({ kind: "plugin", class: "read", tool: "recent", action: "plaud_recent", available: true, input: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false } })
+    expect(Object.keys(value.methods[5].input.properties)).toEqual(["limit"])
+    expect(value.methods[6]).toMatchObject({ kind: "plugin", class: "export", tool: "export", action: "plaud_export", available: true })
+    expect(Object.keys(value.methods[6].input.properties)).not.toContain("account")
+    expect(value.methods[6].input.required).toContain("recordingId")
     expect(value.methods.find((method: { name: string }) => method.name === "get_file").input).toMatchObject({ properties: { file_id: { type: "string" } }, required: ["file_id"] })
+    expect(Object.hasOwn(value.methods[0], "permission")).toBe(false)
+    // With a session, describe gives each method's resolved permission.
+    const resolved = (await script("describe", { sessionID: sessions.build })) as { value: { methods: { name: string; permission: string }[] } }
+    const permission = Object.fromEntries(resolved.value.methods.map((method) => [method.name, method.permission]))
+    expect(permission).toMatchObject({ list_files: "allow", recent: "allow", export: "ask" })
   })
 
-  it("never makes plaud_export or an unknown Plaud tool a method, even with an allow rule", async () => {
+  it("never makes an unknown Plaud tool a method, even with an allow rule", async () => {
     const from = host.fake.calls.length
-    for (const method of ["export", "delete_everything", "plaud_export", "plaud_recent"]) {
+    for (const method of ["delete_everything", "plaud_export", "plaud_recent"]) {
       const refused = await call("reckless", method, { input: {} })
       expect(refused.value, method).toBeUndefined()
       expect(refused.type, method).not.toBe("failed")
       expect(refused.message, method).toMatch(/not.?found|unknown/i)
     }
     expect(toolCalls(from)).toEqual([])
+  })
+
+  it("refuses export without a prior allow, before any read or prompt, and runs it with one", async () => {
+    const from = host.fake.calls.length
+    const refused = await call("build", "export", { input: { recordingId: "rec-1", kind: "note" } })
+    expect(refused).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+    expect(refused.message).toContain("plaud_export would ask for this session's agent, and a script cannot answer")
+    expect(await host.pending(sessions.build!)).toBe(0)
+    expect(toolCalls(from)).toEqual([])
+    const result = await call("granted", "export", { input: { recordingId: "rec-1", kind: "note" } })
+    expect(result.value).toMatchObject({ path: expect.stringContaining(host.exportRoot), bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) })
+    expect(existsSync(result.value.path)).toBe(true)
+    expect(await host.pending(sessions.granted!)).toBe(0)
   })
 
   it("runs a read as a session whose agent allows it, with no model turn and no prompt", async () => {
@@ -209,7 +232,7 @@ describe("the tools RPC in OpenCode", () => {
     const started = Date.now()
     const result = await call("careful", "get_note", { input: { file_id: "rec-1" } })
     expect(result).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
-    expect(result.message).toMatch(/cannot answer an approval prompt/)
+    expect(result.message).toMatch(/would ask for this session's agent, and a script cannot answer/)
     expect(Date.now() - started).toBeLessThan(5_000)
     expect(await host.pending(sessions.careful!)).toBe(0)
     expect(toolCalls(from)).toEqual([])
@@ -233,7 +256,9 @@ describe("the tools RPC in OpenCode", () => {
   })
 
   it("names an unknown session and a session without an agent, and refuses a bad envelope before any call", async () => {
-    expect(await call("ses_does_not_exist", "list_files", { input: {} })).toMatchObject({ type: "failed", code: "SESSION_UNKNOWN" })
+    const unknown = await call("ses_does_not_exist", "list_files", { input: {} })
+    expect(unknown).toMatchObject({ type: "failed", code: "SESSION_UNKNOWN" })
+    expect(unknown.next).toContain("x-opencode-directory")
     expect(await call("agentless", "list_files", { input: {} })).toMatchObject({ type: "failed", code: "SESSION_AGENT_REQUIRED" })
     const from = host.fake.calls.length
     for (const envelope of [

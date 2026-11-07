@@ -7,8 +7,9 @@ import { defaultRules, registerPermissions } from "./host/permissions.js"
 import { registerRpc } from "./host/rpc.js"
 import { loadSkills, registerSkills } from "./host/skills.js"
 import { registerTools } from "./host/tools/index.js"
+import { exportMethod } from "./host/tools/export.js"
 import { recentMethod } from "./host/tools/recent.js"
-import { registerToolsRpc } from "./host/tools-rpc.js"
+import { METHODS, registerToolsRpc } from "./host/tools-rpc.js"
 import { readStatus } from "./status.js"
 import { checkHost, hostWarning, PLUGIN_ID } from "./version.js"
 
@@ -42,12 +43,13 @@ export default Plugin.define({
       registrations.push(await registerCommands(ctx, status))
       registrations.push(await registerSkills(ctx, skills))
       registrations.push(await registerRpc(ctx, status))
-      // Scripts call the five reads and plaud_recent with no model. Every account's server is the plugin's to use, even
-      // one the user defined under that name, as for the model and plaud_export; so there is no SERVER_CONFLICT. The
-      // envelope's account picks the server of a read, and recent gets it as call.account.
+      // Scripts call the five reads, recent and export with no model. Every account's server is the plugin's to use,
+      // even one the user defined under that name, as for the model and plaud_export; so there is no SERVER_CONFLICT.
+      // The envelope's account picks the server, and the own methods get it as call.account.
+      const accounts: [string, ...string[]] = [DEFAULT_ACCOUNT, ...options.accounts]
       const stopTools = await registerToolsRpc(ctx, {
+        methods: [...METHODS, recentMethod(ctx, accounts), exportMethod(ctx, options, accounts)],
         mcp: { server: accountServer(options.accounts), managed: () => true },
-        owned: [recentMethod(ctx, [DEFAULT_ACCOUNT, ...options.accounts])],
       })
       registrations.push({ dispose: stopTools })
     } catch (error) {

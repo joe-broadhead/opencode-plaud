@@ -16,29 +16,43 @@ export function exportInput(accounts: readonly [string, ...string[]]) {
         .enum(accounts)
         .optional()
         .describe(`Account to export from; defaults to "${accounts[0]}"`),
-      recordingId: z.string().min(1).max(200).describe("Plaud recording id: list_files' or recent's id"),
-      kind: z.enum(EXPORT_KINDS).describe("audio: the recording's audio file; transcript or note: a Markdown file"),
-      block: z
-        .enum(TRANSCRIPT_BLOCKS)
-        .optional()
-        .describe(
-          "Transcript block, only for kind transcript: transaction (raw, the default), transaction_polish (cleaned), " +
-            "outline, or mark_memo (moments flagged on the device)",
-        ),
-      destination: z
-        .string()
-        .refine((value) => isAbsolute(value), { message: "must be an absolute path" })
-        .optional()
-        .describe(
-          "Absolute file path inside an export root (~ is not expanded); defaults to <first export root>/<kind>/<recordingId>.<ext>, and for a transcript to <first export root>/transcript/<recordingId>.<block>.md",
-        ),
-      overwrite: z.boolean().optional().describe("Replace an existing file at the destination; off by default"),
+      ...EXPORT_BODY,
     })
-    .refine((value) => value.kind === "transcript" || value.block === undefined, {
+    .refine(transcriptOnlyBlock, {
       message: "block is only valid for kind transcript",
       path: ["block"],
     })
 }
+
+/** The export's fields other than `account`, which the tools RPC's envelope carries. */
+const EXPORT_BODY = {
+  recordingId: z.string().min(1).max(200).describe("Plaud recording id: list_files' or recent's id"),
+  kind: z.enum(EXPORT_KINDS).describe("audio: the recording's audio file; transcript or note: a Markdown file"),
+  block: z
+    .enum(TRANSCRIPT_BLOCKS)
+    .optional()
+    .describe(
+      "Transcript block, only for kind transcript: transaction (raw, the default), transaction_polish (cleaned), " +
+        "outline, or mark_memo (moments flagged on the device)",
+    ),
+  destination: z
+    .string()
+    .refine((value) => isAbsolute(value), { message: "must be an absolute path" })
+    .optional()
+    .describe(
+      "Absolute file path inside an export root (~ is not expanded); defaults to <first export root>/<kind>/<recordingId>.<ext>, and for a transcript to <first export root>/transcript/<recordingId>.<block>.md",
+    ),
+  overwrite: z.boolean().optional().describe("Replace an existing file at the destination; off by default"),
+} as const
+
+const transcriptOnlyBlock = (value: { kind: string; block?: string }) => value.kind === "transcript" || value.block === undefined
+
+/** The tools RPC's `export` method: the tool's input without `account`, which comes from the envelope. */
+export function exportMethodInput() {
+  return z.strictObject(EXPORT_BODY).refine(transcriptOnlyBlock, { message: "block is only valid for kind transcript", path: ["block"] })
+}
+
+export type ExportMethodRequest = z.output<ReturnType<typeof exportMethodInput>>
 
 export type ExportRequest = z.output<ReturnType<typeof exportInput>>
 

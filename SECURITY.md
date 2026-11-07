@@ -50,15 +50,17 @@ Recording names, transcripts and notes are content from your recordings, and any
 
 ## Scripts
 
-The tools RPC (`plaud.recordings.tools`, see [docs/scripting.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/scripting.md)) runs Plaud's five read tools and the plugin's own `plaud_recent` for a script, with no model. It adds no authority:
+The tools RPC (`plaud.recordings.tools`, see [docs/scripting.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/scripting.md)) calls Plaud's tools for a script, with no model. Every known tool is a method, with its class, but a method is not a grant:
 
-- A script names a session that names an agent, and runs as them. A tool that the agent's or the session's rules hide from the model is refused. OpenCode's own executor then checks the call against the agent's rules, the session's rules and saved approvals, as it does for the model.
-- An ask on a script's call is denied, not prompted: no one is there to answer it. The plugin's permission hook changes only an ask on one of its own script calls in flight, only to a deny, and leaves every other call alone.
-- Only the five known reads and `plaud_recent` (method `recent`) are methods. `recent` asserts `plaud_recent` and reads through the account's own `list_files`, as for the model. `plaud_export` and any other Plaud tool, including one Plaud adds later, never are, even with an allow rule. A script writes no file.
-- A script never gets a signed link: the plugin withholds every `presigned_url` and `data_link` in the result, as the hook does for the model.
+- A script names a session that names an agent, and runs as them. Before any call, the plugin resolves that method's permission action against the agent's rules and then the session's rules, the host's own order. Only `allow` runs: a rule that resolves to `ask` is refused because no one can answer it, and a `deny` is refused. Neither makes a Plaud call. The default rules allow the five reads and `recent`; `export` asks, so a script writes a file only with a prior explicit `allow` in the agent's or the session's rules.
+- A saved "Always allow" is **not** consulted: it lives outside the agent's and session's rules, so an old click does not authorize a new script. A grant is reviewable in config, or in a Jobs one-off's approval.
+- After the resolve, the call runs through OpenCode's own executor, which checks `<server>_<tool>` again, as it does for the model. `recent` and `export` then assert `plaud_recent` and `plaud_export` themselves and read through the account's own tools, so those rules apply too. The plugin's permission hook still changes only an `ask` on one of its own script calls in flight, only to a deny, and leaves every other call alone.
+- A tool Plaud adds later is not a method, so a script cannot reach it until a release classifies it.
+- A script never gets a signed link: the plugin withholds every `presigned_url` and `data_link` in an MCP result, as the hook does for the model. `export` returns a path, a size and a hash, never a link, and writes only inside the export roots.
 - `account` picks an account from the plugin's `accounts` option; any other value is refused. A server your config defines under an account's name is used, as for the model.
 - The call goes through OpenCode's own MCP connection and sign-in. The plugin never sees the token, and returns none.
 - Recording content in a result is untrusted, as it is for the model.
 - Plaud's error text reaches the script only as the first line, at most 300 characters, with tokens and URL query strings removed.
-- OpenCode's `execute.before` and `execute.after` tool hooks, from any plugin, do not run for a script's call, so another plugin's policy hook does not see it. A script's calls are not recorded in the session.
+- A session in another location is `SESSION_UNKNOWN`, and a call that names no location reaches the service's default location: send `x-opencode-directory` with each call.
+- OpenCode's `execute.before` and `execute.after` tool hooks, from any plugin, do not run for a script's call, so another plugin's policy hook does not see it. The plugin's own withholding is reproduced by the RPC's shaper. A script's calls are not recorded in the session.
 - The RPC is reachable only by callers of the OpenCode server API, who already hold the server's full authority. The session is not a login: it scopes a script to what its agent may do.

@@ -68,6 +68,8 @@ const schema = (type: z.ZodType, io: "input" | "output") => z.toJSONSchema(type,
 export function recentMethod(host: Pick<ExportHost, "tool" | "permission">, accounts: readonly [string, ...string[]]): OwnedMethod {
   const tool = recentTool(host, accounts, true)
   return {
+    kind: "plugin",
+    class: "read",
     name: RECENT_METHOD,
     action: RECENT_ACTION,
     description:

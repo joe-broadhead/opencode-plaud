@@ -1,9 +1,10 @@
 import { createHash, randomBytes } from "node:crypto"
+import * as z from "zod"
 import { link, lstat, mkdir, open, realpath, rename, unlink } from "node:fs/promises"
 import { basename, dirname, join, relative, resolve, sep } from "node:path"
 import { signInStep } from "../../domain/auth.js"
 import { onThisMachine, secureUrl } from "../../domain/config.js"
-import { ExportOutput, exportInput, type ExportRequest, type ExportResult } from "../../domain/contract/index.js"
+import { ExportOutput, exportInput, exportMethodInput, type ExportRequest, type ExportResult } from "../../domain/contract/index.js"
 import { fail, PlaudError, UNREADABLE_STEP } from "../../domain/errors.js"
 import { DEFAULT_TRANSCRIPT_BLOCK, defaultFileName, MAX_TEXT_BYTES, renderNote, renderTranscript, type ExportSettings } from "../../domain/export.js"
 import { audioUrl, fileArgs, noteTabs, PLAUD_TOOLS, recordingMeta, resultData, transcriptArgs, transcriptPage } from "../../domain/normalize.js"
@@ -14,6 +15,7 @@ import type { TranscriptBlock } from "../../domain/types.js"
 import type { PluginContext, ToolContext } from "../context.js"
 import { serverName } from "../mcp.js"
 import { EXPORT_ACTION } from "../permissions.js"
+import type { JsonSchema, OwnedMethod } from "../tools-rpc.js"
 
 /**
  * plaud_export in one step: one permission assertion, then the recording is
@@ -38,7 +40,7 @@ type Read = (tool: string, args: Record<string, unknown>) => Promise<unknown>
 type Report = (update: Record<string, unknown>) => void
 type Write = (chunk: Uint8Array) => Promise<void>
 
-export function exportTool(host: ExportHost, settings: ExportSettings, accounts: readonly [string, ...string[]]) {
+export function exportTool(host: ExportHost, settings: ExportSettings, accounts: readonly [string, ...string[]], passRefusals = false) {
   const roots = settings.exportRoots
   return {
     name: "export",
@@ -81,7 +83,7 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
       const signal = AbortSignal.any([context.signal, timeout])
       const report = reporter(context)
       try {
-        const read = reader(await host.tool.list(), account, { ...context, signal })
+        const read = reader(await host.tool.list(), account, { ...context, signal }, passRefusals)
         const file = await read(PLAUD_TOOLS.file, fileArgs(recordingId))
         const recording = recordingMeta(file, recordingId)
 
@@ -112,6 +114,36 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
         if (error instanceof PlaudError || context.signal.aborted || !isSystemError(error)) throw error
         fail("EXPORT_FAILED", `Writing the export failed (${error.code}).`, "Check the free disk space and the export folder's permissions, then retry.")
       }
+    },
+  }
+}
+
+const schema = (type: z.ZodType, io: "input" | "output") => z.toJSONSchema(type, { io }) as JsonSchema
+
+/**
+ * plaud_export as a tools RPC method, `export`: the input is the tool's without `account`, which comes from the
+ * envelope (the module has already refused an unknown one with ACCOUNT_UNKNOWN). It runs the tool's own spec, so its
+ * plaud_export assertion, the export roots and a refused inner read apply as they do for the model; the file is
+ * written only after the user's rule allows the method.
+ */
+export function exportMethod(host: ExportHost, settings: ExportSettings, accounts: readonly [string, ...string[]]): OwnedMethod {
+  const tool = exportTool(host, settings, accounts, true)
+  return {
+    kind: "plugin",
+    class: "export",
+    name: "export",
+    action: EXPORT_ACTION,
+    description: tool.description,
+    input: schema(exportMethodInput(), "input"),
+    output: schema(ExportOutput, "output"),
+    async run(input, call) {
+      const parsed = exportMethodInput().safeParse(input)
+      if (!parsed.success) {
+        const problems = parsed.error.issues.map((issue) => `${issue.path.join(".") || "input"}: ${issue.message}`).join("; ")
+        fail("INPUT_INVALID", `The export input is invalid: ${problems}.`, "Call describe for the schema, then pass recordingId, kind, and optionally block, destination or overwrite; the account is the envelope's.")
+      }
+      const account = call.account ?? accounts[0]
+      return (await tool.execute({ account, ...parsed.data }, call as unknown as ToolContext)).output
     },
   }
 }

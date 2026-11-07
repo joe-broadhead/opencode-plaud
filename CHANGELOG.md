@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The tools RPC is v2: every known tool is a method with its class, `plaud_export` (class `export`) and `plaud_recent` included, and a call runs only with a prior explicit `allow` in the agent's or the session's rules. An `ask` is refused before the tool runs, so no prompt waits, and a saved "Always allow" does not authorize an ad-hoc script. `export` takes the account from the envelope and returns a path, a size and a hash; signed links stay withheld on the script path.
+
 ## [0.0.7] - 2026-11-06
 
 ### Added

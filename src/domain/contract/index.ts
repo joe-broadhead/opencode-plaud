@@ -52,8 +52,6 @@ export function exportMethodInput() {
   return z.strictObject(EXPORT_BODY).refine(transcriptOnlyBlock, { message: "block is only valid for kind transcript", path: ["block"] })
 }
 
-export type ExportMethodRequest = z.output<ReturnType<typeof exportMethodInput>>
-
 export type ExportRequest = z.output<ReturnType<typeof exportInput>>
 
 export const ExportOutput = z.strictObject({

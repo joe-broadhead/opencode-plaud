@@ -72,6 +72,12 @@
         "readOnly": true
       },
       {
+        "name": "plaud.events_list",
+        "permission": "plaud_events_list",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
         "name": "plaud.list_files",
         "permission": "plaud_list_files",
         "effect": "allow",

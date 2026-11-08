@@ -19,6 +19,9 @@ import type { Rule } from "../rpc.js"
  *   is one tool for every account: it asserts `plaud_recent` with the account
  *   as the resource, and reads through that account's `<server>_list_files`,
  *   whose own exact-name rule still applies.
+ * - `plaud_events_list`, the plugin's other read, for Memory's collector, is
+ *   allowed the same way: it asserts `plaud_events_list` with the account as
+ *   the resource, and reads through `get_current_user` and `list_files`.
  *
  * Everything that follows the base allow comes later and still wins: an
  * agent's own stricter rules (Plan, Explore), the user's `permissions` rules
@@ -34,8 +37,11 @@ export const EXPORT_ACTION = "plaud_export"
 /** The permission action of the plugin's own read, `plaud_recent`. `plaud*_*` matches it too. */
 export const RECENT_ACTION = "plaud_recent"
 
+/** The permission action of the plugin's other read, `plaud_events_list`, for Memory's collector. `plaud*_*` matches it too. */
+export const EVENTS_ACTION = "plaud_events_list"
+
 /** The plugin's own tools: `plaud_` names them too, but they are not a server's. */
-export const OWN_TOOLS: readonly string[] = [EXPORT_ACTION, RECENT_ACTION]
+export const OWN_TOOLS: readonly string[] = [EXPORT_ACTION, RECENT_ACTION, EVENTS_ACTION]
 
 /** The default rules for these servers, the default account's `plaud` first. */
 export function defaultRules(servers: readonly string[]): Rule[] {
@@ -44,6 +50,7 @@ export function defaultRules(servers: readonly string[]): Rule[] {
     ...servers.flatMap((server) => KNOWN_READS.map((tool): Rule => ({ action: `${server}_${tool}`, resource: "*", effect: "allow" }))),
     { action: EXPORT_ACTION, resource: "*", effect: "ask" },
     { action: RECENT_ACTION, resource: "*", effect: "allow" },
+    { action: EVENTS_ACTION, resource: "*", effect: "allow" },
   ]
 }
 

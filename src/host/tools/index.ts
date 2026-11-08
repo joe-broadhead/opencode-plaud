@@ -18,7 +18,8 @@ export const NAMESPACE = {
   description:
     "Plaud voice recordings. list_files, get_note, get_transcript, get_file and get_current_user read from Plaud's " +
     "server; recent lists the newest recordings, one line each; export saves one recording's audio, transcript or " +
-    "note to a local file, asking the user unless a rule allows it. To read what a recording says, call get_note (its notes, such as " +
+    "note to a local file. Every tool is allowed by default; the access option at \"ask-changes\" asks for each export, " +
+    "and at \"read-only\" denies it. To read what a recording says, call get_note (its notes, such as " +
     "the summary) or get_transcript (what was said). Don't call get_file: it returns 150-320 KB, mostly the raw " +
     "transcript and the notes again, and its audio link is withheld; for audio, even a download link, call export. " +
     "Times such as start_at are UTC without a Z; durations are in milliseconds. Another account <alias> has its " +

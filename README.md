@@ -145,15 +145,34 @@ Members then only sign in, once per account: run `/connect` and choose **Plaud**
 | disabled | Enable the server in `/mcps`. |
 | not configured | Check again in a few seconds; if it stays, open `/plugins` and check `plaud.recordings`. |
 
-| You see | Do this |
-| --- | --- |
-| `AUTH_REQUIRED` from an export | That account's server is not connected or not signed in. Sign in from `/connect`, then retry. |
-| Status names agents that lack the default rules | Agents defined only in your config miss the rules; status lists those whose own rules would run Plaud tools without asking. Put the rules it shows first in **that agent's own** `permissions`, then repeat your top-level rules for Plaud tools after them. Never add them to the top-level `permissions`. See [the example](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#agents-defined-in-your-config). |
-| Status names a shadowed skill | A skill of your own, or a project's, has the id of one of the plugin's skills, so OpenCode loads it instead. Move or rename the file status names, then run `opencode reload`. |
-| `OPTIONS_INVALID` | An option is wrong; the message names each one. Fix it in the plugin's `options`. |
-| `HOST_UNTESTED` | Your OpenCode is outside `>=2.2.3 <2.3.0`. Install a tested release, or set `allowUntestedHost`. |
-| `/plaud-status` and the palette command are missing | The plugin did not start. Open `/plugins` to see the error. |
-| `Permission plaud_export needs approval` | The run cannot ask. Add an `allow` rule for that export. |
+<!-- generated:codes -->
+
+| Code | What happened | Next step |
+| --- | --- | --- |
+| `ACCOUNT_UNKNOWN` | The tools RPC refused the call. | Leave "account" out for the default account, or pass "default" or an alias from the plugin's accounts option, as /plaud-status lists them. |
+| `AUTH_REQUIRED` | The account's Plaud server is not connected or not signed in. | Run /connect and choose Plaud, or Plaud (<alias>) for another account, then press o or Enter to open the sign-in page. |
+| `CANCELLED` | The tools RPC refused the call. | Call the method again if you still need the result. |
+| `CONNECTING` | The tools RPC refused the call. | Wait a few seconds while OpenCode connects to the account's server, then call the method again. |
+| `CONNECTION_FAILED` | The tools RPC refused the call. | Run /plaud-status and follow its next step. |
+| `CONTENT_UNAVAILABLE` | Plaud has no audio, or no such transcript block, for that recording. | Export another transcript block, or the note. |
+| `DISABLED` | The tools RPC refused the call. | Enable the account's server, plaud or plaud-<alias>, in /mcps. |
+| `EXPORT_BAD_DESTINATION` | The destination is not a file path the plugin can write. | Pass a plain file path, without a trailing slash, and without `~`, which is not expanded. |
+| `EXPORT_EXISTS` | The destination file exists and overwrite was not set. | Ask the user before passing overwrite: true, or choose another path. |
+| `EXPORT_FAILED` | Writing the file failed. | Check the folder is writable and there is space, then retry. |
+| `EXPORT_OUTSIDE_ROOTS` | The destination is outside the export folders the plugin may write in. | Write inside a root the plugin lists, or ask the user to add the folder to exportRoots. |
+| `EXPORT_TIMEOUT` | The export did not finish inside exportTimeoutMs. | Ask the user to raise exportTimeoutMs, then retry. |
+| `EXPORT_TOO_LARGE` | The exported text is over the 25 MiB cap. | Export one transcript block or the note instead of everything. |
+| `INPUT_INVALID` | A call's input is not the method's schema, such as `account` in a plugin tool's input. | Call describe for the schema, then pass the fields it names; the account is the envelope's. |
+| `NOT_REGISTERED` | The tools RPC refused the call. | Run /plaud-status and follow its next step. |
+| `PERMISSION_DENIED` | The tools RPC refused the call. | Add an allow rule for the tool to the session's agent or to the session, or use a session whose agent allows it. |
+| `PLAUD_READ_FAILED` | A read the plugin's own tool made failed, such as a list or a transcript page. | Retry once; if it fails again, ask the user to run /plaud-status and follow its next step. |
+| `PLAUD_UNREADABLE` | Plaud returned something this release cannot use, such as a page that never ends or a link that is not a URL. | Update opencode-plaud and retry later; if it still fails, report it to the plugin's maintainers. |
+| `SESSION_AGENT_REQUIRED` | The tools RPC refused the call. | Create a session that names an agent, such as POST /api/session with {"agent":"build"}, and pass its id. |
+| `SESSION_UNKNOWN` | The tools RPC refused the call. | Create a session in the location you mean, such as POST /api/session with {"agent":"build"} sent with the header "x-opencode-directory: <dir>" or the location[directory] query, and pass its id. |
+| `TOOL_UNAVAILABLE` | The tools RPC refused the call. | Call describe to see which methods OpenCode lists now, and run /plaud-status. |
+| `UPSTREAM_ERROR` | The tools RPC refused the call. | Check the input against the method's schema from describe, and run /plaud-status if it keeps failing. |
+
+<!-- /generated:codes -->
 
 Errors from the plugin read `CODE: what happened. Next step: What to do.` Every code is listed in [Errors](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#errors). A script that uses the tools RPC has its own codes, listed in [Scripting](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/scripting.md#errors).
 

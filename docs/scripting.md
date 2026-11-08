@@ -125,6 +125,9 @@ Send the location explicitly with `-H "x-opencode-directory:$PWD"`. Without it, 
 default location, which is not always the project you mean: there the session is unknown, or the plugin is not loaded.
 The HTTP equivalents are the `location[directory]` query parameter and the same header.
 
+A location unloads after OpenCode's idle timeout. If a scheduled script gets `rpc.unavailable` from a location that was
+loaded before, send the call again once: the request loads the location. Jobs keeps its own location loaded.
+
 The tool's input is Plaud's: `describe` shows each tool's schema as OpenCode lists it now.
 
 ```sh
@@ -137,8 +140,8 @@ opencode api post /api/rpc/plaud.recordings.tools/describe \
 `describe` with a session gives each method's resolved `permission` (`allow`, `ask` or `deny`), which is how a script
 self-checks before it exports.
 
-A result is `{"output": {"output": <the tool's structured content, or its text when it has none>, "text": <the tool's
-text>}}`, as plain JSON. When the text itself is JSON, OpenCode also parses it into `output`. Plaud wraps most results
+A result comes back as `{ output?, text }`: the tool's structured content when it has any, and its text parts joined
+by newlines. Over HTTP the body is `{"output": {"output": …, "text": …}}`, as plain JSON. When the text itself is JSON, OpenCode also parses it into `output`. Plaud wraps most results
 in untrusted-data tags around JSON text, so for those `output` is the same text, and the script gets the tags as they
 are: take the JSON out of them. The sentence before the payload names the tag too, so match the opening tag with its
 `source` attribute:

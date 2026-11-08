@@ -117,8 +117,8 @@ describe("the tarball", () => {
       ...pkg.files.flatMap((entry) => (statSync(join(REPO, entry)).isDirectory() ? tree(join(REPO, entry)).map((path) => `${entry}/${path}`) : [entry])),
     ].sort()
     expect(files).toEqual(expected)
-    // The one asset is Jelly's icon.
-    expect(files.filter((path) => path.startsWith("assets/"))).toEqual(["assets/icon.svg"])
+    // The three assets are Jelly's icon and the two the host draws.
+    expect(files.filter((path) => path.startsWith("assets/"))).toEqual(["assets/icon-128.png", "assets/icon-256.png", "assets/icon.svg"])
     expect(files.filter((path) => /\.(?:tsx|jsx|map|ts)$|(?:^|\/)node_modules\//.test(path))).toEqual([])
     expect([...new Set(files.filter((path) => path.startsWith("skills/")).map((path) => path.split("/")[1]))].sort()).toEqual(SKILLS)
     expect(files.length).toBeLessThan(150)
@@ -130,8 +130,22 @@ describe("the tarball", () => {
     const manifest = JSON.parse(readFileSync(join(installed, "package.json"), "utf8")) as Record<string, unknown>
     for (const field of UNDECLARED) expect(manifest[field], field).toBeUndefined()
     expect(Object.keys((manifest.scripts as Record<string, string> | undefined) ?? {}).filter((name) => LIFECYCLE.includes(name))).toEqual([])
-    expect(manifest.opencode).toEqual({ host: SUPPORTED_HOSTS })
-    expect(manifest.exports).toEqual({ ".": "./dist/index.js", "./tui": "./dist/tui.js" })
+    expect(manifest.opencode).toMatchObject({
+      host: SUPPORTED_HOSTS,
+      vendor: { id: "plaud", name: "Plaud", domain: "plaud.ai" },
+      icons: [
+        { src: "assets/icon.svg", mimeType: "image/svg+xml", sizes: ["any"] },
+        { src: "assets/icon-128.png", mimeType: "image/png", sizes: ["128x128"] },
+        { src: "assets/icon-256.png", mimeType: "image/png", sizes: ["256x256"] },
+      ],
+    })
+    expect(manifest.exports).toEqual({
+      ".": "./dist/index.js",
+      "./tui": "./dist/tui.js",
+      "./icon.svg": "./assets/icon.svg",
+      "./icon-128.png": "./assets/icon-128.png",
+      "./icon-256.png": "./assets/icon-256.png",
+    })
     for (const target of Object.values(pkg.exports)) expect(existsSync(join(installed, target)), target).toBe(true)
   })
 

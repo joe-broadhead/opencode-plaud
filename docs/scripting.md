@@ -138,9 +138,17 @@ opencode api post /api/rpc/plaud.recordings.tools/export \
 }}'
 ```
 
-Send the location explicitly with `-H "x-opencode-directory:$PWD"`. Without it, the call goes to the service's
-default location, which is not always the project you mean: there the session is unknown, or the plugin is not loaded.
-The HTTP equivalents are the `location[directory]` query parameter and the same header.
+## The location
+
+Run the command in the project whose agent you mean, and send the call to that location explicitly:
+
+```sh
+opencode api post /api/rpc/plaud.recordings.tools/<method> -H "x-opencode-directory:$PWD" -d '{…}'
+```
+
+Without it the call goes to the service's default location and fails `rpc.unavailable` if the plugin is not loaded
+there. The HTTP equivalents are the `location[directory]` query parameter and the same header. `describe` reports the
+`location` that answered and a `locationHint`.
 
 A location unloads after OpenCode's idle timeout. If a scheduled script gets `rpc.unavailable` from a location that was
 loaded before, send the call again once: the request loads the location. Jobs keeps its own location loaded.

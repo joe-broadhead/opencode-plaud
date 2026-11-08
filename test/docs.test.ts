@@ -166,6 +166,8 @@ describe("docs/scripting.md", () => {
     expect(calls.length).toBeGreaterThan(0)
     for (const [, url, rest] of calls) {
       const method = url!.startsWith(prefix) ? url!.slice(prefix.length).split(/[?#]/)[0]! : (url ?? "")
+      // The location section is a template: `<method>` stands for any method of this plugin's RPC.
+      if (method === "<method>") continue
       expect({ url, known: methods.has(method) || method === "describe" }).toEqual({ url, known: true })
       expect({ url, header: rest!.includes('-H "x-opencode-directory:$PWD"') }).toEqual({ url, header: true })
     }

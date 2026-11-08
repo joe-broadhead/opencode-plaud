@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { DEFAULT_ACCOUNT, loadConfig } from "../src/domain/config.js"
 import { KNOWN_READS } from "../src/host/mcp.js"
-import { defaultRules, evaluate, EXPORT_ACTION, RECENT_ACTION } from "../src/host/permissions.js"
+import { defaultRules, evaluate, EVENTS_ACTION, EXPORT_ACTION, RECENT_ACTION } from "../src/host/permissions.js"
 import { type Declaration, type DeclaredTool, declarationProblems, docProblems, readPackage } from "./support/jelly-kit.js"
 
 /**
@@ -28,11 +28,12 @@ describe("the jelly declaration", () => {
     expect(declarationProblems(ROOT, { effectOf: (permission) => evaluate(rules, permission) })).toEqual([])
   })
 
-  it("declares each known read and plaud_recent as reads that run, and the export as a write that asks", () => {
+  it("declares each known read, plaud_recent and plaud_events_list as reads that run, and the export as a write that asks", () => {
     for (const read of KNOWN_READS) expect(byPermission.get(`plaud_${read}`)).toMatchObject({ name: `plaud.${read}`, effect: "allow", readOnly: true })
     expect(byPermission.get(EXPORT_ACTION)).toMatchObject({ name: "plaud.export", effect: "ask", readOnly: false })
     expect(byPermission.get(RECENT_ACTION)).toMatchObject({ name: "plaud.recent", effect: "allow", readOnly: true })
-    expect(jelly.tools).toHaveLength(KNOWN_READS.length + 2)
+    expect(byPermission.get(EVENTS_ACTION)).toMatchObject({ name: "plaud.events_list", effect: "allow", readOnly: true })
+    expect(jelly.tools).toHaveLength(KNOWN_READS.length + 3)
   })
 
   it("feeds Home only from a declared read-only tool, which the feed's script calls", () => {

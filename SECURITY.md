@@ -50,11 +50,11 @@ Recording names, transcripts and notes are content from your recordings, and any
 
 ## Scripts
 
-The tools RPC (`plaud.recordings.tools`, see [docs/scripting.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/scripting.md)) runs Plaud's five read tools and the plugin's own `plaud_recent` for a script, with no model. It adds no authority:
+The tools RPC (`plaud.recordings.tools`, see [docs/scripting.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/scripting.md)) runs Plaud's five read tools and the plugin's own `plaud_recent` and `plaud_events_list` for a script, with no model. It adds no authority:
 
 - A script names a session that names an agent, and runs as them. A tool that the agent's or the session's rules hide from the model is refused. OpenCode's own executor then checks the call against the agent's rules, the session's rules and saved approvals, as it does for the model.
 - An ask on a script's call is denied, not prompted: no one is there to answer it. The plugin's permission hook changes only an ask on one of its own script calls in flight, only to a deny, and leaves every other call alone.
-- Only the five known reads and `plaud_recent` (method `recent`) are methods. `recent` asserts `plaud_recent` and reads through the account's own `list_files`, as for the model. `plaud_export` and any other Plaud tool, including one Plaud adds later, never are, even with an allow rule. A script writes no file.
+- Only the five known reads, `plaud_recent` (method `recent`) and `plaud_events_list` (method `events_list`) are methods. `events_list` asserts `plaud_events_list` and reads through the account's own `get_current_user` and `list_files`; it returns each recording's id, name, start and length, with the signed-in user as the owner, and never a link or content. Memory's collector calls it to copy these events to your private memory space, after you turn Plaud on as a source. `recent` asserts `plaud_recent` and reads through the account's own `list_files`, as for the model. `plaud_export` and any other Plaud tool, including one Plaud adds later, never are, even with an allow rule. A script writes no file.
 - A script never gets a signed link: the plugin withholds every `presigned_url` and `data_link` in the result, as the hook does for the model.
 - `account` picks an account from the plugin's `accounts` option; any other value is refused. A server your config defines under an account's name is used, as for the model.
 - The call goes through OpenCode's own MCP connection and sign-in. The plugin never sees the token, and returns none.

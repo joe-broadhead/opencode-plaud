@@ -41,7 +41,7 @@ export const PLUGIN_ID = PLAUD_ID
  * The MCP tools that become methods, by their upstream name (the tool id without the `<server>_` prefix). Only known
  * reads belong here: an allowlist, so a tool the server adds later is never a method. Plaud's are the five reads of
  * `src/host/mcp.ts`, the same list the default rules allow; `plaud_export`, a local-file write, never is. The plugin's
- * own `plaud_recent` is the owned method `recent`, registered in setup.
+ * own `plaud_recent` and `plaud_events_list` are the owned methods `recent` and `events_list`, registered in setup.
  */
 export const KNOWN_READS: readonly string[] = PLAUD_READS
 
@@ -70,7 +70,7 @@ export const NEXT_STEPS: NextSteps = {
   ACCOUNT_UNKNOWN: `Leave "account" out for the default account, or pass "default" or an alias from the plugin's accounts option, as /plaud-status lists them.`,
 }
 
-/** The plugin's own errors, thrown by the `recent` method's spec, as a code, what happened and the next step. */
+/** The plugin's own errors, thrown by the `recent` and `events_list` methods' specs, as a code, what happened and the next step. */
 export function pluginError(error: unknown): Failure | undefined {
   return error instanceof PlaudError ? { code: error.code, what: error.detail, next: error.nextStep } : undefined
 }

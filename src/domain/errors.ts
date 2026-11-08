@@ -16,6 +16,8 @@ export type ErrorCode =
   | "EXPORT_TOO_LARGE"
   | "EXPORT_TIMEOUT"
   | "EXPORT_FAILED"
+  | "EVENTS_CURSOR_INVALID"
+  | "EVENTS_OWNER_UNKNOWN"
 
 export class PlaudError extends Error {
   readonly code: ErrorCode

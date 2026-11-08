@@ -84,14 +84,17 @@ afterAll(async () => {
 })
 
 describe("the tools RPC in OpenCode", () => {
-  it("describes exactly the five reads, with the default account's live schemas", async () => {
+  it("describes exactly the five reads, with the default account's live schemas, then recent and events_list", async () => {
     const { value } = await script("describe", {})
     expect(value.id).toBe(RPC)
     expect(value.call).toContain(`"account":"<account>"`)
-    expect(value.methods.map((method: { name: string }) => method.name)).toEqual([...METHODS.slice(1), "recent"])
-    for (const method of value.methods.slice(0, -1)) expect(method).toMatchObject({ kind: "mcp", tool: `plaud_${method.name}`, action: `plaud_${method.name}`, available: true })
-    expect(value.methods.at(-1)).toMatchObject({ kind: "plugin", tool: "recent", action: "plaud_recent", available: true, input: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false } })
-    expect(Object.keys(value.methods.at(-1).input.properties)).toEqual(["limit"])
+    expect(value.methods.map((method: { name: string }) => method.name)).toEqual([...METHODS.slice(1), "recent", "events_list"])
+    for (const method of value.methods.slice(0, -2)) expect(method).toMatchObject({ kind: "mcp", tool: `plaud_${method.name}`, action: `plaud_${method.name}`, available: true })
+    const recent = value.methods.at(-2)
+    expect(recent).toMatchObject({ kind: "plugin", tool: "recent", action: "plaud_recent", available: true, input: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false } })
+    expect(Object.keys(recent.input.properties)).toEqual(["limit"])
+    expect(value.methods.at(-1)).toMatchObject({ kind: "plugin", tool: "events_list", action: "plaud_events_list", available: true })
+    expect(Object.keys(value.methods.at(-1).input.properties)).toEqual(["since", "cursor", "limit", "account", "source"])
     expect(value.methods.find((method: { name: string }) => method.name === "get_file").input).toMatchObject({ properties: { file_id: { type: "string" } }, required: ["file_id"] })
   })
 
@@ -118,6 +121,23 @@ describe("the tools RPC in OpenCode", () => {
     expect(session.tokens).toMatchObject({ input: 0, output: 0 })
     expect(await host.pending(sessions.build!)).toBe(0)
     expect(host.fake.model.requests).toEqual([])
+  })
+
+  it("lists an account's recordings as Memory's events, with no model turn and no prompt", async () => {
+    const from = host.fake.calls.length
+    const result = await call("build", "events_list", { input: { since: "2026-09-28" } })
+    expect(result.value).toMatchObject({
+      source: "plaud",
+      account: "default",
+      owner: { id: "plaud:user-1", label: "Fixture" },
+      events: [{ source: "plaud", account: "default", external_id: "rec-1", kind: "meeting", occurred_at: "2026-10-01T09:00:00.000Z", title: "Weekly sync", text: "Recorded for 1 min.", url: null }],
+      more: false,
+      trust: "untrusted",
+    })
+    expect(new Set(toolCalls(from))).toEqual(new Set(["get_current_user", "list_files"]))
+    expect(await call("build", "events_list", { input: { cursor: result.value.cursor } })).toMatchObject({ value: { events: [], more: false } })
+    expect(await call("build", "events_list", { account: "team", input: { cursor: result.value.cursor } })).toMatchObject({ type: "failed", code: "EVENTS_CURSOR_INVALID" })
+    expect(await host.pending(sessions.build!)).toBe(0)
   })
 
   it("never lets a signed link reach a script", async () => {

@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `plaud_events_list`, and the tools RPC method `events_list`: one account's recordings since a cursor, as Memory's normalised events, oldest first, each with its name, start (UTC) and length. It asserts `plaud_events_list` with the account as the resource and reads through that account's `get_current_user` and `list_files` (one week at a time, every page), never asks, and is allowed by default, so Memory's collector can run it unattended. A recording is listed once it started 6 hours ago. The owner is the signed-in Plaud user.
+- `src/host/events-list.ts`, the shared `events_list` source contract, carried unchanged; `scripts/check-copies.mjs` pins it like the other shared copies.
+- The errors `EVENTS_CURSOR_INVALID` and `EVENTS_OWNER_UNKNOWN`.
+
 ## [0.0.7] - 2026-11-06
 
 ### Added

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../src/domain/redact.js"
 import { accountServer, KNOWN_READS as PLAUD_READS } from "../src/host/mcp.js"
-import { defaultRules, RECENT_ACTION } from "../src/host/permissions.js"
+import { defaultRules, EVENTS_ACTION, RECENT_ACTION } from "../src/host/permissions.js"
 import { reader } from "../src/host/tools/export.js"
 import { registerTools } from "../src/host/tools/index.js"
 import { recentMethod } from "../src/host/tools/recent.js"
@@ -105,9 +105,9 @@ describe("Plaud's tools RPC", () => {
     expect(TOOLS_RPC_ID).toBe("plaud.recordings.tools")
     expect([...KNOWN_READS]).toEqual(["list_files", "get_file", "get_note", "get_transcript", "get_current_user"])
     expect(KNOWN_READS).toBe(PLAUD_READS)
-    // The rules allow the server's five reads, then the plugin's own plaud_recent, which is a tool only.
+    // The rules allow the server's five reads, then the plugin's own plaud_recent and plaud_events_list, owned methods.
     const allowed = defaultRules(["plaud"]).filter((rule) => rule.effect === "allow").map((rule) => rule.action)
-    expect(allowed).toEqual([...KNOWN_READS.map((read) => `plaud_${read}`), RECENT_ACTION])
+    expect(allowed).toEqual([...KNOWN_READS.map((read) => `plaud_${read}`), RECENT_ACTION, EVENTS_ACTION])
     expect(KNOWN_READS).not.toContain("export")
     expect(KNOWN_READS).not.toContain("recent")
     const { methods } = await rpc(["plaud_list_files", "plaud_recent", "plaud_export"])

@@ -11,6 +11,7 @@ It uses the tools RPC, `plaud.recordings.tools`, through `opencode api` or an Op
 | `get_transcript` | `plaud_get_transcript` |
 | `get_current_user` | `plaud_get_current_user` |
 | `recent` | `plaud_recent`, the plugin's own: the newest recordings, one line each |
+| `events_list` | `plaud_events_list`, the plugin's own: one account's recordings since a cursor, as Memory's events ([configuration](configuration.md#events-list)) |
 | `describe` | none: lists the methods, their permission actions, whether OpenCode lists each tool now, and each tool's input as JSON Schema |
 
 Each server method runs Plaud's own read tool with the same input, through OpenCode's own connection and sign-in. The
@@ -21,6 +22,11 @@ through that account's `list_files`, so both rules apply. Its input is `{ "limit
 account is the envelope's `account`, never part of the input. It returns
 `{ "items": [{ "id", "text" }], "editable": false }`: one line per recording, with its title, start time (UTC) and
 length, and no link or content.
+
+`events_list` runs the plugin's own `plaud_events_list`, as the model does: it asserts `plaud_events_list` for the account,
+then reads through that account's `get_current_user` and `list_files`. Its input is the shared contract's
+`{ since?, cursor?, limit?, account?, source? }`; the account is the envelope's `account` or the input's, and the two
+may not differ.
 
 These are never methods, even with an allow rule:
 
@@ -143,8 +149,9 @@ A refusal or failure is the RPC error `failed`, with a message `CODE: what happe
 | `TOOL_UNAVAILABLE` | The account's server is connected, but OpenCode does not list the tool. |
 | `UPSTREAM_ERROR` | Plaud answered with an error, such as a recording that does not exist. The message holds the first line of Plaud's text, at most 300 characters, with tokens and URL query strings removed. |
 | `CANCELLED` | The request was cancelled. |
-| `INPUT_INVALID` | `recent` only: its input is not `{}` or `{ "limit": 1 to 20 }`, for example because it holds `account`, which belongs in the envelope. |
-| `PLAUD_READ_FAILED`, `PLAUD_UNREADABLE` | `recent` only: the account's `list_files` failed, or did not return a list. |
+| `INPUT_INVALID` | `recent` and `events_list` only: `recent`'s input is not `{}` or `{ "limit": 1 to 20 }`, for example because it holds `account`, which belongs in the envelope; `events_list`'s input breaks the contract, or names an account other than the envelope's. |
+| `PLAUD_READ_FAILED`, `PLAUD_UNREADABLE` | `recent` and `events_list` only: the account's `list_files` or `get_current_user` failed, or did not return what it should. |
+| `EVENTS_CURSOR_INVALID`, `EVENTS_OWNER_UNKNOWN` | `events_list` only: the cursor is not one it issued for this account and user, or Plaud named no user. |
 
 OpenCode itself answers `rpc.method_not_found` for a method that does not exist, such as `export` or a tool Plaud added
 later, and `rpc.invalid_input` for a body that is not the envelope above, with one issue per problem:
@@ -161,7 +168,7 @@ later, and `rpc.invalid_input` for a body that is not the envelope above, with o
 
 ## What scripts cannot do
 
-- Call a tool that is not one of the five reads or `plaud_recent`, even with an allow rule: no export, and no other Plaud tool.
+- Call a tool that is not one of the five reads, `plaud_recent` or `plaud_events_list`, even with an allow rule: no export, and no other Plaud tool.
 - Get a signed link.
 - Answer an approval prompt, or use a tool that asks.
 - Use a token: the plugin has none to give.

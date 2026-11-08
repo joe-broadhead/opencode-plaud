@@ -5,6 +5,7 @@ import {
   evaluate,
   EXPORT_ACTION,
   insertDefaultRules,
+  EVENTS_ACTION,
   RECENT_ACTION,
   registerPermissions,
   unguardedAgents,
@@ -70,9 +71,10 @@ const rules = (agents: readonly Agent[], id: string) => agents.find((agent) => a
 const DEFAULT_RULES = defaultRules(["plaud"])
 
 describe("default permission rules", () => {
-  it("asks for every plaud tool, allows each configured server's known reads and plaud_recent by exact name, and asks for exports", () => {
+  it("asks for every plaud tool, allows each configured server's known reads, plaud_recent and plaud_events_list by exact name, and asks for exports", () => {
     expect(EXPORT_ACTION).toBe("plaud_export")
     expect(RECENT_ACTION).toBe("plaud_recent")
+    expect(EVENTS_ACTION).toBe("plaud_events_list")
     const reads = ["list_files", "get_file", "get_note", "get_transcript", "get_current_user"]
     expect(defaultRules(["plaud", "plaud-work"])).toEqual([
       { action: "plaud*_*", resource: "*", effect: "ask" },
@@ -80,6 +82,7 @@ describe("default permission rules", () => {
       ...reads.map((read) => ({ action: `plaud-work_${read}`, resource: "*", effect: "allow" })),
       { action: "plaud_export", resource: "*", effect: "ask" },
       { action: "plaud_recent", resource: "*", effect: "allow" },
+      { action: "plaud_events_list", resource: "*", effect: "allow" },
     ])
   })
 

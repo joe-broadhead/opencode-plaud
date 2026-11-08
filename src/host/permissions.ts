@@ -1,20 +1,23 @@
 import type { PluginContext, Registration } from "./context.js"
 import { KNOWN_READS } from "./mcp.js"
+import type { Access } from "../domain/types.js"
 // The status RPC's plain rule is the one Rule type: the TUI bundle reads src/rpc.ts and must not import this file.
 import type { Rule } from "../rpc.js"
 
 /**
- * Default permission rules. OpenCode evaluates an agent's rules in order and
+ * The default permission rules. OpenCode evaluates an agent's rules in order and
  * the last match wins, so the plugin inserts its rules right after each
- * agent's base `* * allow`:
+ * agent's base `* * allow`, broad first:
  *
- * - every `plaud*_*` action asks: new upstream tools, and any server tool not
- *   known to be a read;
+ * - `plaud*_*` takes the effect `access` asks for: at `all` it allows the
+ *   namespace, so a tool Plaud adds later runs at once; `ask-changes` asks for
+ *   it and `read-only` denies it;
  * - the known reads of each configured account's server are allowed again by
  *   exact name (`plaud_get_file`, `plaud-work_get_file`, …), so they never
  *   prompt and work in `opencode run`, and no other tool whose name merely
  *   ends like a read (`plaud_bulk_get_file`, `plaudit_get_file`) is allowed;
- * - `plaud_export` asks;
+ * - `plaud_export`, the one tool that writes a file, takes the same effect: an
+ *   export runs at `all`, asks at `ask-changes`, and is denied at `read-only`;
  * - `plaud_recent`, the plugin's own read, is allowed by its exact name. It
  *   is one tool for every account: it asserts `plaud_recent` with the account
  *   as the resource, and reads through that account's `<server>_list_files`,
@@ -37,12 +40,21 @@ export const RECENT_ACTION = "plaud_recent"
 /** The plugin's own tools: `plaud_` names them too, but they are not a server's. */
 export const OWN_TOOLS: readonly string[] = [EXPORT_ACTION, RECENT_ACTION]
 
-/** The default rules for these servers, the default account's `plaud` first. */
-export function defaultRules(servers: readonly string[]): Rule[] {
+/** The plugin's namespace: a tool Plaud adds later follows the same effect, so `all` means everything. */
+export const NAMESPACE_ACTION = "plaud*_*"
+
+/** The actions that change something: the export writes a file. Everything else is a read. */
+export const CHANGING_ACTIONS: readonly string[] = [EXPORT_ACTION]
+
+const effectFor = (access: Access): Rule["effect"] => (access === "all" ? "allow" : access === "ask-changes" ? "ask" : "deny")
+
+/** The block for these servers, the default account's `plaud` first, and this `access` value. */
+export function defaultRules(servers: readonly string[], access: Access = "all"): Rule[] {
+  const other = effectFor(access)
   return [
-    { action: "plaud*_*", resource: "*", effect: "ask" },
+    { action: NAMESPACE_ACTION, resource: "*", effect: other },
     ...servers.flatMap((server) => KNOWN_READS.map((tool): Rule => ({ action: `${server}_${tool}`, resource: "*", effect: "allow" }))),
-    { action: EXPORT_ACTION, resource: "*", effect: "ask" },
+    { action: EXPORT_ACTION, resource: "*", effect: other },
     { action: RECENT_ACTION, resource: "*", effect: "allow" },
   ]
 }
@@ -86,9 +98,10 @@ const UNKNOWN_TOOL = "plaud_unknown_tool"
  * the transform never sees them; an agent whose own rules already ask for
  * or deny Plaud's tools needs no fix and is not listed. Other plugins insert
  * their rules at the same place, so the block may sit anywhere after the
- * base allow.
+ * base allow. At `all` nothing is held back, so no agent needs the fix.
  */
-export function unguardedAgents(agents: readonly { readonly id: string; readonly permissions: readonly Rule[] }[], block: readonly Rule[]): string[] {
+export function unguardedAgents(agents: readonly { readonly id: string; readonly permissions: readonly Rule[] }[], block: readonly Rule[], access: Access = "all"): string[] {
+  if (access === "all") return []
   return agents
     .filter((agent) => {
       const base = agent.permissions.findIndex(isBaseAllow)

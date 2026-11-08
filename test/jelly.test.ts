@@ -28,9 +28,9 @@ describe("the jelly declaration", () => {
     expect(declarationProblems(ROOT, { effectOf: (permission) => evaluate(rules, permission) })).toEqual([])
   })
 
-  it("declares each known read and plaud_recent as reads that run, and the export as a write that asks", () => {
+  it("declares each known read and plaud_recent as reads that run, and the export as a write that runs by default", () => {
     for (const read of KNOWN_READS) expect(byPermission.get(`plaud_${read}`)).toMatchObject({ name: `plaud.${read}`, effect: "allow", readOnly: true })
-    expect(byPermission.get(EXPORT_ACTION)).toMatchObject({ name: "plaud.export", effect: "ask", readOnly: false })
+    expect(byPermission.get(EXPORT_ACTION)).toMatchObject({ name: "plaud.export", effect: "allow", readOnly: false })
     expect(byPermission.get(RECENT_ACTION)).toMatchObject({ name: "plaud.recent", effect: "allow", readOnly: true })
     expect(jelly.tools).toHaveLength(KNOWN_READS.length + 2)
   })

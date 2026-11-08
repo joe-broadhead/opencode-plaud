@@ -1,5 +1,6 @@
 import { scrubUrls, withholdSignedLinksInOutput, withholdSignedLinksInText } from "../../domain/redact.js"
 import { DEFAULT_ACCOUNT } from "../../domain/config.js"
+import { PlaudError } from "../../domain/errors.js"
 import type { PluginConfig } from "../../domain/types.js"
 import type { PluginContext, Registration } from "../context.js"
 import { exportTool } from "./export.js"
@@ -17,7 +18,7 @@ export const NAMESPACE = {
   description:
     "Plaud voice recordings. list_files, get_note, get_transcript, get_file and get_current_user read from Plaud's " +
     "server; recent lists the newest recordings, one line each; export saves one recording's audio, transcript or " +
-    "note to a local file, after asking the user. To read what a recording says, call get_note (its notes, such as " +
+    "note to a local file, asking the user unless a rule allows it. To read what a recording says, call get_note (its notes, such as " +
     "the summary) or get_transcript (what was said). Don't call get_file: it returns 150-320 KB, mostly the raw " +
     "transcript and the notes again, and its audio link is withheld; for audio, even a download link, call export. " +
     "Times such as start_at are UTC without a Z; durations are in milliseconds. Another account <alias> has its " +
@@ -50,9 +51,25 @@ export async function registerTools(ctx: ToolsHost, options: ToolOptions): Promi
     await ctx.tool.hook("execute.after", (event) => {
       if (!PLAUD_TOOL.test(event.tool)) return
       if (event.status === "error") {
+        const failure = event.error
+        // An export folder is outside the project, so OpenCode asks for `external_directory` as well as the export's
+        // own action. Its refusal names the rule as the next step: the folder is the user's to change, not the model's.
+        if (event.tool === "plaud_export" && /external_directory/i.test(failure.message)) {
+          const folder = options.exportRoots.join(", ")
+          const { metadata } = event.error
+          const ToolError = failure.constructor as new (fields: { message: string; error?: unknown; metadata?: unknown }) => typeof failure
+          event.error = new ToolError({
+            message: new PlaudError(
+              "EXPORT_PATH_NOT_PERMITTED",
+              `OpenCode asks for the external_directory permission before anything outside the project is written, and the export folders are outside it: ${folder}.`,
+              `Allow it with { "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" } in your permissions, or set exportRoots inside the project.`,
+            ).message,
+            ...(metadata === undefined ? {} : { metadata: { ...metadata, code: "EXPORT_PATH_NOT_PERMITTED" } }),
+          })
+          return
+        }
         // Plaud's server puts no link in its errors today; this keeps it so. The cause stays, so a declined prompt is
         // still the host's, and an unchanged error is left as it is.
-        const failure = event.error
         const message = scrubUrls(failure.message)
         if (message === failure.message) return
         const { error, metadata } = failure

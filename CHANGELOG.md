@@ -4,8 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- The `access` option restricts what the generated default rules allow: `"all"` (the default), `"ask-changes"` and `"read-only"`. The block is generated from the tool classes, with the `plaud*_*` namespace rule first, so a tool Plaud adds later follows the same value. `/plaud-status` and the status RPC report the value and the block.
+
 ### Changed
 
+- **Every tool is allowed by default.** The plugin inserts an allow for each tool it registers and for the `plaud*_*` namespace: the five reads of every account's server, `plaud_recent`, and `plaud_export`, which writes a file. An agent runs them without asking, and nothing is held back. `"ask-changes"` makes every export ask, and `"read-only"` denies exports and any tool the plugin does not know; the reads always run.
+- An export folder is outside the project, so OpenCode asks for `external_directory` on the folder as well as `plaud_export`. A refusal that names it is `EXPORT_PATH_NOT_PERMITTED`, whose next step is the rule to allow, and a script that exports outside the project needs both rules. README, SECURITY, `docs/configuration.md` and `docs/scripting.md` say so.
+- The tools RPC follows the same default: every method is allowed unless `access` or the session's rules restrict it; a script's export also needs the `external_directory` allow when the folder is outside the project.
 - The tools RPC is v2: every known tool is a method with its class, `plaud_export` (class `export`) and `plaud_recent` included, and a call runs only with a prior explicit `allow` in the agent's or the session's rules. An `ask` is refused before the tool runs, so no prompt waits, and a saved "Always allow" does not authorize an ad-hoc script. `export` takes the account from the envelope and returns a path, a size and a hash; signed links stay withheld on the script path.
 
 ## [0.0.7] - 2026-11-06

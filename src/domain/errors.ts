@@ -33,6 +33,10 @@ export const ERRORS = {
     meaning: "The destination is outside the export folders the plugin may write in.",
     next: "Write inside a root the plugin lists, or ask the user to add the folder to exportRoots.",
   },
+  EXPORT_PATH_NOT_PERMITTED: {
+    meaning: "OpenCode asks for the external_directory permission before anything outside the project is written, and the export folder is outside it.",
+    next: "Allow it with { \"action\": \"external_directory\", \"resource\": \"<the export folder>/*\", \"effect\": \"allow\" } in your permissions, or set exportRoots inside the project.",
+  },
   EXPORT_BAD_DESTINATION: {
     meaning: "The destination is not a file path the plugin can write.",
     next: "Pass a plain file path, without a trailing slash, and without `~`, which is not expanded.",

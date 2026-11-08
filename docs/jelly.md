@@ -19,10 +19,12 @@ writes each declared `ask` or `deny` as that tool's default instead (the person'
 replaces it), and denies a read-only helper every tool not marked `readOnly`. A declared `allow`
 changes nothing in Jelly.
 
-- Ask: `plaud_export`.
+- Ask: none. Every declared tool is allowed, as the plugin's own default rules allow it at `access: "all"`.
 - Off: none.
-- Everything else runs, as the plugin's own rules let it: the five reads of Plaud's server, and
-  `plaud_recent`, the plugin's own read of the newest recordings.
+
+The declared tools are the five reads of Plaud's server, `plaud_recent`, the plugin's own read of
+the newest recordings, and `plaud_export`, the one tool that writes a file. To make the export ask
+in Jelly too, set `access: "ask-changes"` in the plugin options; `"read-only"` denies it there.
 
 The reads are declared for the default account's server, `plaud`. Another account's reads,
 `plaud-<alias>_<read>`, are not declared, because the accounts are a plugin option that Jelly

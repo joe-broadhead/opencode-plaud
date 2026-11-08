@@ -46,8 +46,8 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
     name: "export",
     description:
       "Export one Plaud recording to a local file: its audio, one transcript block, or its note tabs, as Markdown for text. " +
-      "Each export first asks the user, showing the account, kind, recording and destination, unless they chose Always " +
-      "allow for that account and kind; if they decline, nothing is written. " +
+      "Each export asks the user unless a rule allows it, showing the account, kind, recording and destination; the " +
+      "plugin's access option's \"ask-changes\" makes every export ask, and a declined request is final. " +
       `It writes only inside the export roots (${roots.join(", ")}); for another folder, the user adds it to the ` +
       "exportRoots option. The default destination is <first root>/<kind>/<recordingId>.<ext>; a transcript's is " +
       "<first root>/transcript/<recordingId>.<block>.md, so each block has its own file. Missing folders are created. " +

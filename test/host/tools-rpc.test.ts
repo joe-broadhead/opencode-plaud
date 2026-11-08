@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../../src/domain/redact.js"
+import { defaultRules } from "../../src/host/permissions.js"
 import { Plaud } from "../../src/rpc.js"
 import { SIGNATURE, UPSTREAM_FAILURE } from "../fixtures/fake-plaud.js"
 import { startHost, type Harness, type Rule } from "./harness.js"
@@ -45,7 +46,7 @@ beforeAll(async () => {
   mkdirSync(dirname(SHADOW), { recursive: true })
   writeFileSync(SHADOW, "---\nname: opencode-plaud-digest\ndescription: The user's own digest skill.\n---\n\nThe user's own digest steps.\n")
   host = await startHost({
-    options: { accounts: ["work", "team"] },
+    options: { accounts: ["work", "team"], access: "ask-changes" },
     config: (fake) => ({
       skills: [dirname(dirname(SHADOW))],
       agents: {
@@ -280,4 +281,67 @@ describe("a skill that shadows one of the plugin's", () => {
     const status = (await host.opencode.rpc(Plaud).status({}, { location: host.location })) as { shadowedSkills: unknown }
     expect(status.shadowedSkills).toEqual([{ id: "opencode-plaud-digest", path: SHADOW }])
   })
+})
+
+/**
+ * One host per `access` value, on the tools RPC path. `ask-changes` is the suite above, where an export is refused
+ * before anything is read; here `all` runs the export and writes the file with no prompt, and `read-only` denies it
+ * with nothing written.
+ */
+describe("access on the tools RPC path", () => {
+  const ask = async (target: Harness, sessionID: string, method: string, input: unknown): Promise<Record<string, any>> => {
+    try {
+      return { value: (await target.opencode.rpc.call({ rpcID: RPC, method, input: { sessionID, input } as never, location: target.location })).output }
+    } catch (error) {
+      const e = error as { data?: { code?: string }; message?: string }
+      return { code: e.data?.code, message: String(e.message ?? e) }
+    }
+  }
+
+  for (const [access, effect] of [["all", "allow"], ["read-only", "deny"]] as const) {
+    describe(access, () => {
+      let target: Harness
+      let sessionID: string
+      beforeAll(async () => {
+        target = await startHost({ options: { access } })
+        await target.until("the Plaud server to connect", async () => {
+          const { data } = await target.opencode.mcp.list({ location: target.location })
+          return data.find((server) => server.name === "plaud")?.status.status === "connected" ? data : undefined
+        })
+        await target.until("the Plaud tools", async () => {
+          const ids = (await target.tools()).map((tool) => tool.id)
+          return ids.includes("plaud_get_note") ? ids : undefined
+        })
+        sessionID = (await target.opencode.sessions.create({ agent: "build", location: target.location })).id
+      })
+      afterAll(async () => { await target?.close() })
+
+      it(`inserts the ${access} block, and a read still runs`, async () => {
+        const agents = (await target.opencode.agent.list({ location: target.location })).data
+        const build = agents.find((agent) => agent.id === "build")!
+        expect(build.permissions.slice(1, 1 + defaultRules(["plaud"], access).length)).toEqual(defaultRules(["plaud"], access))
+        const read = await ask(target, sessionID, "get_note", { file_id: "rec-1" })
+        expect(read.value).toMatchObject({ text: expect.stringContaining("rec-1") })
+        expect(await target.pending(sessionID)).toBe(0)
+      })
+
+      it(`${effect === "deny" ? "denies" : "runs"} the export with no prompt`, async () => {
+        const before = target.fake.calls.length
+        const result = await ask(target, sessionID, "export", { recordingId: "rec-1", kind: "note" })
+        if (effect === "deny") {
+          expect(result).toMatchObject({ code: "PERMISSION_DENIED" })
+          expect(result.message).toMatch(/denied|hidden/)
+          expect(target.fake.calls).toHaveLength(before)
+          expect(existsSync(join(target.exportRoot, "note", "rec-1.md"))).toBe(false)
+        } else {
+          expect(result.value).toMatchObject({ path: join(target.exportRoot, "note", "rec-1.md"), bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) })
+          expect(existsSync(result.value.path)).toBe(true)
+        }
+        expect(await target.pending(sessionID)).toBe(0)
+        // status reports the value and the block for it.
+        const status = (await target.opencode.rpc(Plaud).status({}, { location: target.location })) as { access: string; permissionsBlock: unknown }
+        expect(status).toMatchObject({ access, permissionsBlock: defaultRules(["plaud"], access) })
+      })
+    })
+  }
 })

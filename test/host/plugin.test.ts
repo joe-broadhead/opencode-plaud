@@ -6,6 +6,7 @@ import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../../src/domain/redact.js"
 import { Plaud } from "../../src/rpc.js"
 import { PLUGIN_VERSION } from "../../src/version.js"
 import { AUDIO_BYTES, SIGNATURE } from "../fixtures/fake-plaud.js"
+import { defaultRules } from "../../src/host/permissions.js"
 import { PLUGIN_ID, REPO, startHost, type Harness, type Rule } from "./harness.js"
 
 /**
@@ -18,14 +19,8 @@ import { PLUGIN_ID, REPO, startHost, type Harness, type Rule } from "./harness.j
  */
 
 
-const READS = ["list_files", "get_file", "get_note", "get_transcript", "get_current_user"]
-/** The default rules for the three servers, broad first: the last matching rule wins. */
-const BLOCK: Rule[] = [
-  { action: "plaud*_*", resource: "*", effect: "ask" },
-  ...["plaud", "plaud-work", "plaud-team"].flatMap((server) => READS.map((read): Rule => ({ action: `${server}_${read}`, resource: "*", effect: "allow" }))),
-  { action: "plaud_export", resource: "*", effect: "ask" },
-  { action: "plaud_recent", resource: "*", effect: "allow" },
-]
+/** The block for the three servers at this suite's access value, broad first: the last matching rule wins. */
+const BLOCK: Rule[] = defaultRules(["plaud", "plaud-work", "plaud-team"], "ask-changes")
 const USER_RULES: Rule[] = [
   { action: "plaud_export", resource: "default:transcript", effect: "allow" },
   { action: "plaud_export", resource: "work:audio", effect: "deny" },
@@ -35,8 +30,9 @@ const SKILLS = ["opencode-plaud", "opencode-plaud-digest", "opencode-plaud-expor
 let host: Harness
 
 beforeAll(async () => {
+  // The host runs at `ask-changes`, so an export still asks here: that is where the refusal and the fix are tested.
   host = await startHost({
-    options: { accounts: ["work", "team"] },
+    options: { accounts: ["work", "team"], access: "ask-changes" },
     config: (fake) => ({
       permissions: USER_RULES,
       agents: {
@@ -400,6 +396,7 @@ describe("status", () => {
     expect(status).toEqual({
       version: PLUGIN_VERSION,
       state: "sign_in_required",
+      access: "ask-changes",
       accounts: [
         { account: "default", server: "plaud", state: "signed_in" },
         { account: "work", server: "plaud-work", state: "sign_in_needed", userServer: true },

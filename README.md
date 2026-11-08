@@ -48,15 +48,15 @@ Ask about your recordings, for example "what did I record this week?" or "save t
 | `plaud_get_file` | `tools.plaud.get_file` | One recording in full: 150 to 320 KB, mostly the raw transcript and the notes again. The skill and Code Mode's description steer the model away from it, to the notes, the transcript, or `plaud_export` for audio | runs |
 | `plaud_get_current_user` | `tools.plaud.get_current_user` | The signed-in account | runs |
 | `plaud_recent` | `tools.plaud.recent` | The newest recordings, one line each: title, start time and length | runs |
-| `plaud_export` | `tools.plaud.export` | Save audio, a transcript or a note as a file | asks |
+| `plaud_export` | `tools.plaud.export` | Save audio, a transcript or a note as a file | runs, unless `access` asks |
 
-Plaud maintains the read tools and their arguments. Plaud has no write API: nothing here can create, rename, delete, upload, share or send a recording. Any other tool on a Plaud server asks before it runs.
+Plaud maintains the read tools and their arguments. Plaud has no write API: nothing here can create, rename, delete, upload, share or send a recording. Any other tool on a Plaud server runs too; set `access` to `"ask-changes"` or `"read-only"` to hold it back.
 
 The skills are `opencode-plaud` (the tools and Plaud's data model), `opencode-plaud-export` (exports) and `opencode-plaud-digest` (a digest of several recordings, or a follow-up draft).
 
 ### Exports
 
-`plaud_export` asks each time, and shows the account, kind, recording and destination.
+With `access` at `"ask-changes"`, `plaud_export` asks each time, and shows the account, kind, recording and destination.
 
 - Files go in your export folders only, `~/Plaud` by default. The default file is `<first folder>/<kind>/<recordingId>.<ext>`: `.md` for notes, and the audio's own extension. A transcript's default file names its block, `<first folder>/transcript/<recordingId>.<block>.md`, so each block of a recording has its own file.
 - Missing folders are created. Files are private (0600) and new folders too (0700).
@@ -82,10 +82,10 @@ See [SECURITY.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/SECU
 ### Scripts
 
 A script or a cron job can call Plaud's five read tools, `plaud_recent` and `plaud_export` with no model, through
-`opencode api`. It runs as a session and its agent, and every call needs a rule that resolves to `allow`: the reads and
-`recent` run on the default rules, while `export` asks by default, so a script exports only with a prior explicit
-`allow` in the session's or the agent's rules. An `ask` is refused, and a saved "Always allow" is not enough. Add
-`"account": "<alias>"` to reach another account. A script never gets a signed link:
+`opencode api`. It runs as a session and its agent, and every call needs a rule that resolves to `allow`. Every tool is
+allowed by default, so a script runs a read, `recent` or an export unless you restrict the plugin: an `ask` is refused
+when nobody can answer it, and a saved "Always allow" is not enough. Add `"account": "<alias>"` to reach another
+account. A script never gets a signed link:
 
 ```sh
 opencode api post /api/rpc/plaud.recordings.tools/list_files -H "x-opencode-directory:$PWD" \
@@ -96,9 +96,100 @@ See [Scripting](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/s
 
 ## Permissions
 
-The plugin adds default rules to each agent: Plaud's read tools and `plaud_recent` run without a prompt, and `plaud_export` and any other Plaud tool ask first. "Always allow" on an export remembers only that account and kind, such as `default:transcript`. Your own `permissions` rules win over the defaults.
+**Every tool is allowed by default.** An agent can read your recordings and their notes and transcripts, list the newest ones, save audio, a transcript or a note to a file, and run any tool Plaud adds later, without asking. Restrict it in any of these three ways:
 
-`opencode run` and other runs where nobody can answer refuse an export unless a rule allows it. To export without a prompt, or to block some exports, see [Permissions](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#permissions).
+1. **The `access` option**, which drives the rules the plugin inserts directly after each agent's base `{ "action": "*", "resource": "*", "effect": "allow" }` rule. Agents without that base rule are left alone, and a later rule still wins.
+
+   | Value | What runs | What asks |
+   | --- | --- | --- |
+   | `"all"` (the default) | every tool, and any tool Plaud adds later | nothing |
+   | `"ask-changes"` | the reads, `plaud_recent` and any tool Plaud adds later | `plaud_export`, which writes a file |
+   | `"read-only"` | the reads and `plaud_recent` | nothing: exports and new tools are **denied** |
+
+   ```json
+   { "plugins": [{ "package": "@joe-broadhead/opencode-plaud", "options": { "access": "read-only" } }] }
+   ```
+
+2. **An agent that is read-only or asks**, with rules of its own, later than the plugin's:
+
+   ```json
+   { "agents": { "reader": { "permissions": [
+     { "action": "plaud*_*", "resource": "*", "effect": "deny" },
+     { "action": "plaud_list_files", "resource": "*", "effect": "allow" }
+   ] } } }
+   ```
+
+3. **A rule per tool**, with the exact names in [docs/configuration.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#permissions). To make the export ask, or stop it:
+
+   ```json
+   { "permissions": [
+     { "action": "plaud_export", "resource": "work:audio", "effect": "deny" },
+     { "action": "plaud_export", "resource": "*", "effect": "ask" }
+   ] }
+   ```
+
+The block for each value, for the default account's `plaud` server, generated from `defaultRules(servers, access)` in `src/host/permissions.ts`. Each account in `accounts` adds its own five reads before the export, and `/plaud-status` shows the block for your accounts:
+
+<!-- generated:rules-all -->
+
+`access: "all"`
+
+| Action | Resource | Effect |
+| --- | --- | --- |
+| `plaud*_*` | `*` | `allow` |
+| `plaud_list_files` | `*` | `allow` |
+| `plaud_get_file` | `*` | `allow` |
+| `plaud_get_note` | `*` | `allow` |
+| `plaud_get_transcript` | `*` | `allow` |
+| `plaud_get_current_user` | `*` | `allow` |
+| `plaud_export` | `*` | `allow` |
+| `plaud_recent` | `*` | `allow` |
+
+<!-- /generated:rules-all -->
+
+<!-- generated:rules-ask-changes -->
+
+`access: "ask-changes"`
+
+| Action | Resource | Effect |
+| --- | --- | --- |
+| `plaud*_*` | `*` | `ask` |
+| `plaud_list_files` | `*` | `allow` |
+| `plaud_get_file` | `*` | `allow` |
+| `plaud_get_note` | `*` | `allow` |
+| `plaud_get_transcript` | `*` | `allow` |
+| `plaud_get_current_user` | `*` | `allow` |
+| `plaud_export` | `*` | `ask` |
+| `plaud_recent` | `*` | `allow` |
+
+<!-- /generated:rules-ask-changes -->
+
+<!-- generated:rules-read-only -->
+
+`access: "read-only"`
+
+| Action | Resource | Effect |
+| --- | --- | --- |
+| `plaud*_*` | `*` | `deny` |
+| `plaud_list_files` | `*` | `allow` |
+| `plaud_get_file` | `*` | `allow` |
+| `plaud_get_note` | `*` | `allow` |
+| `plaud_get_transcript` | `*` | `allow` |
+| `plaud_get_current_user` | `*` | `allow` |
+| `plaud_export` | `*` | `deny` |
+| `plaud_recent` | `*` | `allow` |
+
+<!-- /generated:rules-read-only -->
+
+"Always allow" on an export remembers only that account and kind, such as `default:transcript`. Your own `permissions` rules win over the defaults.
+
+An export writes into an export folder, which is outside the project, so OpenCode asks for `external_directory` as well as the export's own action. A rule for `plaud_export` alone does not cover an unattended run:
+
+```json
+{ "permissions": [{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }] }
+```
+
+`opencode run` and other runs where nobody can answer refuse an export unless a rule allows it. See [Permissions](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#permissions).
 
 ## Configure
 
@@ -160,6 +251,7 @@ Members then only sign in, once per account: run `/connect` and choose **Plaud**
 | `EXPORT_EXISTS` | The destination file exists and overwrite was not set. | Ask the user before passing overwrite: true, or choose another path. |
 | `EXPORT_FAILED` | Writing the file failed. | Check the folder is writable and there is space, then retry. |
 | `EXPORT_OUTSIDE_ROOTS` | The destination is outside the export folders the plugin may write in. | Write inside a root the plugin lists, or ask the user to add the folder to exportRoots. |
+| `EXPORT_PATH_NOT_PERMITTED` | OpenCode asks for the external_directory permission before anything outside the project is written, and the export folder is outside it. | Allow it with { "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" } in your permissions, or set exportRoots inside the project. |
 | `EXPORT_TIMEOUT` | The export did not finish inside exportTimeoutMs. | Ask the user to raise exportTimeoutMs, then retry. |
 | `EXPORT_TOO_LARGE` | The exported text is over the 25 MiB cap. | Export one transcript block or the note instead of everything. |
 | `INPUT_INVALID` | A call's input is not the method's schema, such as `account` in a plugin tool's input. | Call describe for the schema, then pass the fields it names; the account is the envelope's. |

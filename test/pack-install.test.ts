@@ -262,7 +262,8 @@ async function serve(version: string, name = `host-${version}`, config: Record<s
   writeFileSync(join(env.XDG_CONFIG_HOME, "opencode", "service.json"), JSON.stringify({ port }))
   writeFileSync(
     join(directory, "opencode.json"),
-    JSON.stringify({ plugins: [{ package: installed, options: { url: fake.url, exportRoots: [join(root, "exports")] } }], ...config }, null, 2),
+    // `access: "ask-changes"` exercises the option end to end on the installed package: its block asks for the export.
+    JSON.stringify({ plugins: [{ package: installed, options: { url: fake.url, exportRoots: [join(root, "exports")], access: "ask-changes" } }], ...config }, null, 2),
   )
   const password = randomUUID()
   const full = { ...env, ...OFFLINE, PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8", OPENCODE_PASSWORD: password }

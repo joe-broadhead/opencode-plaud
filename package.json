@@ -137,7 +137,7 @@
       {
         "name": "plaud.export",
         "permission": "plaud_export",
-        "effect": "ask",
+        "effect": "allow",
         "readOnly": false
       }
     ],

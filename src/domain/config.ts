@@ -2,6 +2,7 @@ import { homedir } from "node:os"
 import { isAbsolute, resolve } from "node:path"
 import * as z from "zod"
 import type { PluginConfig } from "./types.js"
+import { ACCESS_VALUES } from "./types.js"
 
 /**
  * Plugin options. Every key is optional, so zero config works, and an unknown
@@ -57,6 +58,7 @@ const Options = z.strictObject({
   // Milliseconds. The ceiling stays far below the 2^31 - 1 ms that timers can hold.
   exportTimeoutMs: z.number().int().min(1_000).max(24 * 3_600_000).default(DEFAULT_EXPORT_TIMEOUT_MS),
   allowUntestedHost: z.boolean().default(false),
+  access: z.enum(ACCESS_VALUES).default("all"),
 })
 
 /**

@@ -35,11 +35,11 @@ export default Plugin.define({
       const servers = await registerMcp(ctx, options)
       registrations.push(servers)
       registrations.push(nameIntegrations(ctx, servers.list))
-      registrations.push(await registerPermissions(ctx, defaultRules(servers.list.map((server) => server.name))))
+      registrations.push(await registerPermissions(ctx, defaultRules(servers.list.map((server) => server.name), options.access)))
       registrations.push(await registerTools(ctx, options))
       // `../skills/` is the package's skills folder from both src/ and the bundled dist/.
       const skills = await loadSkills(new URL("../skills/", import.meta.url))
-      const status = () => readStatus(ctx, { host, servers, exportRoots: options.exportRoots, skills })
+      const status = () => readStatus(ctx, { host, servers, exportRoots: options.exportRoots, skills, access: options.access })
       registrations.push(await registerCommands(ctx, status))
       registrations.push(await registerSkills(ctx, skills))
       registrations.push(await registerRpc(ctx, status))

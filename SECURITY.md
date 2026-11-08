@@ -42,17 +42,33 @@ Recording names, transcripts and notes are content from your recordings, and any
 
 ## Permissions
 
-- The plugin adds default rules to each agent: Plaud's five read tools, including `get_current_user` (your own account details), run without a prompt, and exports and every other Plaud tool ask. See [Configuration](docs/configuration.md#permissions).
+**Every tool is allowed by default.** That means an agent, and a script, can read any of your recordings, including
+their transcripts, notes and your own account details, and can save audio, a transcript or a note to a file in an
+export folder, without asking. It can also run a tool Plaud adds later. Nothing here can change, delete or send a
+recording, because Plaud's server offers no such tool; the plugin's own tools are reads and the export.
+
+The export is the one tool that writes to disk, and it writes only inside `exportRoots` (`~/Plaud` by default). Those
+folders are outside the project, so OpenCode asks for `external_directory` on the folder as well as `plaud_export`
+before anything is written. A rule for one does not cover the other:
+
+```json
+{ "permissions": [{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }] }
+```
+
+To restrict it, set the `access` option: `"ask-changes"` makes every export ask, and `"read-only"` denies exports and
+any tool the plugin does not know, while the reads still run. Per-tool rules work as before, and a later rule wins.
+See [Configuration](docs/configuration.md#permissions).
+
 - **A saved "Always allow" applies to the whole project and to every agent in it, Plan included.** OpenCode saves the approval for the project, not for the agent or the session. A `deny` rule in your config still wins over it.
 - **OpenCode decides which folders form one project.** On OpenCode 2.2.3, a folder with no git commit, such as a new git repository, can belong to OpenCode's shared `global` project. An approval saved there then applies in every other folder of that project. Do not count on a saved approval staying in one folder. For exports you want unattended, prefer an `allow` rule in that project's `opencode.json`, narrowed to the account and kind.
-- Agents that you define only in your config do not get the default rules, so exports and other Plaud tools run there without a prompt. `/plaud-status` names these agents and gives the fix.
+- Agents that you define only in your config do not get the default rules, so at `"ask-changes"` or `"read-only"` an export or a new tool can run there without asking. At the default `"all"` nothing is held back, and `/plaud-status` names no agent.
 - The rule pattern `plaud*_*`, and the signed-link hook, also match the tools of any other MCP server whose name starts with `plaud`.
 
 ## Scripts
 
 The tools RPC (`plaud.recordings.tools`, see [docs/scripting.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/scripting.md)) calls Plaud's tools for a script, with no model. Every known tool is a method, with its class, but a method is not a grant:
 
-- A script names a session that names an agent, and runs as them. Before any call, the plugin resolves that method's permission action against the agent's rules and then the session's rules, the host's own order. Only `allow` runs: a rule that resolves to `ask` is refused because no one can answer it, and a `deny` is refused. Neither makes a Plaud call. The default rules allow the five reads and `recent`; `export` asks, so a script writes a file only with a prior explicit `allow` in the agent's or the session's rules.
+- A script names a session that names an agent, and runs as them. Before any call, the plugin resolves that method's permission action against the agent's rules and then the session's rules, the host's own order. Only `allow` runs: a rule that resolves to `ask` is refused because no one can answer it, and a `deny` is refused. Neither makes a Plaud call. The default rules allow every method, so a script runs a read, `recent` or an export unless `access` or the rules restrict it; at `"ask-changes"` an export is refused, so a script writes a file only with a prior explicit `allow` in the agent's or the session's rules. An export folder outside the project also needs an `external_directory` allow, because the host asks for it before any file is written.
 - A saved "Always allow" is **not** consulted: it lives outside the agent's and session's rules, so an old click does not authorize a new script. A grant is reviewable in config, or in a Jobs one-off's approval.
 - After the resolve, the call runs through OpenCode's own executor, which checks `<server>_<tool>` again, as it does for the model. `recent` and `export` then assert `plaud_recent` and `plaud_export` themselves and read through the account's own tools, so those rules apply too. The plugin's permission hook still changes only an `ask` on one of its own script calls in flight, only to a deny, and leaves every other call alone.
 - A tool Plaud adds later is not a method, so a script cannot reach it until a release classifies it.

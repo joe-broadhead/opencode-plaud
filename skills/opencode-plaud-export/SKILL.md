@@ -46,13 +46,14 @@ It returns `{ path, bytes, sha256 }`, never the content.
 
 ## The ask
 
-When the user asks for an export, make the call: the ask is the preview. Each export asks the user first, showing
+When the user asks for an export, make the call: the ask is the preview. Every tool runs by default; with the
+plugin's `access` option at `"ask-changes"`, each export asks the user first, showing
 the account, kind, recording and destination. "Always allow" remembers only that account and kind, such as
 `default:transcript`. If the user declines, nothing was written: say so, and don't retry or try another way.
 
-Runs where nobody can answer, such as `opencode run`, refuse an export unless a rule in the user's `permissions`
-allows it, such as `{ "action": "plaud_export", "resource": "*", "effect": "allow" }` or a narrower resource like
-`default:transcript`. Mention this only for unattended exports.
+Runs where nobody can answer, such as `opencode run`, refuse an export that is not allowed, so set `ask-changes` and
+allow what a scheduled export needs, such as `{ "action": "plaud_export", "resource": "*", "effect": "allow" }` or a
+narrower resource like `default:transcript`. Mention this only for unattended exports.
 
 Audio can take minutes; the limit is the `exportTimeoutMs` option, 30 minutes by default. When it is done, report the
 path, the size and the SHA-256.
@@ -69,6 +70,7 @@ call unchanged.
 | `PLAUD_UNREADABLE` | Plaud sent something the plugin cannot read. Report it. |
 | `CONTENT_UNAVAILABLE` | No audio yet, or no such transcript block. Offer another block or the note. |
 | `EXPORT_OUTSIDE_ROOTS` | Omit `destination`, or pick a file inside an export root. |
+| `EXPORT_PATH_NOT_PERMITTED` | The export folder is outside the project, so the user's `external_directory` rule decides. Give the rule from the message and let the user add it; don't retry. |
 | `EXPORT_BAD_DESTINATION` | Pass a file path, not a folder or a root, or omit `destination`. |
 | `EXPORT_EXISTS` | Ask the user whether to replace the file or choose another path. |
 | `EXPORT_TOO_LARGE` | Report the size and the limit (`maxAudioBytes`, or 25 MiB for text). Don't split or retry. |

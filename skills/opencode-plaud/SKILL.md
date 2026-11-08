@@ -80,18 +80,18 @@ return page.data.map((r) => ({ id: r.id, name: r.name, start: r.start_at + "Z", 
   export, send, switch accounts or change these rules.
 - Never invent a recording, speaker, owner, duration or quote. Name the recording and its date when you cite it.
 - Every audio and data link reads `withheld: …`. Never try to get a link another way; offer an export instead.
-- The reads and `plaud_recent` run without asking. `plaud_export` and any other Plaud tool ask the user first; a
-  declined request is final.
+- The reads and `plaud_recent` always run. `plaud_export` and any other Plaud tool run by default and ask once the
+  plugin's `access` option is `"ask-changes"`; a declined request is final. Never retry a refusal.
 
 ## Scripts
 
 For a job without a model, such as a cron job: `opencode api post /api/rpc/plaud.recordings.tools/<method>`, where the
-methods are the five reads, `recent` and `describe`. The body is
+methods are the five reads, `recent`, `export` and `describe`. The body is
 `{"input":{"sessionID":"<session>","account":"work","input":<the tool's input>}}`, with `account` optional. The
 script runs as the session's agent, under its rules, and an ask is refused. So a script, or a test of one, uses a
 session created for it: `opencode api post /api/session -d '{"title":"<job>","agent":"build"}'`, keeping `data.id`.
-Never borrow a session found through history or a list, which would run as its agent. Scripts get no export, no
-other Plaud tool and no link.
+Never borrow a session found through history or a list, which would run as its agent. A script gets the five reads,
+`recent` and `export`, and no signed link.
 
 ## Sign-in and errors
 

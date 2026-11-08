@@ -9,7 +9,7 @@ import { schemaProblems } from "./json-schema.js"
 
 const READS = ["list_files", "get_file", "get_note", "get_transcript", "get_current_user"]
 const BASE_ALLOW = { action: "*", resource: "*", effect: "allow" } as const
-/** The block for the two servers of `facts()`. */
+/** The block for the two servers of `facts()`, at the default access value. */
 const DEFAULT_RULES = defaultRules(["plaud", "plaud-work"])
 const guarded = (id: string) => ({ id, permissions: [BASE_ALLOW, ...DEFAULT_RULES] })
 
@@ -18,6 +18,7 @@ const OWN_SKILLS = ["opencode-plaud", "opencode-plaud-digest", "opencode-plaud-e
 function facts(overrides: Partial<StatusFacts> = {}): StatusFacts {
   return {
     host: checkHost("2.2.3", false),
+    access: "all",
     servers: [
       { account: "default", name: "plaud" },
       { account: "work", name: "plaud-work" },
@@ -56,7 +57,7 @@ describe("status model", () => {
     expect(statusLines(status).find((line) => line.label === "Agents without default rules")).toEqual({ label: "Agents without default rules", value: "none", tone: "info" })
     expect(statusLines(status).at(-1)).toEqual({ label: "Next step", value: READY_STEP, tone: "info" })
     expect(statusLines(status).find((line) => line.label === "Tools")?.value).toBe("11 available")
-    expect(statusLines(status).find((line) => line.label === "Access")?.value).toBe("Reads run without asking. Exports ask, and write only in /fixture/Plaud.")
+    expect(statusLines(status).find((line) => line.label === "Access")?.value).toBe("Every tool runs without asking. Exports write only in /fixture/Plaud.")
     expect(rulesBlock(status)).toBeUndefined()
   })
 
@@ -64,7 +65,7 @@ describe("status model", () => {
     const unknown = ["plaud_delete_file", "plaud-work_delete_file", "plaud_share<script>", "plaudx_list_files", "plaud-other_list_files"]
     const status = buildStatus(facts({ tools: [...facts().tools, ...unknown] }))
     expect(status.tools).toEqual({ visible: 11, unknown: 3, unknownNames: ["delete_file"] })
-    expect(statusLines(status).find((line) => line.label === "Tools")?.value).toBe("11 available, 3 unknown: delete_file (they ask before running)")
+    expect(statusLines(status).find((line) => line.label === "Tools")?.value).toBe("11 available, 3 unknown: delete_file (new tools run too)")
   })
 
   it("counts plaud_recent as the plugin's own tool, not an unknown server tool", () => {
@@ -123,13 +124,16 @@ describe("status model", () => {
     expect(statusLines(status)[1]).toEqual({ label: "Account", value: "default (server plaud, from your OpenCode config), work (server plaud-work)", tone: "info" })
   })
 
-  it("names agents without the default rules and gives the per-agent fix", () => {
+  it("names agents without the default rules and gives the per-agent fix, at a restricting access value", () => {
+    const block = defaultRules(["plaud", "plaud-work"], "ask-changes")
     const status = buildStatus(
       facts({
+        access: "ask-changes",
         agents: [
-          guarded("build"),
+          { id: "build", permissions: [BASE_ALLOW, ...block] },
+          { id: "plan", permissions: [BASE_ALLOW, ...block] },
           { id: "reviewer", permissions: [BASE_ALLOW] },
-          { id: "explore", permissions: [BASE_ALLOW, ...DEFAULT_RULES, { action: "*", resource: "*", effect: "deny" }] },
+          { id: "explore", permissions: [BASE_ALLOW, ...block, { action: "*", resource: "*", effect: "deny" }] },
           { id: "locked", permissions: [{ action: "*", resource: "*", effect: "deny" }] },
           // Its own rules end with an ask for everything, so every Plaud tool already asks there (LIVE-1).
           { id: "perf-probe", permissions: [BASE_ALLOW, { action: "*", resource: "*", effect: "ask" }] },
@@ -137,11 +141,14 @@ describe("status model", () => {
       }),
     )
     expect(status.unguardedAgents).toEqual(["reviewer"])
-    expect(status.permissionsBlock).toEqual(DEFAULT_RULES)
+    expect(status.access).toBe("ask-changes")
+    expect(status.permissionsBlock).toEqual(block)
+    // At the default access nothing is held back, so no agent needs the fix and the next step is the ready one.
+    expect(buildStatus(facts({ agents: [{ id: "reviewer", permissions: [BASE_ALLOW] }] })).unguardedAgents).toEqual([])
     // The family's one sentence, verbatim, with no agent names (TRIAGE 1).
     expect(status.nextStep).toBe(AGENTS_STEP)
     expect(AGENTS_STEP).toBe("Put the default rules shown by /plaud-status first in each listed agent's own permissions, in opencode.json or the agent's Markdown file, followed by your top-level rules for Plaud tools.")
-    expect(JSON.parse(rulesBlock(status)!)).toEqual(DEFAULT_RULES)
+    expect(JSON.parse(rulesBlock(status)!)).toEqual(block)
     const agents = statusLines(status).find((line) => line.label === "Agents without default rules")
     expect(agents).toMatchObject({ tone: "warning", block: rulesBlock(status) })
     expect(agents?.value).toBe("reviewer")
@@ -176,6 +183,7 @@ describe("status model", () => {
       { mcp: { list: mcp }, tool: { list: tools }, agent: { list: agents }, skill: { list: skills } } as never,
       {
         host: checkHost("2.2.4", false),
+        access: "all",
         servers: { list: [{ account: "default", name: "plaud" }], inUse: () => ["plaud"] },
         exportRoots: ["/fixture/Plaud"],
         skills: OWN_SKILLS,
@@ -188,7 +196,8 @@ describe("status model", () => {
     expect(agents).toHaveBeenCalledOnce()
     expect(status.tools).toEqual({ visible: 2, unknown: 1, unknownNames: ["rename"] })
     expect(status.accounts).toEqual([{ account: "default", server: "plaud", state: "sign_in_needed", userServer: true }])
-    expect(status.unguardedAgents).toEqual(["reviewer"])
+    // At the default access nothing is held back, so an agent without the rules needs no fix.
+    expect(status.unguardedAgents).toEqual([])
     expect(status.host).toEqual({ version: "2.2.4", range: ">=2.2.3 <2.3.0", tested: true })
     // The block is the one for the configured servers.
     expect(status.permissionsBlock).toEqual(defaultRules(["plaud"]))
@@ -208,8 +217,9 @@ describe("status model", () => {
       value: `opencode-plaud-export is shadowed by ${path}, so agents load that file instead of this plugin's skill`,
       tone: "warning",
     })
-    // The agents fix comes first: those agents run exports without asking.
-    expect(buildStatus(facts({ skills, agents: [{ id: "reviewer", permissions: [BASE_ALLOW] }] })).nextStep).toBe(AGENTS_STEP)
+    // At a restricting value the agents fix comes first: those agents run exports without asking.
+    expect(buildStatus(facts({ access: "ask-changes", skills, agents: [{ id: "reviewer", permissions: [BASE_ALLOW] }] })).nextStep).toBe(AGENTS_STEP)
+    expect(buildStatus(facts({ skills, agents: [{ id: "reviewer", permissions: [BASE_ALLOW] }] })).nextStep).toBe(`Move or rename the skill at ${path}, so that this plugin's opencode-plaud-export skill loads, then run opencode reload.`)
     // A skill list without the plugin's skills, or with them, shadows nothing.
     expect(buildStatus(facts({ skills: [] })).shadowedSkills).toEqual([])
     expect(buildStatus(facts()).shadowedSkills).toEqual([])

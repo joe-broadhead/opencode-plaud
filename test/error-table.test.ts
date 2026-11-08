@@ -69,10 +69,11 @@ describe("documented errors", () => {
       "EXPORT_EXISTS",
       "EXPORT_FAILED",
       "EXPORT_OUTSIDE_ROOTS",
+      "EXPORT_PATH_NOT_PERMITTED",
       "EXPORT_TIMEOUT",
       "EXPORT_TOO_LARGE",
     ]
-    for (const code of recent) expect(read("src/host/tools/recent.ts") + read("src/host/tools/export.ts") + read("src/domain/normalize.ts") + read("src/domain/paths.ts")).toContain(`"${code}"`)
+    for (const code of recent) expect(read("src/host/tools/recent.ts") + read("src/host/tools/export.ts") + read("src/host/tools/index.ts") + read("src/domain/normalize.ts") + read("src/domain/paths.ts")).toContain(`"${code}"`)
     expect([...new Set([...shared, ...recent])].sort()).toEqual([...documented("docs/scripting.md")].sort())
   })
 })

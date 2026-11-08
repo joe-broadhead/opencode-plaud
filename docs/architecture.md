@@ -58,9 +58,9 @@ OpenCode names the server's tools `<server>_<tool>` and puts them in Code Mode. 
 
 ## Permissions
 
-The default rules use no permission hook. `ctx.agent.transform` inserts the block right after each agent's base `* * allow` rule: `plaud*_*` asks, the five known reads of each configured account's server (`plaud_<tool>`, `plaud-<alias>_<tool>`) are allowed again by exact name, `plaud_export` asks, and `plaud_recent` is allowed by its exact name. Everything later in the agent's list, and saved approvals, still win. Agents without a base allow are left alone. The rules are in [configuration](configuration.md#the-default-rules).
+The default rules use no permission hook. `ctx.agent.transform` inserts the block `defaultRules(servers, access)` returns right after each agent's base `* * allow` rule, broad first: `plaud*_*` takes the `access` effect, the five known reads of each configured account's server (`plaud_<tool>`, `plaud-<alias>_<tool>`) are allowed again by exact name, `plaud_export` takes the same effect, and `plaud_recent` is allowed by its exact name. At the default `"all"` every rule allows, so a tool Plaud adds later runs too; `"ask-changes"` and `"read-only"` are how a user restricts it. Everything later in the agent's list, and saved approvals, still win. Agents without a base allow are left alone. The rules are in [configuration](configuration.md#permissions).
 
-OpenCode creates agents defined only in the user's config after plugins run, so they miss the rules. Status finds those that need a fix, `unguardedAgents()`: agents with a base allow, without the block anywhere after it, whose own rules would let an unknown Plaud tool run without asking (`evaluate()`: the last matching rule wins). An agent whose rules already ask for or deny Plaud's tools is not listed. It names them and gives the per-agent fix.
+OpenCode creates agents defined only in the user's config after plugins run, so they miss the rules. Status finds those that need a fix, `unguardedAgents()`: at `"all"` none, because nothing is held back; at a restricting value, agents with a base allow, without the block anywhere after it, whose own rules would let an unknown Plaud tool run without asking (`evaluate()`: the last matching rule wins). An agent whose rules already ask for or deny Plaud's tools is not listed. It names them and gives the per-agent fix.
 
 ## Export
 
@@ -112,7 +112,7 @@ The envelope's optional `account` picks the server: none or `default` is `plaud`
 
 The summary line names the most urgent account state, in this order: sign-in required, failed, not configured, disabled, connecting, connected.
 
-Every view shows the rows in one order: Connection (each account's state), Account (each account's server), Access (reads run, exports ask, and the export folders), Skills (only when a skill of the user's or a project's has one of the plugin's skill ids, so OpenCode loads it instead: its path), Tools, Agents without default rules (`none`, or the names with the rules to copy), OpenCode (the version, `tested` or `untested`, and the supported range), then one Next step: the most urgent, or `Nothing to do.`
+Every view shows the rows in one order: Connection (each account's state), Account (each account's server), Access (what `access` allows, and the export folders), Skills (only when a skill of the user's or a project's has one of the plugin's skill ids, so OpenCode loads it instead: its path), Tools, Agents without default rules (`none`, or the names with the rules to copy), OpenCode (the version, `tested` or `untested`, and the supported range), then one Next step: the most urgent, or `Nothing to do.`
 
 Three views show it:
 

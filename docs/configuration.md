@@ -37,6 +37,7 @@ Give options with the object form of the plugin entry:
 | `maxAudioBytes` | `2147483648` (2 GiB) | The largest audio file an export writes. A transcript or note file is held to a fixed 25 MiB. |
 | `exportTimeoutMs` | `1800000` (30 minutes) | How long one export may take, in milliseconds. |
 | `allowUntestedHost` | `false` | Start on an OpenCode release outside the supported range, with a warning. |
+| `access` | `"all"` | What the generated default rules allow: `"all"`, `"ask-changes"` (the export asks) or `"read-only"` (the export is denied). See [Permissions](#permissions). |
 
 Rules for the values:
 
@@ -46,6 +47,7 @@ Rules for the values:
 - **`maxAudioBytes`**: a whole number from 1 to 64 GiB.
 - **`exportTimeoutMs`**: a whole number from 1000 (1 second) to 86400000 (24 hours). The time starts after you approve the export, so time spent on the prompt does not count. It is separate from OpenCode's own tool time limits.
 - **`allowUntestedHost`**: the plugin supports OpenCode `>=2.2.3 <2.3.0` and is tested on 2.2.3, 2.2.4, 2.2.5 and 2.2.6. Inside the range it always starts; on a release there that is not tested, it prints a warning and `/plaud-status` calls it untested. Outside the range, which includes prereleases and development builds, it does not start, unless this option is set: then it starts, prints a warning, and `/plaud-status` calls the release untested.
+- **`access`**: one of the three values above, and nothing else. It changes only the rules the plugin inserts; your own rules still come later and win.
 
 An unknown key or a wrong value stops the plugin from starting. The error names every problem at once:
 
@@ -68,31 +70,55 @@ If your config already defines an MCP server with one of these names in `mcp.ser
 
 ## Permissions
 
-### The default rules
+**Every tool is allowed by default.** An agent can read your recordings, save an export to a file, and run any tool Plaud adds later, without asking. Three ways to restrict it:
 
-The plugin inserts these rules into each agent's permissions, right after the agent's base `* * allow` rule:
+1. **The `access` option**, below.
+2. **An agent that is read-only or asks**, with rules of its own, later than the plugin's.
+3. **A rule per tool**, with the names in [Permission names](#permission-names).
+
+### The `access` option
+
+`access` drives the rules the plugin inserts into each agent's permissions, directly after the agent's base `* * allow` rule. The block is generated from the tool classes: the five reads of each account's server and `plaud_recent` are reads, and `plaud_export` is the one tool that writes a file.
+
+| Value | What runs | What asks |
+| --- | --- | --- |
+| `"all"` (the default) | every tool, and one Plaud adds later | nothing |
+| `"ask-changes"` | the reads, `plaud_recent` and one Plaud adds later | `plaud_export` |
+| `"read-only"` | the reads | nothing: exports and new tools are **denied** |
 
 ```json
-[
-  { "action": "plaud*_*", "resource": "*", "effect": "ask" },
-  { "action": "plaud_list_files", "resource": "*", "effect": "allow" },
-  { "action": "plaud_get_file", "resource": "*", "effect": "allow" },
-  { "action": "plaud_get_note", "resource": "*", "effect": "allow" },
-  { "action": "plaud_get_transcript", "resource": "*", "effect": "allow" },
-  { "action": "plaud_get_current_user", "resource": "*", "effect": "allow" },
-  { "action": "plaud_export", "resource": "*", "effect": "ask" },
-  { "action": "plaud_recent", "resource": "*", "effect": "allow" }
-]
+{ "plugins": [{ "package": "@joe-broadhead/opencode-plaud", "options": { "access": "ask-changes" } }] }
 ```
 
-Each account in `accounts` adds the same five allow rules for its own server, before `plaud_export`: for `work`, `plaud-work_list_files` to `plaud-work_get_current_user`. `/plaud-status` shows the exact block for your accounts.
+`/plaud-status` shows the value and the block it inserts. The default block, for the default account's `plaud` server, generated from `defaultRules(servers, access)` in `src/host/permissions.ts`:
 
-So, by default:
+<!-- generated:rules-all -->
 
-- the five read tools of each account's server (`list_files`, `get_file`, `get_note`, `get_transcript` and `get_current_user`) run without a prompt, also in `opencode run`. They are allowed by exact name, so a later Plaud tool whose name only ends like a read, such as `plaud_bulk_get_file`, asks, as do the tools of a server you named `plaud…` yourself;
-- `plaud_recent`, the plugin's own read of the newest recordings, runs without a prompt for every account. It is allowed by its exact name, and it reads through the account's own `list_files`, so a rule for that read applies to it too;
-- `plaud_export` asks;
-- any other tool on a Plaud server asks, including a tool Plaud adds later.
+`access: "all"`
+
+| Action | Resource | Effect |
+| --- | --- | --- |
+| `plaud*_*` | `*` | `allow` |
+| `plaud_list_files` | `*` | `allow` |
+| `plaud_get_file` | `*` | `allow` |
+| `plaud_get_note` | `*` | `allow` |
+| `plaud_get_transcript` | `*` | `allow` |
+| `plaud_get_current_user` | `*` | `allow` |
+| `plaud_export` | `*` | `allow` |
+| `plaud_recent` | `*` | `allow` |
+
+<!-- /generated:rules-all -->
+
+Each account in `accounts` adds the same five allow rules for its own server, such as `plaud-work_list_files` to `plaud-work_get_current_user`, before the export's rule. The [README](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/README.md#permissions) prints the block for all three values.
+
+So, in each case:
+
+- the five read tools of each account's server (`list_files`, `get_file`, `get_note`, `get_transcript` and `get_current_user`) always run, also in `opencode run`. They are allowed by exact name, so a later Plaud tool whose name only ends like a read, such as `plaud_bulk_get_file`, follows the `access` value, as do the tools of a server you named `plaud…` yourself;
+- `plaud_recent`, the plugin's own read of the newest recordings, always runs for every account. It is allowed by its exact name, and it reads through the account's own `list_files`, so a rule for that read applies to it too;
+- `plaud_export` asks at `"ask-changes"` and is denied at `"read-only"`;
+- any other tool on a Plaud server follows the same rule, so `"all"` runs a tool Plaud adds later, and `"read-only"` denies it.
+
+All values still leave the host's own path rules in place: an export writes outside the project, so OpenCode asks for `external_directory` on the export folder as well as the export's own action. A refusal that names `external_directory` costs nothing, since nothing was read or written; allow it with `{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }`, or move the folder inside the project with `exportRoots`.
 
 OpenCode uses the last rule that matches. Everything after the base allow comes later and wins over these rules:
 
@@ -110,22 +136,22 @@ An agent without a base `* * allow` rule gets no Plaud rules.
 | `plaud_recent` | `plaud_recent`, then the account's `<server>_list_files` | the account, such as `default` or `work`; `*` for the read | that account only |
 | `plaud_export` | `plaud_export` | `<account>:<kind>`, such as `default:audio` or `work:transcript` | that account and kind only |
 
-The kinds are `audio`, `transcript` and `note`. Patterns can use `*`. Note that `plaud*_*` also matches `plaud_export` and `plaud_recent`, and the tools of any other MCP server whose name starts with `plaud`. A rule such as `{ "action": "plaud*_*", "resource": "*", "effect": "allow" }` therefore also allows every export.
+The kinds are `audio`, `transcript` and `note`. Patterns can use `*`. Note that `plaud*_*` also matches `plaud_export` and `plaud_recent`, and the tools of any other MCP server whose name starts with `plaud`. A rule such as `{ "action": "plaud*_*", "resource": "*", "effect": "allow" }` therefore allows every export too.
 
 ### Change the defaults
 
 Add rules to `permissions` in your config. They come after the plugin's rules, so they win.
 
-Export transcripts of the default account without a prompt:
+Make the export ask while everything else runs:
+
+```json
+{ "permissions": [{ "action": "plaud_export", "resource": "*", "effect": "ask" }] }
+```
+
+Export transcripts of the default account without a prompt, at `"ask-changes"`:
 
 ```json
 { "permissions": [{ "action": "plaud_export", "resource": "default:transcript", "effect": "allow" }] }
-```
-
-Export everything without a prompt, for example for `opencode run`:
-
-```json
-{ "permissions": [{ "action": "plaud_export", "resource": "*", "effect": "allow" }] }
 ```
 
 Block audio exports from the `work` account. A `deny` wins over a saved approval too:
@@ -148,13 +174,13 @@ When a prompt offers "Always allow", OpenCode saves the approval for the whole p
 
 ### Runs that cannot ask
 
-`opencode run` and other unattended runs cannot answer a prompt. There, an export or an unknown Plaud tool fails with `Permission plaud_export needs approval` (or the tool's own action), unless a rule allows it.
+`opencode run` and other unattended runs cannot answer a prompt. There, a tool whose rule asks, or the export folder's `external_directory` rule, fails with `Permission … needs approval` unless a rule allows it. At the default `"all"` nothing in the plugin asks.
 
 ### Agents defined in your config
 
-OpenCode creates agents that you define only in your config after plugins load, so those agents do not get the default rules. Unless their own rules ask for or deny Plaud's tools, their Plaud exports and other Plaud tools then run without a prompt. `/plaud-status` and the status dialog name such agents, under **Agents without default rules**, and show the rules to copy. An agent whose own rules already ask for or deny every Plaud tool, such as one ending with `{ "action": "*", "resource": "*", "effect": "ask" }`, is not listed: it needs no fix.
+OpenCode creates agents that you define only in your config after plugins load, so those agents do not get the default rules. At `"all"` nothing is held back, so there is nothing to fix and `/plaud-status` names no agent. At `"ask-changes"` or `"read-only"`, an agent whose own rules would run a Plaud tool without asking is named under **Agents without default rules**, with the block to copy. An agent whose own rules already ask for or deny every Plaud tool, such as one ending with `{ "action": "*", "resource": "*", "effect": "ask" }`, is not listed: it needs no fix.
 
-The fix: put the default rules first in **that agent's own** `permissions`, then repeat any rules for Plaud tools from your top-level `permissions`, so yours keep winning. For an agent `reviewer`, with the top-level rule from the first example above:
+The fix: put the default rules first in **that agent's own** `permissions`, then repeat any rules for Plaud tools from your top-level `permissions`, so yours keep winning. For an agent `reviewer` at `"ask-changes"`, with the top-level rule from the first example above:
 
 ```jsonc
 {
@@ -206,6 +232,7 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | `PLAUD_UNREADABLE` | export, recent | Plaud returned something the plugin cannot use, such as an audio link that is not a valid https URL, an audio download that redirects to one or more than 5 times, a transcript that never ends, or a recording list that is not a list. |
 | `CONTENT_UNAVAILABLE` | export | The recording has no audio yet, or no such transcript block. |
 | `EXPORT_OUTSIDE_ROOTS` | export | The destination is outside the export roots. |
+| `EXPORT_PATH_NOT_PERMITTED` | export | The export folder is outside the project and the `external_directory` rule refused the write. |
 | `EXPORT_BAD_DESTINATION` | export | The destination is a folder or a root, or the recording id cannot be a file name. |
 | `EXPORT_EXISTS` | export | A file exists and `overwrite` is not true. |
 | `EXPORT_TOO_LARGE` | export | The audio is over `maxAudioBytes`, or a transcript or note is over 25 MiB. |

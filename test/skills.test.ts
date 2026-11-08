@@ -25,6 +25,7 @@ const CODES: Record<Exclude<ErrorCode, "INPUT_INVALID">, true> = {
   PLAUD_UNREADABLE: true,
   CONTENT_UNAVAILABLE: true,
   EXPORT_OUTSIDE_ROOTS: true,
+  EXPORT_PATH_NOT_PERMITTED: true,
   EXPORT_BAD_DESTINATION: true,
   EXPORT_EXISTS: true,
   EXPORT_TOO_LARGE: true,

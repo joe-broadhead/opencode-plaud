@@ -121,7 +121,7 @@ describe("Plaud's tools RPC", () => {
     expect(METHODS.map((method) => method.name)).toEqual([...PLAUD_READS])
     for (const method of METHODS) expect(method).toMatchObject({ kind: "mcp", class: "read" })
     // The rules allow the server's five reads, then the plugin's own two tools, which are methods too.
-    const allowed = defaultRules(["plaud"]).filter((rule) => rule.effect === "allow").map((rule) => rule.action)
+    const allowed = defaultRules(["plaud"], "ask-changes").filter((rule) => rule.effect === "allow").map((rule) => rule.action)
     expect(allowed).toEqual([...METHODS.map((read) => `plaud_${read.name}`), RECENT_ACTION])
     const { methods } = await rpc(["plaud_list_files", "plaud_recent", "plaud_export"])
     expect(methods.sort()).toEqual(["describe", ...METHODS.map((method) => method.name), "recent", "export"].sort())
@@ -298,6 +298,45 @@ describe("Plaud's tools RPC", () => {
     expect(seen.output).toMatchObject({ items: [{ id: "rec-1", text: "Weekly sync" }], presigned_url: AUDIO_URL_NOTICE })
     expect(seen.content[0]!.text).toContain(`"data_link":"${DATA_LINK_NOTICE}"`)
     expect(JSON.stringify(seen)).not.toContain(SIGNATURE)
+  })
+
+  it("turns an external_directory refusal of an export into EXPORT_PATH_NOT_PERMITTED, whose next step is the rule", async () => {
+    // The host's own Tool.Error takes fields, so the hook can rebuild it with a typed message.
+    class ToolError extends Error {
+      metadata?: unknown
+      constructor(fields: { message: string; error?: unknown; metadata?: unknown }) {
+        super(fields.message)
+        this.metadata = fields.metadata
+      }
+    }
+    let after: ((event: { status: string; tool: string; error: Error & { metadata?: unknown } }) => void) | undefined
+    await registerTools(
+      {
+        tool: {
+          transform: async (edit: (editor: unknown) => void) => {
+            edit({ namespace: () => undefined, add: () => undefined })
+            return { dispose: async () => undefined }
+          },
+          hook: async (_name: string, callback: typeof after) => {
+            after = callback
+            return { dispose: async () => undefined }
+          },
+          list: async () => [],
+        },
+        permission: { assert: async () => undefined },
+      } as never,
+      { accounts: [], exportRoots: ["/fixture/Plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 },
+    )
+    const refused = { status: "error", tool: "plaud_export", error: new ToolError({ message: "permission.rejected: external_directory", metadata: { code: "other" } }) }
+    after!(refused as never)
+    expect(refused.error.message).toContain("EXPORT_PATH_NOT_PERMITTED:")
+    expect(refused.error.message).toContain('{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }')
+    expect(refused.error.message).toContain("/fixture/Plaud")
+    expect(refused.error.metadata).toMatchObject({ code: "EXPORT_PATH_NOT_PERMITTED" })
+    // Another tool's refusal is left as it is, and so is an export failure that names something else.
+    const read = { status: "error", tool: "plaud_get_file", error: new ToolError({ message: "permission.rejected: external_directory" }) }
+    after!(read as never)
+    expect(read.error.message).toBe("permission.rejected: external_directory")
   })
 
   it("keeps durations in milliseconds, as Plaud returns them", async () => {

@@ -12,6 +12,7 @@ describe("plugin options", () => {
       maxAudioBytes: 2_147_483_648,
       exportTimeoutMs: 1_800_000,
       allowUntestedHost: false,
+      access: "all",
     })
   })
 
@@ -31,6 +32,7 @@ describe("plugin options", () => {
       maxAudioBytes: 1_000,
       exportTimeoutMs: 60_000,
       allowUntestedHost: true,
+      access: "read-only",
     }
     expect(loadConfig(options)).toEqual(options)
   })
@@ -72,6 +74,8 @@ describe("plugin options", () => {
     [{ exportTimeoutMs: 999 }, "exportTimeoutMs: Too small"],
     [{ exportTimeoutMs: 24 * 3_600_000 + 1 }, "exportTimeoutMs: Too big"],
     [{ allowUntestedHost: "yes" }, "allowUntestedHost: Invalid input: expected boolean"],
+    [{ access: "write" }, 'access: Invalid option: expected one of "all"|"ask-changes"|"read-only"'],
+    [{ access: true }, "access: Invalid option: expected one of"],
   ])("refuses %j with one coded message and the next step", (raw, issue) => {
     expect(() => loadConfig(raw)).toThrow(/^OPTIONS_INVALID: opencode-plaud has invalid options: /)
     expect(() => loadConfig(raw)).toThrow(issue)

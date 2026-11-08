@@ -1,5 +1,6 @@
 import { displayName, signInStep } from "./domain/auth.js"
 import { scrubUrls } from "./domain/redact.js"
+import type { Access } from "./domain/types.js"
 import type { PluginContext } from "./host/context.js"
 import { shadowedSkills, type ListedSkill } from "./host/skills.js"
 import { KNOWN_READS, type PlaudServers } from "./host/mcp.js"
@@ -18,6 +19,8 @@ type McpServerInfo = Awaited<ReturnType<PluginContext["mcp"]["list"]>>["data"][n
 
 export interface StatusFacts {
   readonly host: HostCheck
+  /** What the generated default rules allow, from the plugin options. */
+  readonly access: Access
   /** The plugin's servers, the default account first, and the names another definition already held. */
   readonly servers: readonly { readonly account: string; readonly name: string }[]
   readonly inUse: readonly string[]
@@ -119,8 +122,8 @@ export function buildStatus(facts: StatusFacts): Status {
       ...(facts.inUse.includes(server.name) ? { userServer: true } : {}),
     }
   })
-  const block = defaultRules(facts.servers.map((server) => server.name))
-  const unguarded = unguardedAgents(facts.agents, block)
+  const block = defaultRules(facts.servers.map((server) => server.name), facts.access)
+  const unguarded = unguardedAgents(facts.agents, block, facts.access)
   const shadowed = shadowedSkills(facts.skills, facts.ownSkills)
   const nextStep = accounts.map(accountStep).find((step) => step !== undefined)
     ?? (unguarded.length === 0 ? undefined : AGENTS_STEP)
@@ -129,6 +132,7 @@ export function buildStatus(facts: StatusFacts): Status {
     ?? (facts.host.inRange ? READY_STEP : `If Plaud misbehaves, use a tested OpenCode release: ${TESTED_TEXT}.`)
   const status = {
     version: PLUGIN_VERSION,
+    access: facts.access,
     accounts,
     exportRoots: [...facts.exportRoots],
     tools: countTools(facts.servers, facts.tools),
@@ -143,6 +147,8 @@ export function buildStatus(facts: StatusFacts): Status {
 
 interface StatusSources {
   readonly host: HostCheck
+  /** What the generated default rules allow, from the plugin options. */
+  readonly access: Access
   readonly servers: Pick<PlaudServers, "list" | "inUse">
   readonly exportRoots: readonly string[]
   /** The plugin's own skills, as it registers them. */
@@ -166,6 +172,7 @@ export async function readStatus(ctx: StatusHost, sources: StatusSources): Promi
   ])
   return buildStatus({
     host: sources.host,
+    access: sources.access,
     servers: sources.servers.list,
     inUse: sources.servers.inUse(),
     exportRoots: sources.exportRoots,

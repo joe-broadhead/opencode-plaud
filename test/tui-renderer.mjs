@@ -9,6 +9,7 @@ const { createElement, insert, testRender } = await import("@opentui/solid")
 const { default: plugin, STATUS_COMMAND, TUI_ID } = await import("../dist/tui.js")
 const { RPC_ID, rulesBlock, statusLines } = await import("../src/rpc.ts")
 
+// The block for `access: "ask-changes"`, the value these views show: the namespace and the export ask.
 const RULES = [
   { action: "plaud*_*", resource: "*", effect: "ask" },
   { action: "plaud_list_files", resource: "*", effect: "allow" },
@@ -17,11 +18,13 @@ const RULES = [
   { action: "plaud_get_transcript", resource: "*", effect: "allow" },
   { action: "plaud_get_current_user", resource: "*", effect: "allow" },
   { action: "plaud_export", resource: "*", effect: "ask" },
+  { action: "plaud_recent", resource: "*", effect: "allow" },
 ]
 const RANGE = ">=2.2.3 <2.3.0"
 const status = (overrides = {}) => ({
   version: "0.0.0-test",
   state: "sign_in_required",
+  access: "ask-changes",
   accounts: [
     { account: "default", server: "plaud", state: "sign_in_needed" },
     { account: "work", server: "plaud-work", state: "signed_in" },

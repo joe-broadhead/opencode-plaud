@@ -1,4 +1,5 @@
 import { Rpc } from "@opencode/plugin/rpc"
+import type { Access } from "./domain/types.js"
 
 /**
  * The RPC contract. It has one read-only method, `status`, called with `{}`.
@@ -52,6 +53,8 @@ export interface Status {
   readonly version: string
   /** The most urgent account's state. */
   readonly state: State
+  /** What the generated default rules allow: `all`, `ask-changes` or `read-only`. */
+  readonly access: Access
   /** One entry per account, the default account first. */
   readonly accounts: readonly AccountStatus[]
   /** Absolute folders plaud_export may write in. */
@@ -59,7 +62,7 @@ export interface Status {
   readonly tools: {
     /** Plaud tools the plugin knows: the reads of every account, plaud_export and plaud_recent. */
     readonly visible: number
-    /** Other tools of the Plaud servers; they ask before they run. */
+    /** Other tools of the Plaud servers; at `all` they run too. */
     readonly unknown: number
     /** The unknown tools' names, without the server prefix. */
     readonly unknownNames: readonly string[]
@@ -68,7 +71,7 @@ export interface Status {
   readonly host: { readonly version: string | null; readonly range: string; readonly tested: boolean }
   /** Agents without the plugin's default rules whose own rules let exports and other Plaud tools run without asking. */
   readonly unguardedAgents: readonly string[]
-  /** The default rules for the configured accounts, to add to each unguarded agent's own permissions. */
+  /** The default rules for the configured accounts and this `access` value, to add to each unguarded agent's own permissions. */
   readonly permissionsBlock: readonly Rule[]
   /** Skills with one of the plugin's skill ids that OpenCode loads instead of the plugin's, such as one in your own skills folder. */
   readonly shadowedSkills: readonly { readonly id: string; readonly path: string }[]
@@ -95,6 +98,7 @@ export const StatusSchema = object(
   {
     version: text,
     state: { enum: [...STATES] },
+    access: { enum: ["all", "ask-changes", "read-only"] },
     accounts: { type: "array", items: account },
     exportRoots: texts,
     tools: object({ visible: integer, unknown: integer, unknownNames: texts }, ["visible", "unknown", "unknownNames"]),
@@ -104,7 +108,7 @@ export const StatusSchema = object(
     shadowedSkills: { type: "array", items: object({ id: text, path: text }, ["id", "path"]) },
     nextStep: text,
   },
-  ["version", "state", "accounts", "exportRoots", "tools", "host", "unguardedAgents", "permissionsBlock", "shadowedSkills", "nextStep"],
+  ["version", "state", "access", "accounts", "exportRoots", "tools", "host", "unguardedAgents", "permissionsBlock", "shadowedSkills", "nextStep"],
 )
 
 export const Plaud = Rpc.define({
@@ -126,6 +130,7 @@ export function isStatus(value: unknown): value is Status {
   const tools = candidate.tools as Record<string, unknown> | undefined
   const host = candidate.host as Record<string, unknown> | undefined
   return typeof candidate.version === "string" && STATES.includes(candidate.state as State)
+    && (candidate.access === "all" || candidate.access === "ask-changes" || candidate.access === "read-only")
     && Array.isArray(candidate.accounts) && Array.isArray(candidate.exportRoots) && Array.isArray(candidate.unguardedAgents)
     && Array.isArray(candidate.permissionsBlock) && Array.isArray(candidate.shadowedSkills) && typeof candidate.nextStep === "string"
     && typeof tools?.visible === "number" && typeof tools.unknown === "number" && Array.isArray(tools.unknownNames)
@@ -173,6 +178,17 @@ interface StatusLine {
 /** The next step when nothing needs doing. */
 export const READY_STEP = "Nothing to do."
 
+/** What `access` means here, one fixed sentence per value: the Access row. */
+function accessText(status: Status): string {
+  const roots = status.exportRoots.join(", ")
+  if (status.access === "all") return `Every tool runs without asking. Exports write only in ${roots}.`
+  if (status.access === "read-only") return `Reads run without asking. Exports are denied, so nothing is written to ${roots}.`
+  return `Reads run without asking. Exports ask, and write only in ${roots}.`
+}
+
+/** What status says about a tool the plugin does not know, which follows `access`. */
+const unknownPosture = (access: Access) => (access === "all" ? "new tools run too" : access === "read-only" ? "they are denied" : "they ask before running")
+
 /**
  * The status as labelled lines, in the order every view shows them:
  * Connection, Account, Access, Skills (only when one is shadowed), Tools, Agents without default rules (with
@@ -192,7 +208,7 @@ export function statusLines(status: Status): StatusLine[] {
         .join(", "),
       tone: "info",
     },
-    { label: "Access", value: `Reads run without asking. Exports ask, and write only in ${status.exportRoots.join(", ")}.`, tone: "info" },
+    { label: "Access", value: accessText(status), tone: "info" },
   ]
   if (status.shadowedSkills.length > 0) {
     lines.push({
@@ -204,7 +220,7 @@ export function statusLines(status: Status): StatusLine[] {
   const { visible, unknown, unknownNames } = status.tools
   lines.push({
     label: "Tools",
-    value: `${visible} available${unknown === 0 ? "" : `, ${unknown} unknown${unknownNames.length === 0 ? "" : `: ${unknownNames.join(", ")}`} (they ask before running)`}`,
+    value: `${visible} available${unknown === 0 ? "" : `, ${unknown} unknown${unknownNames.length === 0 ? "" : `: ${unknownNames.join(", ")}`} (${unknownPosture(status.access)})`}`,
     tone: "info",
   })
   const block = rulesBlock(status)

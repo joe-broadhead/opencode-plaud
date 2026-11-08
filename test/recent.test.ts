@@ -135,10 +135,13 @@ describe("plaud_recent", () => {
     expect(line({ id: "x", name: "a".repeat(300) }).length).toBe(200)
   })
 
-  it("runs without asking by default, like the server's reads, by its exact name", () => {
-    const rules = [{ action: "*", resource: "*", effect: "allow" } as const, ...defaultRules(["plaud", "plaud-work"])]
-    expect(defaultRules(["plaud"])).toContainEqual({ action: RECENT_ACTION, resource: "*", effect: "allow" })
-    expect(evaluate(rules, RECENT_ACTION)).toBe("allow")
-    expect(evaluate(rules, "plaud-work_recent")).toBe("ask")
+  it("runs by its exact name at every access value, like the server's reads", () => {
+    for (const access of ["all", "ask-changes", "read-only"] as const) {
+      expect(defaultRules(["plaud"], access)).toContainEqual({ action: RECENT_ACTION, resource: "*", effect: "allow" })
+      const rules = [{ action: "*", resource: "*", effect: "allow" } as const, ...defaultRules(["plaud", "plaud-work"], access)]
+      expect(evaluate(rules, RECENT_ACTION), access).toBe("allow")
+      // A tool that only ends like it follows the namespace rule instead.
+      expect(evaluate(rules, "plaud-work_recent"), access).toBe(access === "all" ? "allow" : access === "ask-changes" ? "ask" : "deny")
+    }
   })
 })

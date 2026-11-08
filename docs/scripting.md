@@ -37,14 +37,31 @@ Every call resolves the method's permission action against the agent's rules and
 order; the last matching rule wins. Only `allow` runs:
 
 - An `ask` is refused with `PERMISSION_DENIED` before the tool runs, because no one can answer a prompt, and no prompt
-  is left waiting. This is the plugin's default for `plaud_export`, so a script exports only with a prior `allow`.
+  is left waiting. At the `access` option's `"ask-changes"`, this is the rule for `plaud_export`, so a script exports
+  only with a prior `allow`.
 - A `deny` is refused too, and its next step names the rule to change.
 - A saved "Always allow" from an earlier prompt does **not** authorize an ad-hoc script: it is not part of the agent's
   and session's rules, and a script's grant must be reviewable in config or in a job's approval. This is the one
   deliberate break from the earlier reads-only RPC.
 
-The five reads and `recent` are allowed by the plugin's default rules, so an agent with them needs nothing more. An
-agent defined only in your config misses those rules; `/plaud-status` names it and gives the fix.
+The plugin's default rules allow every method, at the default `access: "all"`, so a script runs a read, `recent` or
+an export unless the `access` option or the session's rules restrict it. A script gets the same default as the model,
+and it is restricted the same way: `"ask-changes"` makes an export ask, and an ask is refused here; `"read-only"`
+denies it, so an export needs a prior `allow` in the agent's or the session's rules.
+
+An export folder is outside the project, so OpenCode asks for `external_directory` on the folder as well as
+`plaud_export` before anything is written. A script that exports outside the project therefore needs both rules:
+
+```json
+{ "permissions": [
+  { "action": "plaud_export", "resource": "*", "effect": "allow" },
+  { "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }
+] }
+```
+
+A refusal that names `external_directory` costs nothing: nothing was read and nothing was written. Move the folder
+inside the project with the `exportRoots` option, or add the rule. An agent defined only in your config misses the
+default rules; at `"ask-changes"` or `"read-only"`, `/plaud-status` names it and gives the fix.
 
 ## Accounts
 
@@ -174,6 +191,7 @@ A refusal or failure is the RPC error `failed`, with a message `CODE: what happe
 | `PLAUD_READ_FAILED`, `PLAUD_UNREADABLE` | `recent` or `export`: a read it makes failed, or did not return what it expects. |
 | `CONTENT_UNAVAILABLE` | `export`: Plaud has no audio, or no such transcript block, for that recording. |
 | `EXPORT_OUTSIDE_ROOTS`, `EXPORT_BAD_DESTINATION`, `EXPORT_EXISTS` | `export`: the destination is outside the export roots, is not a file path, or exists and `overwrite` is not true. |
+| `EXPORT_PATH_NOT_PERMITTED` | `export`: the export folder is outside the project and the `external_directory` rule refused the write. Nothing was read or written; the next step is the rule to allow. |
 | `EXPORT_TOO_LARGE`, `EXPORT_TIMEOUT`, `EXPORT_FAILED` | `export`: the text is over 25 MiB, the export did not finish within `exportTimeoutMs`, or writing the file failed. |
 
 OpenCode itself answers `rpc.method_not_found` for a method that does not exist, such as a tool Plaud added later, and

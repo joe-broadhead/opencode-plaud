@@ -3,7 +3,9 @@
 import { describe, expect, test } from "vitest"
 import { readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
+import { ACCESS_VALUES } from "../src/domain/types.js"
 import { ERROR_CODES, ERRORS } from "../src/domain/errors.js"
+import { defaultRules } from "../src/host/permissions.js"
 import { NEXT_STEPS, TOOLS_RPC_ID } from "../src/host/tools-rpc.js"
 import { PLUGIN_ID, TESTED_HOSTS } from "../src/version.js"
 
@@ -26,6 +28,32 @@ const TESTS = walk("test", [".ts", ".tsx"])
 const DOCS = walk("docs", [".md"])
 const FILES = ["README.md", "AGENTS.md", "SECURITY.md", "CHANGELOG.md", "CONTRIBUTING.md"]
 
+/** Replace a generated block with `body`, or compare it when nothing is being regenerated. */
+function checkBlock(file: string, name: string, body: string) {
+  const open = `<!-- generated:${name} -->`
+  const close = `<!-- /generated:${name} -->`
+  const text = read(file)
+  const start = text.indexOf(open)
+  const end = text.indexOf(close)
+  expect({ file, name, markers: start !== -1 && end > start }).toEqual({ file, name, markers: true })
+  const expected = `${text.slice(0, start + open.length)}\n\n${body}\n\n${text.slice(end)}`
+  if (UPDATE) {
+    if (expected !== text) writeFileSync(`${ROOT}${file}`, expected)
+    return
+  }
+  expect(text, `${file}: the ${name} block is stale; run UPDATE_DOCS=1 npm test`).toBe(expected)
+}
+
+/** The block for one access value: one row per rule, in the order the transform inserts them, for `plaud`. */
+const rulesBody = (access: (typeof ACCESS_VALUES)[number]) => () =>
+  [
+    `\`access: "${access}"\``,
+    "",
+    "| Action | Resource | Effect |",
+    "| --- | --- | --- |",
+    ...defaultRules(["plaud"], access).map(rule => `| \`${rule.action}\` | \`${rule.resource}\` | \`${rule.effect}\` |`),
+  ].join("\n")
+
 /** Every code a caller can see: the plugin's own, and the refusals its tools RPC adds. */
 const CODES = [...new Set<string>([...ERROR_CODES, ...Object.keys(NEXT_STEPS)])].sort()
 
@@ -34,7 +62,33 @@ const storyOf = (code: string): readonly [string, string] =>
     ? [ERRORS[code as keyof typeof ERRORS].meaning, ERRORS[code as keyof typeof ERRORS].next]
     : ["The tools RPC refused the call.", NEXT_STEPS[code as keyof typeof NEXT_STEPS]!]
 
-test("the README's code table is the code table: every code, in both directions", () => {
+describe("the README's generated blocks", () => {
+  test("each access value's block is the block the plugin inserts after each agent's base allow", () => {
+    for (const access of ACCESS_VALUES) checkBlock("README.md", `rules-${access}`, rulesBody(access)())
+    // The configuration docs print the block that is actually inserted, at the default value.
+    checkBlock("docs/configuration.md", "rules-all", rulesBody("all")())
+    // At the default value every rule allows, and the namespace rule comes first, so the value decides the rest.
+    expect(defaultRules(["plaud"], "all").every(rule => rule.effect === "allow")).toBe(true)
+    expect(defaultRules(["plaud"], "all")[0]).toEqual({ action: "plaud*_*", resource: "*", effect: "allow" })
+    for (const access of ["ask-changes", "read-only"] as const) {
+      const block = defaultRules(["plaud"], access), effect = access === "ask-changes" ? "ask" : "deny"
+      expect(block[0]).toEqual({ action: "plaud*_*", resource: "*", effect })
+      // The namespace first, then the export; every read, plaud_recent included, is allowed.
+      expect(block.filter(rule => rule.effect !== "allow").map(rule => rule.action)).toEqual(["plaud*_*", "plaud_export"])
+    }
+  })
+
+  test("the docs name the export's external_directory rule, and its refusal's next step", () => {
+    expect(ERROR_CODES).toContain("EXPORT_PATH_NOT_PERMITTED")
+    expect(ERRORS.EXPORT_PATH_NOT_PERMITTED.next).toContain('"action": "external_directory"')
+    for (const file of ["README.md", "SECURITY.md", "docs/configuration.md", "docs/scripting.md"]) {
+      const text = read(file)
+      expect({ file, named: text.includes("external_directory") }).toEqual({ file, named: true })
+      expect({ file, rule: text.includes('"action": "external_directory"') }).toEqual({ file, rule: true })
+    }
+  })
+
+  test("the README's code table is the code table: every code, in both directions", () => {
   const open = "<!-- generated:codes -->"
   const close = "<!-- /generated:codes -->"
   const body = ["| Code | What happened | Next step |", "| --- | --- | --- |", ...CODES.map(code => {
@@ -58,6 +112,7 @@ test("the README's code table is the code table: every code, in both directions"
     for (const match of source.matchAll(/"(?:code|reason)":\s*"([A-Z][A-Z0-9_]{2,})"/g)) raised.add(match[1]!)
   }
   expect([...raised].filter(code => !CODES.includes(code))).toEqual([])
+  })
 })
 
 describe("the tested releases", () => {

@@ -10,6 +10,7 @@ function status(overrides: Partial<Status> = {}): Status {
   return {
     version: "0.0.0-test",
     state: "sign_in_required",
+    access: "ask-changes",
     accounts: [
       { account: "default", server: "plaud", state: "sign_in_needed" },
       { account: "work", server: "plaud-work", state: "signed_in" },

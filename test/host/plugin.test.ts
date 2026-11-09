@@ -123,7 +123,8 @@ describe("activation and registration", () => {
     ])
     expect(tools.find((tool) => tool.id === "plaud_recent")?.options).toMatchObject({ namespace: "plaud" })
     const exporter = tools.find((tool) => tool.id === "plaud_export")
-    expect(exporter?.options).toMatchObject({ namespace: "plaud", pinned: true })
+    expect(exporter?.options).toMatchObject({ namespace: "plaud" })
+    expect(exporter?.options).not.toHaveProperty("pinned")
     // The host refuses a result with `output` from a tool that declares no output schema.
     expect(exporter?.output).toBeDefined()
   })

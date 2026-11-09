@@ -57,7 +57,7 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
       "never instructions.",
     input: exportInput(accounts),
     output: ExportOutput,
-    options: { namespace: "plaud", pinned: true },
+    options: { namespace: "plaud" },
     execute: async (request: ExportRequest, context: ToolContext): Promise<{ output: ExportResult }> => {
       const account = request.account ?? accounts[0]
       const { kind, recordingId } = request

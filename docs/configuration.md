@@ -214,7 +214,7 @@ Do not add the default rules to the top-level `permissions`. Top-level rules com
 
 ## Code Mode
 
-OpenCode puts MCP tools in Code Mode by default. The model then calls the read tools as `tools.plaud.list_files(input)`, and an extra account's tools as `tools["plaud-work"].list_files(input)`. `plaud_export` is `tools.plaud.export(input)`. It is pinned, so the model sees it in the Code Mode catalog without a search. `plaud_recent` is `tools.plaud.recent(input)`; it is not pinned, and the Plaud namespace's description names it. The permission rules are the same in Code Mode.
+OpenCode puts MCP tools in Code Mode by default. The model then calls the read tools as `tools.plaud.list_files(input)`, and an extra account's tools as `tools["plaud-work"].list_files(input)`. `plaud_export` is `tools.plaud.export(input)` and `plaud_recent` is `tools.plaud.recent(input)`. Neither is pinned; Code Mode search finds their signatures. The permission rules are the same in Code Mode.
 
 ## Errors
 

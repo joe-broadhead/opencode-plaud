@@ -133,10 +133,11 @@ async function tree(root = dir): Promise<string[]> {
 }
 
 describe("registration", () => {
-  it("registers plaud_export, pinned, and plaud_recent, unpinned, in the plaud namespace, plus the signed-link hook", async () => {
+  it("registers unpinned export and recent tools in the plaud namespace, plus the signed-link hook", async () => {
     const { added, namespaces, hooks, registration, disposed } = await exporter()
     expect(added).toHaveLength(2)
-    expect(added[0]).toMatchObject({ name: "export", options: { namespace: "plaud", pinned: true } })
+    expect(added[0]).toMatchObject({ name: "export", options: { namespace: "plaud" } })
+    expect((added[0] as { options: Record<string, unknown> }).options).not.toHaveProperty("pinned")
     expect(added[1]).toMatchObject({ name: "recent", options: { namespace: "plaud" } })
     expect((added[1] as { options: Record<string, unknown> }).options).not.toHaveProperty("pinned")
     expect((added[0] as { description: string }).description).toContain(roots.join(", "))

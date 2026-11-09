@@ -3,6 +3,8 @@ name: opencode-plaud-digest
 description: Summarize several Plaud recordings into one digest, or draft a follow-up from a Plaud recording. Use when the user asks for a recap, a weekly digest or the action items across their recordings, or for a follow-up email or message based on something they recorded.
 ---
 
+If Plaud's tools are absent, run `/connect` and choose Plaud (or Plaud (<alias>) for another account), or on Jelly call jelly_connection_request.
+
 # Plaud digest and follow-up
 
 Load `opencode-plaud` first: it has the tools, the formats and how to read results in Code Mode.

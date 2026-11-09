@@ -164,7 +164,7 @@ describe("skill loading", () => {
       expect(skill.name).toBe(id)
       expect(skill.path).toBe(join(SKILLS.pathname, id, "SKILL.md"))
       expect(skill.description).toMatch(/Use when/)
-      expect(skill.content.startsWith("# ")).toBe(true)
+      expect(skill.content).toMatch(/^If Plaud's tools are absent, run `\/connect` and choose Plaud .*jelly_connection_request\.\n\n# /)
       expect(skill.content).not.toMatch(/^---$/m)
     }
   })

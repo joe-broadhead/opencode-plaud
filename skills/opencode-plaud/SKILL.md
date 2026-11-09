@@ -3,6 +3,8 @@ name: opencode-plaud
 description: Plaud voice recordings in OpenCode, to list, search and read recordings made with a Plaud device or app, with their transcripts, notes and highlights. Use when the user mentions Plaud, a voice recording or voice note, or something they recorded, such as "what did I record this week?" or "the action items from my last recording".
 ---
 
+If Plaud's tools are absent, run `/connect` and choose Plaud (or Plaud (<alias>) for another account), or on Jelly call jelly_connection_request.
+
 # Plaud recordings
 
 Plaud's server gives the reads; the plugin adds `plaud_recent` and `plaud_export`. Nothing here can create, rename,

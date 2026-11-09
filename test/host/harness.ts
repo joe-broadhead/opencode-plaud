@@ -75,6 +75,7 @@ export interface Harness {
   readonly plugin: PluginEntry
   /** Every tool the host has registered at the location, with its executor. */
   tools(): ReturnType<ReturnType<ReturnType<typeof createProbe>["context"]>["tool"]["list"]>
+  probe(): ReturnType<ReturnType<typeof createProbe>["context"]>
   session(agent?: string): Promise<string>
   /** Runs a registered tool's host executor with a session context, as the host would. */
   call(sessionID: string, tool: string, input: unknown, agent?: string): Promise<Outcome>
@@ -171,6 +172,7 @@ export async function startHost(input: HostOptions = {}): Promise<Harness> {
     events,
     until,
     tools: () => probe.context(work).tool.list(),
+    probe: () => probe.context(work),
     session: async (agent = "build") => (await opencode.sessions.create({ agent, location })).id,
     call: async (sessionID, tool, value, agent = "build") => {
       const found = (await harness.tools()).find((item) => item.id === tool)

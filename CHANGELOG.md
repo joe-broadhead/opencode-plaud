@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Each skill explains how to connect Plaud when its tools are absent, including additional accounts.
+
 - **Every tool is allowed by default.** The plugin inserts an allow for each tool it registers and for the `plaud*_*` namespace: the five reads of every account's server, `plaud_recent`, and `plaud_export`, which writes a file. An agent runs them without asking, and nothing is held back. `"ask-changes"` makes every export ask, and `"read-only"` denies exports and any tool the plugin does not know; the reads always run.
 - An export folder is outside the project, so OpenCode asks for `external_directory` on the folder as well as `plaud_export`. A refusal that names it is `EXPORT_PATH_NOT_PERMITTED`, whose next step is the rule to allow, and a script that exports outside the project needs both rules. README, SECURITY, `docs/configuration.md` and `docs/scripting.md` say so.
 - The tools RPC follows the same default: every method is allowed unless `access` or the session's rules restrict it; a script's export also needs the `external_directory` allow when the folder is outside the project.

@@ -3,6 +3,8 @@ name: opencode-plaud-export
 description: Save a Plaud recording's audio, transcript, outline or notes as a local file with plaud_export. Use when the user asks to download, export, save or keep a Plaud recording or its audio, asks for a download link to it, or wants to know how such an export works.
 ---
 
+If Plaud's tools are absent, run `/connect` and choose Plaud (or Plaud (<alias>) for another account), or on Jelly call jelly_connection_request.
+
 # Export a Plaud recording
 
 `plaud_export` (`tools.plaud.export(input)` in Code Mode) writes one recording's audio, one transcript block or its

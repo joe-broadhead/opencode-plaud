@@ -25,9 +25,10 @@ const rules = [{ action: "*", resource: "*", effect: "allow" } as const, ...defa
 
 describe("the jelly declaration", () => {
   it("declares the flat access option", () => {
-    const settings = (jelly.contributes as unknown as { settings: { key: string; type: string }[] }).settings
+    const settings = (jelly.contributes as unknown as { settings: { key: string; type: string; default: unknown }[] }).settings
     expect(settings.map(({ key, type }) => ({ key, type }))).toEqual([{ key: "access", type: "string" }])
     expect(loadConfig({ access: "read-only" }).access).toBe("read-only")
+    expect(settings[0]?.default).toBe(loadConfig({}).access)
   })
   it("follows the plugin authors' standard, with the effects the plugin's own default rules give", () => {
     expect(declarationProblems(ROOT, { effectOf: (permission) => evaluate(rules, permission) })).toEqual([])

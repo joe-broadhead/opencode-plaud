@@ -278,6 +278,16 @@ Sign out while the plugin is still installed: once it is removed, OpenCode no lo
 4. Your exports stay in your export roots (`~/Plaud` by default); delete them if you no longer want them. The plugin keeps no other data.
 5. Remove any Plaud rules you copied into your agents' own `permissions`.
 
+## Known limits
+
+- **Platforms.** macOS and Linux only. Windows is not tested.
+- **Region.** Plaud's server is in the US. Accounts in other regions are untested; set `url` if Plaud gives you another address.
+- **Read-only against Plaud.** Plaud has no write API, so nothing here creates, renames, deletes, uploads, shares or sends a recording.
+- **New Plaud tools.** A tool Plaud adds later follows `access`, so it runs at the default `"all"`. It is not a script method until a plugin release.
+- **Signed links.** Tool results never show a signed link. Audio and transcripts reach a file only through `plaud_export`.
+- **Unattended exports.** An export folder is outside the project, so an unattended run needs the `external_directory` rule as well as `plaud_export` (see [Permissions](#permissions)).
+- **Tested hosts.** Tested on OpenCode 2.2.3, 2.2.4, 2.2.5 and 2.2.6. A later 2.2 release starts, and `/plaud-status` marks it untested.
+
 ## Links
 
 - [Configuration](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md)

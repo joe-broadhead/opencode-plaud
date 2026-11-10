@@ -261,7 +261,7 @@ Members then only sign in, once per account: run `/connect` and choose **Plaud**
 | `PERMISSION_DENIED` | The tools RPC refused the call. | Add an allow rule for the tool to the session's agent or to the session, or use a session whose agent allows it. |
 | `PLAUD_READ_FAILED` | A read the plugin's own tool made failed, such as a list or a transcript page. | Retry once; if it fails again, ask the user to run /plaud-status and follow its next step. |
 | `PLAUD_UNREADABLE` | Plaud returned something this release cannot use, such as a page that never ends or a link that is not a URL. | Update opencode-plaud and retry later; if it still fails, report it to the plugin's maintainers. |
-| `SESSION_AGENT_REQUIRED` | The tools RPC refused the call. | Create a session that names an agent, such as POST /api/session with {"agent":"build"}, and pass its id. |
+| `SESSION_AGENT_REQUIRED` | The tools RPC refused the call. | Create a session that names an agent this project has, with its project as the location, such as POST /api/session with {"agent":"build","location":{"directory":"/path/to/project"}}, and pass its id. |
 | `SESSION_UNKNOWN` | The tools RPC refused the call. | Create a session in the location you mean, such as POST /api/session with {"agent":"build"} sent with the header "x-opencode-directory: <dir>" or the location[directory] query, and pass its id. |
 | `TOOL_UNAVAILABLE` | The tools RPC refused the call. | Call describe to see which methods OpenCode lists now, and run /plaud-status. |
 | `UPSTREAM_ERROR` | The tools RPC refused the call. | Check the input against the method's schema from describe, and run /plaud-status if it keeps failing. |

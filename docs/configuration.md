@@ -118,7 +118,7 @@ So, in each case:
 - `plaud_export` asks at `"ask-changes"` and is denied at `"read-only"`;
 - any other tool on a Plaud server follows the same rule, so `"all"` runs a tool Plaud adds later, and `"read-only"` denies it.
 
-All values still leave the host's own path rules in place: an export writes outside the project, so OpenCode asks for `external_directory` on the export folder as well as the export's own action. A refusal that names `external_directory` costs nothing, since nothing was read or written; allow it with `{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }`, or move the folder inside the project with `exportRoots`.
+All values still leave the host's own path rules in place: an export writes outside the project, so OpenCode also checks `external_directory` on the export folder, as well as the export's own action. A refusal that names `external_directory` costs nothing, since nothing was read or written; allow it with `{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }`, or move the folder inside the project with `exportRoots`.
 
 OpenCode uses the last rule that matches. Everything after the base allow comes later and wins over these rules:
 

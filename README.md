@@ -183,7 +183,7 @@ The block for each value, for the default account's `plaud` server, generated fr
 
 "Always allow" on an export remembers only that account and kind, such as `default:transcript`. Your own `permissions` rules win over the defaults.
 
-An export writes into an export folder, which is outside the project, so OpenCode asks for `external_directory` as well as the export's own action. A rule for `plaud_export` alone does not cover an unattended run:
+An export writes into an export folder, which is outside the project, so OpenCode also checks `external_directory` for it, as well as the export's own action. A rule for `plaud_export` alone does not cover an unattended run:
 
 ```json
 { "permissions": [{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }] }

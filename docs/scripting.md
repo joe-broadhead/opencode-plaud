@@ -49,8 +49,8 @@ an export unless the `access` option or the session's rules restrict it. A scrip
 and it is restricted the same way: `"ask-changes"` makes an export ask, and an ask is refused here; `"read-only"`
 denies it, so an export needs a prior `allow` in the agent's or the session's rules.
 
-An export folder is outside the project, so OpenCode asks for `external_directory` on the folder as well as
-`plaud_export` before anything is written. A script that exports outside the project therefore needs both rules:
+An export folder is outside the project, so OpenCode also checks `external_directory` on the folder, as well as
+`plaud_export`, before anything is written. A script that exports outside the project therefore needs both rules:
 
 ```json
 { "permissions": [

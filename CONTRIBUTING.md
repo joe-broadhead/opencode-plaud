@@ -49,7 +49,7 @@ One command runs every check, in this order. Each stage is also a script of its 
 | `VITEST_MAX_WORKERS` | every stage that runs Vitest | Limits parallel test workers, for example `VITEST_MAX_WORKERS=2` on a busy machine. |
 | `HOST_SDK_DIR_2_2_4`, `HOST_SDK_DIR_2_2_5` | `test:host` | A folder whose `node_modules` holds that `@opencode/sdk` release. Without one, `scripts/host-tests.mjs` installs it from npm, with scripts off, into a folder under `/tmp` that it removes afterwards. 2.2.3 is the lockfile's. |
 | `HOST_SDK_DIR` | `test:host` | A folder with an `@opencode/sdk` installed: the host tests run once, on that release only. |
-| `OPENCODE_BIN_2_2_3`, `OPENCODE_BIN_2_2_4`, `OPENCODE_BIN_2_2_5` | `test:pack` | Paths to stock `opencode` binaries. Without one, the pack test installs that `@opencode/cli` release from npm, once per run, into its own folder under `/tmp`, so its first run needs the registry. |
+| `OPENCODE_BIN_2_2_3`, `OPENCODE_BIN_2_2_4`, `OPENCODE_BIN_2_2_5`, `OPENCODE_BIN_2_2_6` | `test:pack` | Paths to stock `opencode` binaries. Without one, the pack test installs that `@opencode/cli` release from npm, once per run, into its own folder under `/tmp`, so its first run needs the registry. |
 | `PACK_TARBALL` | `test:pack` | Test this tarball instead of packing one, such as the tarball a release publishes. |
 
 The tested releases are listed once, in `TESTED_HOSTS` (`src/version.ts`); the host and pack stages, CI and a unit test read it. To test another release, add it there. Do not add another SDK release to a lockfile.
@@ -58,7 +58,7 @@ Every isolated host runs in a folder under `/tmp`, never below your home folder,
 
 ## Check Plaud's tools (maintainers)
 
-`npm run check:upstream` compares the live Plaud MCP server's tool list with the five tools the plugin treats as known reads, and each read's parameters with the ones the plugin and its skills pass (`PARAMETERS` in the script). It only warns: a new upstream tool already asks by default, and a known read or parameter that disappears needs a plugin change.
+`npm run check:upstream` compares the live Plaud MCP server's tool list with the five tools the plugin treats as known reads, and each read's parameters with the ones the plugin and its skills pass (`PARAMETERS` in the script). It only warns. A new upstream tool follows `access`: it runs at the default `"all"`, and it is not a script method until the plugin adds it. A known read or parameter that disappears needs a plugin change.
 
 ```sh
 PLAUD_MCP_TOKEN=<access token> npm run check:upstream

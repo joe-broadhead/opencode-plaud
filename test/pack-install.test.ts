@@ -402,7 +402,6 @@ describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
         narrow: await session({ agent: "build", permissions: [rule("plaud_get_file", "deny")] }),
         reopen: await session({ agent: "locked", permissions: [rule("plaud_list_files", "allow")] }),
         reckless: await session({ agent: "build", permissions: [rule("plaud*_*", "allow")] }),
-        granted: await session({ agent: "build", permissions: [rule("plaud_export", "allow")] }),
       }
       const call = (name: keyof typeof sessions, method: string, input: unknown = { file_id: "rec-1" }) => host.script(method, { sessionID: sessions[name], input })
       const calls = () => fake.calls.length
@@ -453,15 +452,13 @@ describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
       }
       expect(calls()).toBe(from)
 
-      // export asks by default, so a script is refused before any read; a session's own allow runs it and writes the file.
+      // export writes a file, so it is no method whatever the rules say: a script never runs it, and writes no file.
       const exports = join(work, `tools-${version}`, "exports")
       const refusedExport = await call("build", "export", { recordingId: "rec-1", kind: "note" })
-      expect(refusedExport).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
-      expect(refusedExport.message).toContain("plaud_export would ask for this session's agent")
+      expect(refusedExport).toMatchObject({ status: 400 })
+      expect(refusedExport.value).toBeUndefined()
+      expect(refusedExport.message).toMatch(/not.?found|unknown|method/i)
       expect(existsSync(exports)).toBe(false)
-      const exported = await call("granted", "export", { recordingId: "rec-1", kind: "note" })
-      expect(exported.value).toMatchObject({ path: expect.stringContaining(exports), bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) })
-      expect(existsSync(exported.value.path)).toBe(true)
 
       // The location decides: another location answers rpc.unavailable, and the query names this one.
       const elsewhere = join(work, `tools-${version}`, "elsewhere")

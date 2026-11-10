@@ -70,7 +70,7 @@
     "clean": "node scripts/clean.mjs",
     "build": "npm run clean && node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tui.json --noEmit && tsc -p test/tsconfig.json",
-    "lint": "vitest run --project lint && node scripts/check-copies.mjs && node scripts/check-icons.mjs && node scripts/check-workflows.mjs",
+    "lint": "vitest run --project lint && node scripts/check-copies.mjs && node scripts/check-icons.mjs && node scripts/check-workflows.mjs && node scripts/check-forbidden.mjs",
     "test": "vitest run --project unit",
     "test:host": "node scripts/host-tests.mjs",
     "test:pack": "vitest run --project pack",

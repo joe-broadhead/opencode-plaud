@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
 import { TESTED_HOSTS } from "../src/version.js"
-import { scratchDir } from "./scratch.js"
+import { tempDir } from "./temp-dirs.js"
 
 /**
  * QA X1 and X7: the tested OpenCode releases are listed once, and isolated hosts never start below a folder that
@@ -17,9 +17,9 @@ afterEach(() => {
   for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
-describe("scratchDir", () => {
+describe("tempDir", () => {
   it("makes folders under /tmp, whatever TMPDIR says", () => {
-    const dir = scratchDir("plaud-isolation-")
+    const dir = tempDir("plaud-isolation-")
     made.push(dir)
     expect(dir.startsWith(`${realpathSync("/tmp")}/plaud-isolation-`)).toBe(true)
     expect(statSync(dir).isDirectory()).toBe(true)
@@ -31,7 +31,7 @@ describe("scratchDir", () => {
     mkdirSync(join(base, "below"))
     if (name === ".opencode") mkdirSync(join(base, name))
     else writeFileSync(join(base, name), "{}")
-    expect(() => scratchDir("x-", join(base, "below"))).toThrow(`${join(base, name)} is above the test folder`)
+    expect(() => tempDir("x-", join(base, "below"))).toThrow(`${join(base, name)} is above the test folder`)
     expect(readdirSync(join(base, "below"))).toEqual([])
   })
 })

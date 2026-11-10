@@ -10,7 +10,7 @@ import { dirname, join } from "node:path"
 const FOUND_UPWARD = [".opencode", "opencode.json", "opencode.jsonc"]
 
 /** A new folder under `base`, the system's /tmp unless a test passes another. */
-export function scratchDir(prefix: string, base = realpathSync("/tmp")): string {
+export function tempDir(prefix: string, base = realpathSync("/tmp")): string {
   const dir = realpathSync(mkdtempSync(join(base, prefix)))
   for (let parent = dirname(dir); ; parent = dirname(parent)) {
     const found = FOUND_UPWARD.map((name) => join(parent, name)).find((path) => existsSync(path))

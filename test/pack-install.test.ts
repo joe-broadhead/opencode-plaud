@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { SUPPORTED_HOSTS, TESTED_HOSTS } from "../src/version.js"
 import { SIGNATURE, startFakePlaud, type FakePlaud } from "./fixtures/fake-plaud.js"
 import { exemptUses, forbiddenUses, moduleSpecifiers, type Exemption } from "./module-specifiers.js"
-import { scratchDir } from "./scratch.js"
+import { tempDir } from "./temp-dirs.js"
 
 /**
  * The published shape: build, pack, and install the tarball alone, with
@@ -54,7 +54,7 @@ const OFFLINE = {
 
 // Outside the repository, so nothing resolves from the repository's own node_modules, and under /tmp, so OpenCode's
 // upward config search finds nothing of the owner's.
-const work = scratchDir("opencode-plaud-pack-")
+const work = tempDir("opencode-plaud-pack-")
 let tarball: string
 let packed: { filename: string; files: { path: string }[] } | undefined
 let installed: string

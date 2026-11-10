@@ -19,7 +19,7 @@ import { WORKER_ROOT } from "./setup.js"
  */
 
 const RPC = "plaud.recordings.tools"
-const METHODS = ["describe", "list_files", "get_file", "get_note", "get_transcript", "get_current_user", "export"]
+const READS = ["list_files", "get_file", "get_note", "get_transcript", "get_current_user"]
 const RECENT = { items: [{ id: "rec-1", text: "Weekly sync · 2026-10-01 09:00 UTC · 1 min" }], editable: false }
 const rule = (action: string, effect: Rule["effect"]): Rule => ({ action, resource: "*", effect })
 
@@ -78,8 +78,6 @@ beforeAll(async () => {
   // plaud_recent is allowed, but the read it makes is denied, or asks.
   sessions.unlisted = await create({ agent: "build", permissions: [rule("plaud_list_files", "deny")] })
   sessions.hesitant = await create({ agent: "build", permissions: [rule("plaud_list_files", "ask")] })
-  // A script's own grant for one export, and nothing else: v2 needs a prior allow before an export writes a file.
-  sessions.granted = await create({ agent: "build", permissions: [rule("plaud_export", "allow")] })
 })
 
 afterAll(async () => {
@@ -102,7 +100,8 @@ describe("the tools RPC in OpenCode", () => {
     // With a session, describe gives each method's resolved permission.
     const resolved = (await script("describe", { sessionID: sessions.build })) as { value: { methods: { name: string; permission: string }[] } }
     const permission = Object.fromEntries(resolved.value.methods.map((method) => [method.name, method.permission]))
-    expect(permission).toMatchObject({ list_files: "allow", recent: "allow", export: "ask" })
+    expect(permission).toMatchObject({ list_files: "allow", recent: "allow", events_list: "allow" })
+    expect(permission).not.toHaveProperty("export")
   })
 
   it("never makes an unknown Plaud tool a method, even with an allow rule", async () => {
@@ -114,19 +113,6 @@ describe("the tools RPC in OpenCode", () => {
       expect(refused.message, method).toMatch(/not.?found|unknown/i)
     }
     expect(toolCalls(from)).toEqual([])
-  })
-
-  it("refuses export without a prior allow, before any read or prompt, and runs it with one", async () => {
-    const from = host.fake.calls.length
-    const refused = await call("build", "export", { input: { recordingId: "rec-1", kind: "note" } })
-    expect(refused).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
-    expect(refused.message).toContain("plaud_export would ask for this session's agent, and a script cannot answer")
-    expect(await host.pending(sessions.build!)).toBe(0)
-    expect(toolCalls(from)).toEqual([])
-    const result = await call("granted", "export", { input: { recordingId: "rec-1", kind: "note" } })
-    expect(result.value).toMatchObject({ path: expect.stringContaining(host.exportRoot), bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) })
-    expect(existsSync(result.value.path)).toBe(true)
-    expect(await host.pending(sessions.granted!)).toBe(0)
   })
 
   it("runs a read as a session whose agent allows it, with no model turn and no prompt", async () => {
@@ -236,7 +222,7 @@ describe("the tools RPC in OpenCode", () => {
 
   it("refuses a session whose agent denies Plaud, before Plaud is called", async () => {
     const from = host.fake.calls.length
-    for (const method of METHODS.slice(1)) expect(await call("locked", method, { input: { file_id: "rec-1" } }), method).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+    for (const method of READS) expect(await call("locked", method, { input: { file_id: "rec-1" } }), method).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
     expect(await call("locked", "recent", { input: {} })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
     expect(await call("reopen", "recent", { input: {} })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
     // A deny names the denied read and says to change that rule (shared module v4).
@@ -300,9 +286,8 @@ describe("a skill that shadows one of the plugin's", () => {
 })
 
 /**
- * One host per `access` value, on the tools RPC path. `ask-changes` is the suite above, where an export is refused
- * before anything is read; here `all` runs the export and writes the file with no prompt, and `read-only` denies it
- * with nothing written.
+ * One host per `access` value, on the tools RPC path. The block is inserted at each value and a read runs; export is
+ * not a method at any value, because it writes a file, so a script never writes one.
  */
 describe("access on the tools RPC path", () => {
   const ask = async (target: Harness, sessionID: string, method: string, input: unknown): Promise<Record<string, any>> => {
@@ -314,7 +299,7 @@ describe("access on the tools RPC path", () => {
     }
   }
 
-  for (const [access, effect] of [["all", "allow"], ["read-only", "deny"]] as const) {
+  for (const access of ["all", "read-only"] as const) {
     describe(access, () => {
       let target: Harness
       let sessionID: string
@@ -339,24 +324,17 @@ describe("access on the tools RPC path", () => {
         const read = await ask(target, sessionID, "get_note", { file_id: "rec-1" })
         expect(read.value).toMatchObject({ text: expect.stringContaining("rec-1") })
         expect(await target.pending(sessionID)).toBe(0)
-      })
-
-      it(`${effect === "deny" ? "denies" : "runs"} the export with no prompt`, async () => {
-        const before = target.fake.calls.length
-        const result = await ask(target, sessionID, "export", { recordingId: "rec-1", kind: "note" })
-        if (effect === "deny") {
-          expect(result).toMatchObject({ code: "PERMISSION_DENIED" })
-          expect(result.message).toMatch(/denied|hidden/)
-          expect(target.fake.calls).toHaveLength(before)
-          expect(existsSync(join(target.exportRoot, "note", "rec-1.md"))).toBe(false)
-        } else {
-          expect(result.value).toMatchObject({ path: join(target.exportRoot, "note", "rec-1.md"), bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) })
-          expect(existsSync(result.value.path)).toBe(true)
-        }
-        expect(await target.pending(sessionID)).toBe(0)
         // status reports the value and the block for it.
         const status = (await target.opencode.rpc(Plaud).status({}, { location: target.location })) as { access: string; permissionsBlock: unknown }
         expect(status).toMatchObject({ access, permissionsBlock: defaultRules(["plaud"], access) })
+      })
+
+      it("keeps export off the tools RPC at this access value, so a script writes no file", async () => {
+        const before = target.fake.calls.length
+        const refused = await ask(target, sessionID, "export", { recordingId: "rec-1", kind: "note" })
+        expect(refused.message).toMatch(/not.?found|unknown/i)
+        expect(target.fake.calls).toHaveLength(before)
+        expect(existsSync(join(target.exportRoot, "note", "rec-1.md"))).toBe(false)
       })
     })
   }

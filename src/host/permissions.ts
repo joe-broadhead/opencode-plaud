@@ -43,9 +43,6 @@ export const OWN_TOOLS: readonly string[] = [EXPORT_ACTION, RECENT_ACTION]
 /** The plugin's namespace: a tool Plaud adds later follows the same effect, so `all` means everything. */
 export const NAMESPACE_ACTION = "plaud*_*"
 
-/** The actions that change something: the export writes a file. Everything else is a read. */
-export const CHANGING_ACTIONS: readonly string[] = [EXPORT_ACTION]
-
 const effectFor = (access: Access): Rule["effect"] => (access === "all" ? "allow" : access === "ask-changes" ? "ask" : "deny")
 
 /** The block for these servers, the default account's `plaud` first, and this `access` value. */

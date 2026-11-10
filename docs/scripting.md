@@ -85,30 +85,28 @@ transcript or a note without returning a link.
 Every call names a session, and the session must name an agent. The script runs as that agent, with the access its
 model has.
 
-Create the session once, with the agent the script runs as, and keep its id, `data.id` in the response. Don't borrow
+Create the session once, with the agent the script runs as, and keep its id, `data.id` in the response. Give the project as the session's `location`: a session made without one belongs to the service's default location, where the project's agents may not exist, and each call then fails `Agent not found`. Don't borrow
 an existing session, such as one found in a session list: the script would run as that session's agent, under its
 rules.
 
 ```sh
-opencode api post /api/session -d '{"title":"weekly recordings","agent":"build"}'
+opencode api post /api/session -d '{"title":"weekly recordings","agent":"build","location":{"directory":"/path/to/project"}}'
 ```
 
-Session rules come after the agent's, so a session can narrow what its script may do, and it can grant one write for
-one script without touching the agent's rules. This one can list the default account's recordings, read their notes,
-and export a transcript:
+Session rules come after the agent's, so a session can narrow what its script may do. This one can list the default
+account's recordings and read their notes:
 
 ```sh
-opencode api post /api/session -d '{"title":"weekly notes","agent":"build","permissions":[
+opencode api post /api/session -d '{"title":"weekly notes","agent":"build","location":{"directory":"/path/to/project"},"permissions":[
   {"action":"plaud*_*","resource":"*","effect":"deny"},
   {"action":"plaud_list_files","resource":"*","effect":"allow"},
-  {"action":"plaud_get_note","resource":"*","effect":"allow"},
-  {"action":"plaud_export","resource":"*","effect":"allow"}
+  {"action":"plaud_get_note","resource":"*","effect":"allow"}
 ]}'
 ```
 
 A session rule also applies to that session's model turns. Create a session for the script alone. For a grant bound to
 the exact script the user approved, use a Jobs one-off script job: its approval writes the run session's `allow` rules,
-and the user sees the source, the methods and which files each export writes before it exists.
+and the user sees the source and the methods before it exists.
 
 The session must belong to the location you call. A session in another directory is `SESSION_UNKNOWN`.
 

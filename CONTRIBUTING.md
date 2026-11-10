@@ -100,7 +100,7 @@ Plaud's result shapes are read only in `src/domain/normalize.ts`. If Plaud chang
 
 ## Releasing
 
-1. In one release commit on `master`, date the version's `CHANGELOG.md` entry and remove `"private": true` from `package.json`. Nothing else changes, and `npm run check` passes.
+1. In one release commit on `master`, date the version's `CHANGELOG.md` entry and set `version` in `package.json` to it. Nothing else changes, and `npm run check` passes.
 2. Tag that commit `vX.Y.Z`, matching `version` in `package.json`, and push the tag.
 3. A reviewer of the `release` environment approves the run.
 4. `.github/workflows/release.yml` checks that the package is not private and that the tag matches the version, runs `npm run check`, packs the tarball, runs the pack test on exactly that tarball (`PACK_TARBALL`), and publishes it with npm trusted publishing and provenance. A version that is already on npm is skipped, so a rerun is safe. A version with a `-`, such as `1.0.0-rc.1`, gets the npm tag `next`; others get `latest`.

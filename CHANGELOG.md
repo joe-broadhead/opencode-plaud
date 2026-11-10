@@ -11,11 +11,18 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - Each skill explains how to connect Plaud when its tools are absent, including additional accounts.
-
-- **Every tool is allowed by default.** The plugin inserts an allow for each tool it registers and for the `plaud*_*` namespace: the five reads of every account's server, `plaud_recent`, and `plaud_export`, which writes a file. An agent runs them without asking, and nothing is held back. `"ask-changes"` makes every export ask, and `"read-only"` denies exports and any tool the plugin does not know; the reads always run.
+- **Every tool is allowed by default.** The plugin inserts an allow for each tool it registers and for the `plaud*_*` namespace: the five reads of every account's server, `plaud_recent`, `plaud_events_list`, and `plaud_export`, which writes a file. An agent runs them without asking, and nothing is held back. `"ask-changes"` makes every export ask, and `"read-only"` denies exports and any tool the plugin does not know; the reads always run.
 - An export folder is outside the project, so OpenCode also checks `external_directory` on the folder, as well as `plaud_export`. A refusal that names it is `EXPORT_PATH_NOT_PERMITTED`, whose next step is the rule to allow, and a script that exports outside the project needs both rules. README, SECURITY, `docs/configuration.md` and `docs/scripting.md` say so.
-- The tools RPC follows the same default: every method is allowed unless `access` or the session's rules restrict it; a script's export also needs the `external_directory` allow when the folder is outside the project.
-- The tools RPC is v2: every known tool is a method with its class, `plaud_export` (class `export`) and `plaud_recent` included, and a call runs only with a prior explicit `allow` in the agent's or the session's rules. An `ask` is refused before the tool runs, so no prompt waits, and a saved "Always allow" does not authorize an ad-hoc script. `export` takes the account from the envelope and returns a path, a size and a hash; signed links stay withheld on the script path.
+- The tools RPC follows the same default: every method is allowed unless `access` or the session's rules restrict it.
+- The tools RPC is v2: every known read is a method with its class, plus `plaud_recent` (method `recent`) and `plaud_events_list` (method `events_list`), and a call runs only with a prior explicit `allow` in the agent's or the session's rules. An `ask` is refused before the tool runs, so no prompt waits, and a saved "Always allow" does not authorize an ad-hoc script. `plaud_export` writes a file and stays a direct tool: no script can call it. Signed links stay withheld on the script path.
+
+## [0.0.8] - 2026-11-08
+
+### Added
+
+- `plaud_events_list`, and the tools RPC method `events_list`: one account's recordings since a cursor, as Memory's normalised events, oldest first, each with its name, start (UTC) and length. It asserts `plaud_events_list` with the account as the resource and reads through that account's `get_current_user` and `list_files` (one week at a time, every page), never asks, and is allowed by default, so Memory's collector can run it unattended. A recording is listed once it started 6 hours ago. The owner is the signed-in Plaud user.
+- `src/host/events-list.ts`, the shared `events_list` source contract, carried unchanged; `scripts/check-copies.mjs` pins it like the other shared copies.
+- The errors `EVENTS_CURSOR_INVALID` and `EVENTS_OWNER_UNKNOWN`.
 
 ## [0.0.7] - 2026-11-06
 

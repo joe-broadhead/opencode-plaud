@@ -106,6 +106,7 @@ If your config already defines an MCP server with one of these names in `mcp.ser
 | `plaud_get_current_user` | `*` | `allow` |
 | `plaud_export` | `*` | `allow` |
 | `plaud_recent` | `*` | `allow` |
+| `plaud_events_list` | `*` | `allow` |
 
 <!-- /generated:rules-all -->
 
@@ -212,6 +213,44 @@ With other accounts, copy the block `/plaud-status` shows: it has their reads to
 
 Do not add the default rules to the top-level `permissions`. Top-level rules come after every agent's own base rules, so they would loosen stricter agents: in Explore, denied Plaud reads would run and denied exports would ask.
 
+## Events list
+
+`plaud_events_list` (`tools.plaud.events_list` in Code Mode, and the tools RPC method `events_list`) is Plaud's side of
+Memory's sources funnel: the shared `events_list` contract, `src/host/events-list.ts`, which every source plugin
+carries unchanged. It lists one account's recordings since a cursor, as normalised events, oldest first. It only reads,
+never asks and calls no model, so Memory's collector can run it unattended.
+
+```
+events_list({ since?, cursor?, limit?, account?, source? })
+  → { source: "plaud", account, owner: { id, label }, events, cursor, more, trust: "untrusted" }
+```
+
+| Input | Meaning |
+| --- | --- |
+| `since` | Where to start without a cursor: an ISO date (a UTC day) or date-time with `Z` or an offset. Default: 24 hours ago. |
+| `cursor` | The previous result's cursor, for the same account. It wins over `since`. |
+| `limit` | Most events, 1 to 500; 100 by default. A result also stops before 900,000 bytes of JSON. |
+| `account` | `default` or an alias from `accounts`; `default` when left out. Through the tools RPC, the envelope's `account` names it too. |
+| `source` | `plaud`, the one source. |
+
+It asserts `plaud_events_list` with the account as the resource, then reads through that account's server, so the
+rules of its `get_current_user` and `list_files` apply too:
+
+- `get_current_user` names the owner: `mailto:` and the email when Plaud gives one, or `plaud:` and the user's id.
+  The cursor holds the account and a digest of the owner, so another account's cursor, or one from before a sign-in to
+  another Plaud user, is refused.
+- `list_files` lists one week at a time, every page of it (`page_size` 20; a shorter page is the last, since Plaud
+  says nothing about more). Its `date_from` and `date_to` are whole days whose boundaries Plaud draws, so each week
+  asks for one more day on each side and keeps the recordings that started within the week, by `start_at` (UTC
+  without a `Z`, which the plugin adds).
+
+Each event is one recording: kind `meeting`, the recording's id (`file_id` for `get_note` and `get_transcript`),
+its start, its name as the title, and its length as the text. Its notes and transcript are not read: that would take a
+call per recording. A recording is listed once it started 6 hours ago, because a device can upload it hours after it
+ends; one uploaded later than that, after the cursor has passed its start, is not listed. The cursor is the (start, id)
+of the last recording listed: calling again with it lists what follows, and an older cursor lists the same recordings
+again.
+
 ## Code Mode
 
 OpenCode puts MCP tools in Code Mode by default. The model then calls the read tools as `tools.plaud.list_files(input)`, and an extra account's tools as `tools["plaud-work"].list_files(input)`. `plaud_export` is `tools.plaud.export(input)` and `plaud_recent` is `tools.plaud.recent(input)`. Neither is pinned; Code Mode search finds their signatures. The permission rules are the same in Code Mode.
@@ -226,10 +265,12 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | `HOST_UNTESTED` | setup | OpenCode is outside `>=2.2.3 <2.3.0` and `allowUntestedHost` is not set. |
 | `SKILLS_INVALID` | setup | The package's `skills/` folder is missing or a skill file is malformed. Reinstall the plugin. |
 | `STATUS_UNAVAILABLE` | status views | The status could not be read. |
-| `INPUT_INVALID` | the tools RPC's `recent` | Its input is not `{}` or `{ "limit": 1 to 20 }`; the account goes in the envelope. |
-| `AUTH_REQUIRED` | export, recent | The account's server is not connected or not signed in. |
-| `PLAUD_READ_FAILED` | export, recent | A Plaud read failed or was denied. |
-| `PLAUD_UNREADABLE` | export, recent | Plaud returned something the plugin cannot use, such as an audio link that is not a valid https URL, an audio download that redirects to one or more than 5 times, a transcript that never ends, or a recording list that is not a list. |
+| `INPUT_INVALID` | the tools RPC's `recent`, events list | `recent`'s input is not `{}` or `{ "limit": 1 to 20 }`; the account goes in the envelope. An events list's input breaks the contract, names another source or an account the plugin does not have, or names a different account from the envelope's. |
+| `EVENTS_CURSOR_INVALID` | events list | The cursor was not issued by `events_list` for this account and its signed-in user. Pass a cursor from a previous result of the same account, or start again with `since`. |
+| `EVENTS_OWNER_UNKNOWN` | events list | Plaud's `get_current_user` named no email or id for the account. |
+| `AUTH_REQUIRED` | export, recent, events list | The account's server is not connected or not signed in. |
+| `PLAUD_READ_FAILED` | export, recent, events list | A Plaud read failed or was denied, or one week held more recordings than an events list reads. |
+| `PLAUD_UNREADABLE` | export, recent, events list | Plaud returned something the plugin cannot use, such as an audio link that is not a valid https URL, an audio download that redirects to one or more than 5 times, a transcript that never ends, or a recording list that is not a list. |
 | `CONTENT_UNAVAILABLE` | export | The recording has no audio yet, or no such transcript block. |
 | `EXPORT_OUTSIDE_ROOTS` | export | The destination is outside the export roots. |
 | `EXPORT_PATH_NOT_PERMITTED` | export | The export folder is outside the project and the `external_directory` rule refused the write. |

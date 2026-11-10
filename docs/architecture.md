@@ -79,6 +79,16 @@ OpenCode creates agents defined only in the user's config after plugins run, so 
 
 `plaud_recent` (`src/host/tools/recent.ts`) takes `{ account?, limit? }`, `limit` 1 to 20 and 8 by default. It asserts `plaud_recent` with the account as resource and save, then calls the host's executor for the account's `<server>_list_files`, as the export reads, so that read's own rule applies too. Plaud's server refuses a `page_size` below 10, so it asks for at least 10 and keeps the first `limit`. It returns a Home `list`, `{ items: [{ id, text }], editable: false }`: one line per recording, the title on one line, the start time in UTC and the length, at most 200 characters. It returns no link and no content. Jelly's Home feed preset calls it. The tools RPC runs the same spec as the method `recent`, with `{ limit? }` as input and the envelope's `account`; there a refused `list_files` reaches the module untouched, so a script reads `PERMISSION_DENIED`.
 
+## Events list
+
+`plaud_events_list` (`src/host/tools/events.ts`) is Plaud's side of Memory's sources funnel, over the shared
+`events_list` contract (`src/host/events-list.ts`, a copy every source plugin carries unchanged). It asserts
+`plaud_events_list` with the account as resource and save, then reads through the host's executors for the account's
+`get_current_user` (the owner) and `list_files`, one week at a time from the cursor's position to 6 hours ago. Each
+week asks for a day more on each side, reads every page until one is shorter than 20, and keeps the recordings that
+started within it; they are sorted by (start, id), and the cursor holds the last one listed with the account and a
+digest of the owner. The tools RPC runs the same spec as the method `events_list`, with the envelope's account.
+
 ## Signed links
 
 Plaud's results carry signed links: `presigned_url` (the audio, valid for about 24 hours) in `get_file`, and `data_link` (a transcript or note) in each item of `get_file`'s `source_list` and `note_list` and in each `get_note` tab. An `execute.after` hook rewrites every result of a tool whose name matches `plaud*_*`, always:

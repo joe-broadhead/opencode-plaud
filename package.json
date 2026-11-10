@@ -1,6 +1,6 @@
 {
   "name": "@joe-broadhead/opencode-plaud",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Unofficial OpenCode plugin for Plaud recordings",
   "type": "module",
   "license": "MIT",
@@ -101,6 +101,12 @@
       {
         "name": "plaud.recent",
         "permission": "plaud_recent",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud.events_list",
+        "permission": "plaud_events_list",
         "effect": "allow",
         "readOnly": true
       },

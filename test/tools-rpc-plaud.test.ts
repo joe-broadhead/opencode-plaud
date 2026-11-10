@@ -1,13 +1,10 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
-import { realpath } from "node:fs/promises"
 import { describe, expect, it } from "vitest"
 import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../src/domain/redact.js"
 import { accountServer, KNOWN_READS as PLAUD_READS } from "../src/host/mcp.js"
-import { defaultRules, EXPORT_ACTION, RECENT_ACTION } from "../src/host/permissions.js"
-import { exportMethod, reader } from "../src/host/tools/export.js"
+import { defaultRules, EVENTS_ACTION, RECENT_ACTION } from "../src/host/permissions.js"
+import { reader } from "../src/host/tools/export.js"
 import { registerTools } from "../src/host/tools/index.js"
+import { eventsMethod } from "../src/host/tools/events.js"
 import { recentMethod } from "../src/host/tools/recent.js"
 import { METHODS, NEXT_STEPS, registerToolsRpc, shapeResult, TOOLS_RPC_ID, type McpResult, type ToolCall } from "../src/host/tools-rpc.js"
 
@@ -35,10 +32,10 @@ type Result = { output?: unknown; content?: string | { type: "text"; text: strin
 type Handler = (input: unknown, context: { signal: AbortSignal; error: (type: string, message: string, data?: unknown) => unknown }) => Promise<any>
 
 /**
- * The tools RPC with the plugin's own account mapping and its `recent` and `export` methods, on narrow fakes: every
+ * The tools RPC with the plugin's own account mapping and its `recent` and `events_list` methods, on narrow fakes: every
  * listed tool runs and answers `result` (or the entry for its id), and every assertion is allowed and recorded.
  */
-async function rpc(tools: readonly string[], result: Result = upstream, options: { results?: Record<string, Result>; exportRoots?: readonly string[] } = {}) {
+async function rpc(tools: readonly string[], result: Result = upstream, options: { results?: Record<string, Result> } = {}) {
   const calls: { tool: string; input: unknown; call: ToolCall }[] = []
   const asserted: Record<string, unknown>[] = []
   let handlers: Record<string, Handler> = {}
@@ -52,11 +49,11 @@ async function rpc(tools: readonly string[], result: Result = upstream, options:
     },
     permission: { hook: async () => ({ dispose: async () => undefined }) },
     session: { get: async ({ sessionID }: { sessionID: string }) => ({ id: sessionID, agent: "build", location: { directory: "/fixture/project" } }) },
-    // The default rules for both servers, and plaud_export allowed: v2 refuses an ask before dispatch, so a script
-    // reaches the export method only with a prior allow, as with the model.
+    // The default rules for both servers, as the plugin inserts them: v2 refuses an ask before dispatch, so a script
+    // runs a read or a plugin method only with a prior allow, as with the model.
     agent: {
       get: async () => ({
-        data: { permissions: [{ action: "*", resource: "*", effect: "allow" }, ...defaultRules(["plaud", "plaud-work"]), { action: EXPORT_ACTION, resource: "*", effect: "allow" }] },
+        data: { permissions: [{ action: "*", resource: "*", effect: "allow" }, ...defaultRules(["plaud", "plaud-work"])] },
       }),
     },
     tool: {
@@ -73,9 +70,8 @@ async function rpc(tools: readonly string[], result: Result = upstream, options:
     mcp: { list: async () => ({ data: [] }) },
   }
   const host = { tool: ctx.tool, permission: { assert: async (request: Record<string, unknown>) => void asserted.push(request) } } as never
-  const settings = { exportRoots: options.exportRoots ?? ["/fixture/Plaud"], maxAudioBytes: 1_000_000, exportTimeoutMs: 5_000 }
   await registerToolsRpc(ctx as never, {
-    methods: [...METHODS, recentMethod(host, ["default", "work"]), exportMethod(host, settings, ["default", "work"])],
+    methods: [...METHODS, recentMethod(host, ["default", "work"]), eventsMethod(host, ["default", "work"])],
     mcp: { server: accountServer(["work"]), managed: () => true },
   })
   const context = { signal: new AbortController().signal, error: (type: string, message: string, data?: unknown) => ({ type, message, data }) }
@@ -115,54 +111,23 @@ async function modelHook() {
 }
 
 describe("Plaud's tools RPC", () => {
-  it("is plaud.recordings.tools, with the five server reads, recent and export, and nothing else", async () => {
+  it("is plaud.recordings.tools, with the five server reads, recent and events_list, and nothing else", async () => {
     expect(TOOLS_RPC_ID).toBe("plaud.recordings.tools")
-    expect(METHODS.map((method) => method.name)).toEqual(["list_files", "get_file", "get_note", "get_transcript", "get_current_user"])
     expect(METHODS.map((method) => method.name)).toEqual([...PLAUD_READS])
+    expect(METHODS.map((method) => method.name)).toEqual(["list_files", "get_file", "get_note", "get_transcript", "get_current_user"])
     for (const method of METHODS) expect(method).toMatchObject({ kind: "mcp", class: "read" })
-    // The rules allow the server's five reads, then the plugin's own two tools, which are methods too.
+    // The rules allow the server's five reads, then the plugin's own recent and events_list, which are methods too.
     const allowed = defaultRules(["plaud"], "ask-changes").filter((rule) => rule.effect === "allow").map((rule) => rule.action)
-    expect(allowed).toEqual([...METHODS.map((read) => `plaud_${read.name}`), RECENT_ACTION])
-    const { methods } = await rpc(["plaud_list_files", "plaud_recent", "plaud_export"])
-    expect(methods.sort()).toEqual(["describe", ...METHODS.map((method) => method.name), "recent", "export"].sort())
+    expect(allowed).toEqual([...METHODS.map((read) => `plaud_${read.name}`), RECENT_ACTION, EVENTS_ACTION])
+    const { methods } = await rpc(["plaud_list_files", "plaud_recent", "plaud_events_list", "plaud_export"])
+    expect(methods.sort()).toEqual(["describe", ...METHODS.map((method) => method.name), "recent", "events_list"].sort())
   })
 
-  it("exposes export as class export: the account comes from the envelope, the assertion is plaud_export, and the note is written", async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), "plaud-rpc-export-")))
-    const roots = [join(dir, "Plaud")]
-    const notes = [{ data_tab_name: "AI summary", data_content: "- Ship on Friday.", data_error_code: 0 }]
-    try {
-      const { asserted, run } = await rpc(["plaud_get_file", "plaud-work_get_file", "plaud_get_note", "plaud-work_get_note"], upstream, {
-        exportRoots: roots,
-        results: {
-          "plaud_get_file": { output: { id: "rec-1", name: "Weekly sync", duration: 63_500 } },
-          "plaud-work_get_file": { output: { id: "rec-1", name: "Weekly sync", duration: 63_500 } },
-          "plaud_get_note": { output: notes },
-          "plaud-work_get_note": { output: notes },
-        },
-      })
-      const described = (await run("describe", {})) as { methods: Record<string, any>[] }
-      expect(described.methods.find((method) => method.name === "export")).toMatchObject({ kind: "plugin", class: "export", action: EXPORT_ACTION, available: true })
-      const result = (await run("export", { account: "work", input: { recordingId: "rec-1", kind: "note" } })) as { path: string; bytes: number; sha256: string }
-      expect(result.path).toBe(join(roots[0]!, "note", "rec-1.md"))
-      expect(await readFile(result.path, "utf8")).toContain("## AI summary")
-      expect(asserted.map((request) => [request["action"], request["resources"]])).toEqual([[EXPORT_ACTION, ["work:note"]]])
-      // No account in the method's input: the envelope's is the one that runs.
-      const input = described.methods.find((method) => method.name === "export")!.input
-      expect(Object.keys(input.properties)).not.toContain("account")
-      expect(input.required).toContain("recordingId")
-    } finally {
-      await rm(dir, { recursive: true, force: true })
-    }
-  })
-
-  it("refuses an export input the method does not take, before any assertion or read", async () => {
-    const { calls, asserted, run } = await rpc(["plaud_get_file", "plaud_get_note"])
-    for (const input of [{}, { recordingId: "rec-1" }, { recordingId: "rec-1", kind: "note", block: "outline" }, { recordingId: "rec-1", kind: "note", account: "work" }]) {
-      const refused = await run("export", { input })
-      expect(refused, JSON.stringify(input)).toMatchObject({ type: "failed", data: { code: "INPUT_INVALID" } })
-    }
-    expect([calls, asserted]).toEqual([[], []])
+  it("has no export method: plaud_export writes a file, so it stays a direct tool and no script reaches it", async () => {
+    const { methods, run } = await rpc(["plaud_get_file", "plaud_get_note", "plaud_export"])
+    expect(methods).not.toContain("export")
+    const described = (await run("describe", {})) as { methods: { name: string }[] }
+    expect(described.methods.map((method) => method.name)).not.toContain("export")
   })
 
   it("has a next step for an unknown account, and every next step is one sentence", () => {

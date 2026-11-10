@@ -392,8 +392,8 @@ describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
         const { value } = await host.script("describe", {})
         return value?.methods?.every((method: { available: boolean }) => method.available) ? value : undefined
       })
-      expect(described.methods.map((method: { name: string }) => method.name)).toEqual([...READS, "recent", "export"])
-      expect(described.methods.map((method: { class: string }) => method.class)).toEqual([...READS.map(() => "read"), "read", "export"])
+      expect(described.methods.map((method: { name: string }) => method.name)).toEqual([...READS, "recent", "events_list"])
+      expect(described.methods.map((method: { class: string }) => method.class)).toEqual([...READS.map(() => "read"), "read", "read"])
       const session = async (body: Record<string, unknown>) => ((await host.api("POST", "/api/session", { location: { directory: host.directory }, ...body })) as { data: { id: string } }).data.id
       const sessions = {
         build: await session({ agent: "build" }),

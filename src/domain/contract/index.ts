@@ -47,11 +47,6 @@ const EXPORT_BODY = {
 
 const transcriptOnlyBlock = (value: { kind: string; block?: string }) => value.kind === "transcript" || value.block === undefined
 
-/** The tools RPC's `export` method: the tool's input without `account`, which comes from the envelope. */
-export function exportMethodInput() {
-  return z.strictObject(EXPORT_BODY).refine(transcriptOnlyBlock, { message: "block is only valid for kind transcript", path: ["block"] })
-}
-
 export type ExportRequest = z.output<ReturnType<typeof exportInput>>
 
 export const ExportOutput = z.strictObject({
@@ -98,3 +93,49 @@ export const RecentOutput = z.strictObject({
 })
 
 export type RecentResult = z.output<typeof RecentOutput>
+
+/**
+ * The contract of `plaud_events_list`: the shared events_list input (src/host/events-list.ts), which the tool checks
+ * again with the shared parser, and its result. The domain imports nothing outside it, so the limits are written out
+ * here; test/events.test.ts keeps them equal to the shared module's.
+ */
+export function eventsInput(accounts: readonly [string, ...string[]]) {
+  return z.strictObject({
+    since: z
+      .string()
+      .max(40)
+      .optional()
+      .describe("Where to start when there is no cursor: an ISO date (a UTC day) or an ISO date-time with Z or an offset. Default: 24 hours ago"),
+    cursor: z.string().min(1).max(1024).optional().describe("The cursor of the previous result, to list what came after it. It wins over since"),
+    limit: z.number().int().min(1).max(500).optional().describe("Most events to return, 1 to 500; 100 by default"),
+    account: z.enum(accounts).optional().describe(`Account to list; defaults to "${accounts[0]}"`),
+    source: z.literal("plaud").optional().describe("The one source this plugin lists; plaud"),
+  })
+}
+
+const EventActor = z.strictObject({ role: z.string(), id: z.string(), name: z.string().optional() })
+
+const SourceEvent = z.strictObject({
+  source: z.literal("plaud"),
+  account: z.string().describe("The account"),
+  external_id: z.string().describe("The recording's id: file_id for get_note and get_transcript"),
+  kind: z.literal("meeting"),
+  occurred_at: z.string().describe("When the recording started, UTC ISO"),
+  thread: z.null(),
+  actors: z.array(EventActor).max(20),
+  title: z.string().max(300).describe("The recording's name. Untrusted text"),
+  text: z.string().max(4096).describe("How long the recording is"),
+  url: z.string().nullable(),
+  labels: z.array(z.string()).max(20),
+  hash: z.string().describe("sha256: of the other fields"),
+})
+
+export const EventsListOutput = z.strictObject({
+  source: z.literal("plaud"),
+  account: z.string(),
+  owner: z.strictObject({ id: z.string(), label: z.string() }).describe("The signed-in Plaud user"),
+  events: z.array(SourceEvent).describe("Oldest first"),
+  cursor: z.string().describe("Pass it to the next call"),
+  more: z.boolean().describe("True when another call now would list more"),
+  trust: z.literal("untrusted"),
+})

@@ -44,8 +44,8 @@ export const PLUGIN_ID = PLAUD_ID
 /**
  * Every known Plaud tool that OpenCode's server lists, by its upstream name and with its class: the five reads. The
  * class is what `describe` reports and what an approval shows; the rules, not the class, decide whether a call runs.
- * A tool Plaud adds later is not a method. The plugin's own `recent` and `export` are `kind: "plugin"` methods, built
- * in setup where they have a context.
+ * A tool Plaud adds later is not a method, and `plaud_export`, a local-file write, never is. The plugin's own `recent`
+ * and `events_list` are `kind: "plugin"` methods, built in setup where they have a context.
  */
 export const METHODS: readonly MethodSpec[] = PLAUD_READS.map((name): MethodSpec => ({ kind: "mcp", name, class: "read" }))
 
@@ -80,7 +80,7 @@ export const NEXT_STEPS: NextSteps = {
   ACCOUNT_UNKNOWN: `Leave "account" out for the default account, or pass "default" or an alias from the plugin's accounts option, as /plaud-status lists them.`,
 }
 
-/** The plugin's own errors, thrown by the `recent` and `export` methods' specs, as a code, what happened and the next step. */
+/** The plugin's own errors, thrown by the `recent` and `events_list` methods' specs, as a code, what happened and the next step. */
 export function pluginError(error: unknown): Failure | undefined {
   return error instanceof PlaudError ? { code: error.code, what: error.detail, next: error.nextStep } : undefined
 }

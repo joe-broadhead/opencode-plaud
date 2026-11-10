@@ -7,7 +7,7 @@ import { defaultRules, registerPermissions } from "./host/permissions.js"
 import { registerRpc } from "./host/rpc.js"
 import { loadSkills, registerSkills } from "./host/skills.js"
 import { registerTools } from "./host/tools/index.js"
-import { exportMethod } from "./host/tools/export.js"
+import { eventsMethod } from "./host/tools/events.js"
 import { recentMethod } from "./host/tools/recent.js"
 import { METHODS, registerToolsRpc } from "./host/tools-rpc.js"
 import { readStatus } from "./status.js"
@@ -15,8 +15,8 @@ import { checkHost, hostWarning, PLUGIN_ID } from "./version.js"
 
 /**
  * Setup runs in order: options, the host check, one Plaud MCP server per
- * account and its `/connect` name, the default permission rules, plaud_export and plaud_recent, then
- * `/plaud-status`, the skills, the status RPC and the tools RPC for scripts (the five reads and `recent`).
+ * account and its `/connect` name, the default permission rules, plaud_export, plaud_recent and plaud_events_list, then
+ * `/plaud-status`, the skills, the status RPC and the tools RPC for scripts (the five reads, `recent` and `events_list`).
  * The cleanup disposes every registration, newest first.
  */
 export default Plugin.define({
@@ -48,7 +48,7 @@ export default Plugin.define({
       // The envelope's account picks the server, and the own methods get it as call.account.
       const accounts: [string, ...string[]] = [DEFAULT_ACCOUNT, ...options.accounts]
       const stopTools = await registerToolsRpc(ctx, {
-        methods: [...METHODS, recentMethod(ctx, accounts), exportMethod(ctx, options, accounts)],
+        methods: [...METHODS, recentMethod(ctx, accounts), eventsMethod(ctx, accounts)],
         mcp: { server: accountServer(options.accounts), managed: () => true },
       })
       registrations.push({ dispose: stopTools })

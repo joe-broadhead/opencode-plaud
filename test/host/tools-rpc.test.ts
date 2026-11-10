@@ -87,17 +87,16 @@ afterAll(async () => {
 })
 
 describe("the tools RPC in OpenCode", () => {
-  it("describes every method with its class: the five reads, recent and export", async () => {
+  it("describes every method with its class: the five reads, recent and events_list", async () => {
     const { value } = await script("describe", {})
     expect(value.id).toBe(RPC)
     expect(value.call).toContain(`"account":"<account>"`)
-    expect(value.methods.map((method: { name: string }) => method.name)).toEqual(["list_files", "get_file", "get_note", "get_transcript", "get_current_user", "recent", "export"])
+    expect(value.methods.map((method: { name: string }) => method.name)).toEqual(["list_files", "get_file", "get_note", "get_transcript", "get_current_user", "recent", "events_list"])
     for (const method of value.methods.slice(0, 5)) expect(method).toMatchObject({ kind: "mcp", class: "read", tool: `plaud_${method.name}`, action: `plaud_${method.name}`, available: true })
     expect(value.methods[5]).toMatchObject({ kind: "plugin", class: "read", tool: "recent", action: "plaud_recent", available: true, input: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false } })
     expect(Object.keys(value.methods[5].input.properties)).toEqual(["limit"])
-    expect(value.methods[6]).toMatchObject({ kind: "plugin", class: "export", tool: "export", action: "plaud_export", available: true })
-    expect(Object.keys(value.methods[6].input.properties)).not.toContain("account")
-    expect(value.methods[6].input.required).toContain("recordingId")
+    expect(value.methods[6]).toMatchObject({ kind: "plugin", class: "read", tool: "events_list", action: "plaud_events_list", available: true })
+    expect(Object.keys(value.methods[6].input.properties)).toEqual(["since", "cursor", "limit", "account", "source"])
     expect(value.methods.find((method: { name: string }) => method.name === "get_file").input).toMatchObject({ properties: { file_id: { type: "string" } }, required: ["file_id"] })
     expect(Object.hasOwn(value.methods[0], "permission")).toBe(false)
     // With a session, describe gives each method's resolved permission.
@@ -142,6 +141,23 @@ describe("the tools RPC in OpenCode", () => {
     expect(session.tokens).toMatchObject({ input: 0, output: 0 })
     expect(await host.pending(sessions.build!)).toBe(0)
     expect(host.fake.model.requests).toEqual([])
+  })
+
+  it("lists an account's recordings as Memory's events, with no model turn and no prompt", async () => {
+    const from = host.fake.calls.length
+    const result = await call("build", "events_list", { input: { since: "2026-09-28" } })
+    expect(result.value).toMatchObject({
+      source: "plaud",
+      account: "default",
+      owner: { id: "plaud:user-1", label: "Fixture" },
+      events: [{ source: "plaud", account: "default", external_id: "rec-1", kind: "meeting", occurred_at: "2026-10-01T09:00:00.000Z", title: "Weekly sync", text: "Recorded for 1 min.", url: null }],
+      more: false,
+      trust: "untrusted",
+    })
+    expect(new Set(toolCalls(from))).toEqual(new Set(["get_current_user", "list_files"]))
+    expect(await call("build", "events_list", { input: { cursor: result.value.cursor } })).toMatchObject({ value: { events: [], more: false } })
+    expect(await call("build", "events_list", { account: "team", input: { cursor: result.value.cursor } })).toMatchObject({ type: "failed", code: "EVENTS_CURSOR_INVALID" })
+    expect(await host.pending(sessions.build!)).toBe(0)
   })
 
   it("never lets a signed link reach a script", async () => {

@@ -6,6 +6,7 @@ import {
   EXPORT_ACTION,
   insertDefaultRules,
   NAMESPACE_ACTION,
+  EVENTS_ACTION,
   RECENT_ACTION,
   registerPermissions,
   unguardedAgents,
@@ -77,11 +78,13 @@ describe("default permission rules", () => {
     expect(NAMESPACE_ACTION).toBe("plaud*_*")
     expect(EXPORT_ACTION).toBe("plaud_export")
     expect(RECENT_ACTION).toBe("plaud_recent")
+    expect(EVENTS_ACTION).toBe("plaud_events_list")
     expect(DEFAULT_RULES).toEqual([
       { action: NAMESPACE_ACTION, resource: "*", effect: "allow" },
       ...READS.map((read) => ({ action: `plaud_${read}`, resource: "*", effect: "allow" })),
       { action: EXPORT_ACTION, resource: "*", effect: "allow" },
       { action: RECENT_ACTION, resource: "*", effect: "allow" },
+      { action: EVENTS_ACTION, resource: "*", effect: "allow" },
     ])
     // Every rule is an allow, and the namespace comes first, so the value alone decides what the plugin does not know.
     expect(DEFAULT_RULES.every((rule) => rule.effect === "allow")).toBe(true)

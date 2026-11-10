@@ -57,6 +57,14 @@ export const ERRORS = {
     meaning: "Writing the file failed.",
     next: "Check the folder is writable and there is space, then retry.",
   },
+  EVENTS_CURSOR_INVALID: {
+    meaning: "The cursor was not issued by `events_list` for this account and its signed-in user.",
+    next: "Pass a cursor from a previous result of the same account, or start again with `since`.",
+  },
+  EVENTS_OWNER_UNKNOWN: {
+    meaning: "Plaud's `get_current_user` named no email or id for the account.",
+    next: "Run /plaud-status, and sign in to this account again if it shows a problem.",
+  },
 } as const satisfies Record<string, { readonly meaning: string; readonly next: string }>
 
 export type ErrorCode = keyof typeof ERRORS

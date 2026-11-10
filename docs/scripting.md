@@ -11,7 +11,7 @@ It uses the tools RPC, `plaud.recordings.tools`, through `opencode api` or an Op
 | `get_transcript` | read | `plaud_get_transcript` |
 | `get_current_user` | read | `plaud_get_current_user` |
 | `recent` | read | `plaud_recent`, the plugin's own: the newest recordings, one line each |
-| `export` | export | `plaud_export`, the plugin's own: writes one recording's audio, transcript block or note to a local file |
+| `events_list` | read | `plaud_events_list`, the plugin's own: one account's recordings since a cursor, as Memory's events ([configuration](configuration.md#events-list)) |
 | `describe` | none | lists every method with its class, its permission action, whether OpenCode lists its tool now, and its input as JSON Schema; given a session, it also gives each method's `permission` |
 
 A tool a Plaud server adds later is not a method until this plugin classifies it, so a script never reaches one.
@@ -25,11 +25,11 @@ account is the envelope's `account`, never part of the input. It returns
 `{ "items": [{ "id", "text" }], "editable": false }`: one line per recording, with its title, start time (UTC) and
 length, and no link or content.
 
-`export` runs the plugin's own `plaud_export`, as the model does: it asserts `plaud_export` for the account and the
-kind, then writes only inside the export roots from the plugin's `exportRoots` option. Its input is the tool's without
-`account` (`recordingId`, `kind`, and optionally `block`, `destination`, `overwrite`); the account is the envelope's. It
-returns `{ "path", "bytes", "sha256" }`, never the file's content. An existing file is replaced only with
-`"overwrite": true`.
+`events_list` runs the plugin's own `plaud_events_list`, as the model does: it asserts `plaud_events_list` for the account, then reads through that account's `get_current_user` and `list_files`. Its input is the shared contract's `{ since?, cursor?, limit?, account?, source? }`; the account is the envelope's `account` or the input's, and the two may not differ.
+
+`plaud_export` writes a file, so it is not a method: it stays a direct tool under the `access` option, and a script never runs it.
+
+The plugin's other tools are never methods, even with an allow rule:
 
 ## A rule must allow the call first
 
@@ -195,12 +195,9 @@ A refusal or failure is the RPC error `failed`, with a message `CODE: what happe
 | `TOOL_UNAVAILABLE` | The account's server is connected, but OpenCode does not list the tool. |
 | `UPSTREAM_ERROR` | Plaud answered with an error, such as a recording that does not exist. The message holds the first line of Plaud's text, at most 300 characters, with tokens and URL query strings removed. |
 | `CANCELLED` | The request was cancelled. |
-| `INPUT_INVALID` | `recent` or `export`: the input is not the method's schema, for example because it holds `account`, which belongs in the envelope. |
-| `PLAUD_READ_FAILED`, `PLAUD_UNREADABLE` | `recent` or `export`: a read it makes failed, or did not return what it expects. |
-| `CONTENT_UNAVAILABLE` | `export`: Plaud has no audio, or no such transcript block, for that recording. |
-| `EXPORT_OUTSIDE_ROOTS`, `EXPORT_BAD_DESTINATION`, `EXPORT_EXISTS` | `export`: the destination is outside the export roots, is not a file path, or exists and `overwrite` is not true. |
-| `EXPORT_PATH_NOT_PERMITTED` | `export`: the export folder is outside the project and the `external_directory` rule refused the write. Nothing was read or written; the next step is the rule to allow. |
-| `EXPORT_TOO_LARGE`, `EXPORT_TIMEOUT`, `EXPORT_FAILED` | `export`: the text is over 25 MiB, the export did not finish within `exportTimeoutMs`, or writing the file failed. |
+| `INPUT_INVALID` | `recent` and `events_list` only: `recent`'s input is not `{}` or `{ "limit": 1 to 20 }`, for example because it holds `account`, which belongs in the envelope; `events_list`'s input breaks the contract, or names an account other than the envelope's. |
+| `PLAUD_READ_FAILED`, `PLAUD_UNREADABLE` | `recent` and `events_list` only: the account's `list_files` or `get_current_user` failed, or did not return what it should. |
+| `EVENTS_CURSOR_INVALID`, `EVENTS_OWNER_UNKNOWN` | `events_list` only: the cursor is not one it issued for this account and user, or Plaud named no user. |
 
 OpenCode itself answers `rpc.method_not_found` for a method that does not exist, such as a tool Plaud added later, and
 `rpc.invalid_input` for a body that is not the envelope above, with one issue per problem:
@@ -214,3 +211,12 @@ OpenCode itself answers `rpc.method_not_found` for a method that does not exist,
 | `input` missing | `"input" is missing` |
 | `input` not an object | `"input" must be an object` |
 | `describe` given anything but nothing, `{}` or `{sessionID}` | `describe takes nothing, or {"sessionID":"<session>"}` |
+
+## What scripts cannot do
+
+- Call a tool that is not one of the five reads, `plaud_recent` or `plaud_events_list`, even with an allow rule: no export, and no other Plaud tool.
+- Get a signed link.
+- Answer an approval prompt, or use a tool that asks.
+- Use a token: the plugin has none to give.
+
+A script's calls write nothing to the session, and OpenCode's `execute.before` and `execute.after` tool hooks, from any plugin, do not run for them. The plugin applies its own hook's work itself: it withholds the signed links with the same functions.

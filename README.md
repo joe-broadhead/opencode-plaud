@@ -48,6 +48,7 @@ Ask about your recordings, for example "what did I record this week?" or "save t
 | `plaud_get_file` | `tools.plaud.get_file` | One recording in full: 150 to 320 KB, mostly the raw transcript and the notes again. The skill and Code Mode's description steer the model away from it, to the notes, the transcript, or `plaud_export` for audio | runs |
 | `plaud_get_current_user` | `tools.plaud.get_current_user` | The signed-in account | runs |
 | `plaud_recent` | `tools.plaud.recent` | The newest recordings, one line each: title, start time and length | runs |
+| `plaud_events_list` | `tools.plaud.events_list` | For Memory's collector and scripts: one account's recordings since a cursor, as normalised events, oldest first | runs |
 | `plaud_export` | `tools.plaud.export` | Save audio, a transcript or a note as a file | runs, unless `access` asks |
 
 Plaud maintains the read tools and their arguments. Plaud has no write API: nothing here can create, rename, delete, upload, share or send a recording. Any other tool on a Plaud server runs too; set `access` to `"ask-changes"` or `"read-only"` to hold it back.
@@ -81,11 +82,7 @@ See [SECURITY.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/SECU
 
 ### Scripts
 
-A script or a cron job can call Plaud's five read tools, `plaud_recent` and `plaud_export` with no model, through
-`opencode api`. It runs as a session and its agent, and every call needs a rule that resolves to `allow`. Every tool is
-allowed by default, so a script runs a read, `recent` or an export unless you restrict the plugin: an `ask` is refused
-when nobody can answer it, and a saved "Always allow" is not enough. Add `"account": "<alias>"` to reach another
-account. A script never gets a signed link:
+A script or a cron job can call Plaud's five read tools, `plaud_recent` and `plaud_events_list` with no model, through `opencode api`. It runs as a session and its agent, under that agent's permission rules and the session's own. Every tool is allowed by default, so a script runs a read, `recent` or `events_list` unless you restrict the plugin: an `ask` is refused when nobody can answer it, and a saved "Always allow" is not enough. Add `"account": "<alias>"` to read another account. Exports and every other Plaud tool are never available to scripts, and a script never gets a signed link:
 
 ```sh
 opencode api post /api/rpc/plaud.recordings.tools/list_files -H "x-opencode-directory:$PWD" \
@@ -144,6 +141,7 @@ The block for each value, for the default account's `plaud` server, generated fr
 | `plaud_get_current_user` | `*` | `allow` |
 | `plaud_export` | `*` | `allow` |
 | `plaud_recent` | `*` | `allow` |
+| `plaud_events_list` | `*` | `allow` |
 
 <!-- /generated:rules-all -->
 
@@ -161,6 +159,7 @@ The block for each value, for the default account's `plaud` server, generated fr
 | `plaud_get_current_user` | `*` | `allow` |
 | `plaud_export` | `*` | `ask` |
 | `plaud_recent` | `*` | `allow` |
+| `plaud_events_list` | `*` | `allow` |
 
 <!-- /generated:rules-ask-changes -->
 
@@ -178,6 +177,7 @@ The block for each value, for the default account's `plaud` server, generated fr
 | `plaud_get_current_user` | `*` | `allow` |
 | `plaud_export` | `*` | `deny` |
 | `plaud_recent` | `*` | `allow` |
+| `plaud_events_list` | `*` | `allow` |
 
 <!-- /generated:rules-read-only -->
 
@@ -247,6 +247,8 @@ Members then only sign in, once per account: run `/connect` and choose **Plaud**
 | `CONNECTION_FAILED` | The tools RPC refused the call. | Run /plaud-status and follow its next step. |
 | `CONTENT_UNAVAILABLE` | Plaud has no audio, or no such transcript block, for that recording. | Export another transcript block, or the note. |
 | `DISABLED` | The tools RPC refused the call. | Enable the account's server, plaud or plaud-<alias>, in /mcps. |
+| `EVENTS_CURSOR_INVALID` | The cursor was not issued by `events_list` for this account and its signed-in user. | Pass a cursor from a previous result of the same account, or start again with `since`. |
+| `EVENTS_OWNER_UNKNOWN` | Plaud's `get_current_user` named no email or id for the account. | Run /plaud-status, and sign in to this account again if it shows a problem. |
 | `EXPORT_BAD_DESTINATION` | The destination is not a file path the plugin can write. | Pass a plain file path, without a trailing slash, and without `~`, which is not expanded. |
 | `EXPORT_EXISTS` | The destination file exists and overwrite was not set. | Ask the user before passing overwrite: true, or choose another path. |
 | `EXPORT_FAILED` | Writing the file failed. | Check the folder is writable and there is space, then retry. |

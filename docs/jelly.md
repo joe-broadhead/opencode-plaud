@@ -13,7 +13,7 @@ declaration, because that schema accepts no unknown keys.
 
 ## Tools and permissions
 
-7 tools are declared (6 read-only). Jelly's agents have no base "allow everything"
+8 tools are declared (7 read-only). Jelly's agents have no base "allow everything"
 rule, so this plugin's own default rules, which it puts after that rule, never reach them. Jelly
 writes each declared `ask` or `deny` as that tool's default instead (the person's own choice
 replaces it), and denies a read-only helper every tool not marked `readOnly`. A declared `allow`
@@ -22,9 +22,7 @@ changes nothing in Jelly.
 - Ask: none. Every declared tool is allowed, as the plugin's own default rules allow it at `access: "all"`.
 - Off: none.
 
-The declared tools are the five reads of Plaud's server, `plaud_recent`, the plugin's own read of
-the newest recordings, and `plaud_export`, the one tool that writes a file. To make the export ask
-in Jelly too, set `access: "ask-changes"` in the plugin options; `"read-only"` denies it there.
+The declared tools are the five reads of Plaud's server, `plaud_recent`, the plugin's own read of the newest recordings, `plaud_events_list`, the plugin's read for Memory's collector, which runs it unattended and so never asks, and `plaud_export`, the one tool that writes a file. To make the export ask in Jelly too, set `access: "ask-changes"` in the plugin options; `"read-only"` denies it there.
 
 The reads are declared for the default account's server, `plaud`. Another account's reads,
 `plaud-<alias>_<read>`, are not declared, because the accounts are a plugin option that Jelly
@@ -56,4 +54,4 @@ Jelly folds the declared sign-ins into this plugin's one card, which shows each 
 Jelly's curated catalogue pins an exact version. Publish each release under a new version, so
 that a review in Jelly can tell the two apart.
 
-The declaration test runs the shared kit, `test/support/jelly-kit.ts`, which checks the declaration and this page against Jelly's plugin authors' standard. `scripts/check-copies.mjs` holds the kit, and the shared part of the tools RPC (`src/host/tools-rpc.ts`), equal to the copy every plugin carries.
+The declaration test runs the shared kit, `test/support/jelly-kit.ts`, which checks the declaration and this page against Jelly's plugin authors' standard. `scripts/check-copies.mjs` holds the kit, the shared part of the tools RPC (`src/host/tools-rpc.ts`) and the events_list source contract (`src/host/events-list.ts`) equal to the copies every plugin carries.

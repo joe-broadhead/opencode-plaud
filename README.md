@@ -251,7 +251,7 @@ Members then only sign in, once per account: run `/connect` and choose **Plaud**
 | `EXPORT_EXISTS` | The destination file exists and overwrite was not set. | Ask the user before passing overwrite: true, or choose another path. |
 | `EXPORT_FAILED` | Writing the file failed. | Check the folder is writable and there is space, then retry. |
 | `EXPORT_OUTSIDE_ROOTS` | The destination is outside the export folders the plugin may write in. | Write inside a root the plugin lists, or ask the user to add the folder to exportRoots. |
-| `EXPORT_PATH_NOT_PERMITTED` | OpenCode asks for the external_directory permission before anything outside the project is written, and the export folder is outside it. | Allow it with { "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" } in your permissions, or set exportRoots inside the project. |
+| `EXPORT_PATH_NOT_PERMITTED` | OpenCode checks the external_directory permission before anything outside the project is written, and the export folder is outside it. A rule refused it, or the person rejected the prompt. | Allow it with { "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" } in your permissions, or set exportRoots inside the project. |
 | `EXPORT_TIMEOUT` | The export did not finish inside exportTimeoutMs. | Ask the user to raise exportTimeoutMs, then retry. |
 | `EXPORT_TOO_LARGE` | The exported text is over the 25 MiB cap. | Export one transcript block or the note instead of everything. |
 | `INPUT_INVALID` | A call's input is not the method's schema, such as `account` in a plugin tool's input. | Call describe for the schema, then pass the fields it names; the account is the envelope's. |

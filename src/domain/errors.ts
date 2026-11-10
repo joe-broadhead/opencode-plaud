@@ -34,7 +34,7 @@ export const ERRORS = {
     next: "Write inside a root the plugin lists, or ask the user to add the folder to exportRoots.",
   },
   EXPORT_PATH_NOT_PERMITTED: {
-    meaning: "OpenCode asks for the external_directory permission before anything outside the project is written, and the export folder is outside it.",
+    meaning: "OpenCode checks the external_directory permission before anything outside the project is written, and the export folder is outside it. A rule refused it, or the person rejected the prompt.",
     next: "Allow it with { \"action\": \"external_directory\", \"resource\": \"<the export folder>/*\", \"effect\": \"allow\" } in your permissions, or set exportRoots inside the project.",
   },
   EXPORT_BAD_DESTINATION: {

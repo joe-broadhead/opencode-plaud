@@ -53,7 +53,7 @@ export async function registerTools(ctx: ToolsHost, options: ToolOptions): Promi
       if (!PLAUD_TOOL.test(event.tool)) return
       if (event.status === "error") {
         const failure = event.error
-        // An export folder is outside the project, so OpenCode asks for `external_directory` as well as the export's
+        // An export folder is outside the project, so OpenCode also checks `external_directory` as well as the export's
         // own action. Its refusal names the rule as the next step: the folder is the user's to change, not the model's.
         if (event.tool === "plaud_export" && /external_directory/i.test(failure.message)) {
           const folder = options.exportRoots.join(", ")
@@ -62,7 +62,7 @@ export async function registerTools(ctx: ToolsHost, options: ToolOptions): Promi
           event.error = new ToolError({
             message: new PlaudError(
               "EXPORT_PATH_NOT_PERMITTED",
-              `OpenCode asks for the external_directory permission before anything outside the project is written, and the export folders are outside it: ${folder}.`,
+              `OpenCode checks the external_directory permission before anything outside the project is written, and the export folders are outside it: ${folder}. A rule refused it, or the person rejected the prompt.`,
               `Allow it with { "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" } in your permissions, or set exportRoots inside the project.`,
             ).message,
             ...(metadata === undefined ? {} : { metadata: { ...metadata, code: "EXPORT_PATH_NOT_PERMITTED" } }),

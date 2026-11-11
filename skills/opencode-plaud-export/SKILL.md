@@ -41,7 +41,7 @@ It returns `{ path, bytes, sha256 }`, never the content.
    with another tool, because the roots are the user's limit. Offer the default file, or tell the user how to add
    the folder: in the plugin's entry in `opencode.json`, then `opencode reload`.
    ~~~json
-   { "plugins": [{ "package": "@joe-broadhead/opencode-plaud", "options": { "exportRoots": ["~/Plaud", "~/Documents"] } }] }
+   { "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.0", "options": { "exportRoots": ["~/Plaud", "~/Documents"] } }] }
    ~~~
 4. **Pass `overwrite: true`** only when the user asked to replace that file. The export itself refuses an existing
    file with `EXPORT_EXISTS`, so don't list the folder first.

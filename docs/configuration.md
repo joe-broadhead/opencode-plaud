@@ -15,7 +15,7 @@ Give options with the object form of the plugin entry:
 {
   "plugins": [
     {
-      "package": "@joe-broadhead/opencode-plaud",
+      "package": "github:joe-broadhead/opencode-plaud#v0.0.0",
       "options": {
         "accounts": ["work"],
         "exportRoots": ["~/Plaud"],
@@ -87,7 +87,7 @@ If your config already defines an MCP server with one of these names in `mcp.ser
 | `"read-only"` | the reads | nothing: exports and new tools are **denied** |
 
 ```json
-{ "plugins": [{ "package": "@joe-broadhead/opencode-plaud", "options": { "access": "ask-changes" } }] }
+{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.0", "options": { "access": "ask-changes" } }] }
 ```
 
 `/plaud-status` shows the value and the block it inserts. The default block, for the default account's `plaud` server, generated from `defaultRules(servers, access)` in `src/host/permissions.ts`:

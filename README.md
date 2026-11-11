@@ -28,8 +28,6 @@ Or add the plugin to `opencode.json` instead, with the same spec:
 { "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.0" }] }
 ```
 
-**Update** with `opencode plugin update @joe-broadhead/opencode-plaud`, then run `opencode reload`. An entry pinned to a version, such as `@joe-broadhead/opencode-plaud@<version>`, does not update: remove the `@version` from its `plugins` entry first.
-
 ## Sign in
 
 Run `/connect` and choose **Plaud**. Press `o` or Enter to open Plaud's sign-in page in your browser, then approve. `/mcps` offers the same sign-in.
@@ -112,7 +110,7 @@ See [Scripting](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/s
    | `"read-only"` | the reads and `plaud_recent` | nothing: exports and new tools are **denied** |
 
    ```json
-   { "plugins": [{ "package": "@joe-broadhead/opencode-plaud", "options": { "access": "read-only" } }] }
+   { "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.0", "options": { "access": "read-only" } }] }
    ```
 
 2. **An agent that is read-only or asks**, with rules of its own, later than the plugin's:
@@ -207,7 +205,7 @@ Every option is optional. To add a second Plaud account, give it an alias in `ac
 {
   "plugins": [
     {
-      "package": "@joe-broadhead/opencode-plaud",
+      "package": "github:joe-broadhead/opencode-plaud#v0.0.0",
       "options": { "accounts": ["work"], "exportRoots": ["~/Plaud", "~/Documents/Meetings"] }
     }
   ]
@@ -224,7 +222,7 @@ OpenCode registers itself with Plaud's server automatically, so there is no clie
 
 ```json
 {
-  "plugins": [{ "package": "@joe-broadhead/opencode-plaud", "options": { "exportRoots": ["~/Documents/Plaud"] } }],
+  "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.0", "options": { "exportRoots": ["~/Documents/Plaud"] } }],
   "permissions": [{ "action": "plaud_export", "resource": "*:audio", "effect": "deny" }]
 }
 ```
@@ -284,7 +282,7 @@ Sign out while the plugin is still installed: once it is removed, OpenCode no lo
 
 1. Sign out of each account: `opencode mcp logout plaud`, and `opencode mcp logout plaud-<alias>` for each account in `accounts`. If one answers `MCP server not found` while the plugin is still installed, OpenCode is still loading the plugin for that folder: wait a few seconds and run it again.
 2. Check: `opencode auth list` lists no **Plaud** entry.
-3. Remove the plugin: `opencode plugin remove @joe-broadhead/opencode-plaud`, then `opencode reload`.
+3. Remove the plugin: `opencode plugin remove github:joe-broadhead/opencode-plaud#v0.0.0`, then `opencode reload`.
 4. Your exports stay in your export roots (`~/Plaud` by default); delete them if you no longer want them. The plugin keeps no other data.
 5. Remove any Plaud rules you copied into your agents' own `permissions`.
 

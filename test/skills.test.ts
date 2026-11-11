@@ -128,15 +128,17 @@ describe("skill files", () => {
     const rule = /`(\{ "action": "plaud_export"[^`]*\})`/.exec(skill)?.[1]
     expect(JSON.parse(rule!)).toEqual({ action: "plaud_export", resource: "*", effect: "allow" })
     const config = JSON.parse(/~~~json\n\s*(\{.*\})\n\s*~~~/.exec(skill)![1]!) as { plugins: { package: string; options: Record<string, unknown> }[] }
-    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { name: string }
-    expect(config.plugins[0]!.package).toBe(pkg.name)
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { name: string; version: string }
+    // A Git install is named by its tag spec: github:<owner>/<name>#v<version>.
+    expect(config.plugins[0]!.package).toBe(`github:${pkg.name.replace(/^@/, "")}#v${pkg.version}`)
     expect(loadConfig(config.plugins[0]!.options).exportRoots).toHaveLength(2)
   })
 
   it("contain no internal wording, links or credentials", () => {
     for (const id of IDS) {
       const raw = text(id)
-      expect(raw, id).not.toMatch(/\bWS-[A-Z]\b|\bMode [RF]\b|\bV\d{1,2}\b|\bfake\b|\bmanifest\b|\bplan(?:s|Id)?\b|\bcommit\b|\bharness\b|\bpending\b|\bTODO\b/i)
+      // A release tag after "#" (the install spec's #v0.0.0) is public, not an internal label such as V1.
+      expect(raw, id).not.toMatch(/\bWS-[A-Z]\b|\bMode [RF]\b|(?<!#)\bV\d{1,2}\b|\bfake\b|\bmanifest\b|\bplan(?:s|Id)?\b|\bcommit\b|\bharness\b|\bpending\b|\bTODO\b/i)
       expect(raw, id).not.toMatch(/plaud_auth|plaud_recordings|plaud_status|plaud-login|export_commit/)
       expect(raw, id).not.toMatch(/https?:\/\/|\bBearer\s|\beyJ[A-Za-z0-9_-]{8,}|(?:access|refresh)_token|presigned/i)
     }

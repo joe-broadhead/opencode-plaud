@@ -100,7 +100,26 @@ Plaud's result shapes are read only in `src/domain/normalize.ts`. If Plaud chang
 
 ## Releasing
 
-1. In one release commit on `master`, date the version's `CHANGELOG.md` entry and set `version` in `package.json` to it. Nothing else changes, and `npm run check` passes.
-2. Tag that commit `vX.Y.Z`, matching `version` in `package.json`, and push the tag.
-3. A reviewer of the `release` environment approves the run.
-4. `.github/workflows/release.yml` checks that the package is not private and that the tag matches the version, runs `npm run check`, packs the tarball, runs the pack test on exactly that tarball (`PACK_TARBALL`), and publishes it with npm trusted publishing and provenance. A version that is already on npm is skipped, so a rerun is safe. A version with a `-`, such as `1.0.0-rc.1`, gets the npm tag `next`; others get `latest`.
+Every plugin releases as `v0.0.0`, and it installs from that GitHub tag. The release is one commit on top of a `master`
+head that CI passed, and the tag points at it.
+
+1. Set `version` to `0.0.0` in `package.json`, date the `## [0.0.0]` entry in `CHANGELOG.md`, then run `npm run check`.
+2. Push that commit to `master`, and wait for CI to pass on it.
+3. In a clean checkout of `master` at that commit, run `node scripts/release-commit.mjs --ci-sha <its full sha>`. It builds
+   `dist/`, removes the lifecycle scripts, and creates the signed commit and the signed annotated tag `v0.0.0`. It never
+   pushes; `--dry-run` shows the change first.
+4. Push the tag only: `git push origin v0.0.0`.
+5. Approve the run in the `release` environment. The release workflow checks the tag and its commit, installs the tag on
+   each stock OpenCode host (2.2.3 to 2.2.6), packs it, and creates the GitHub Release with the notes, the tarball and
+   `SHA256SUMS`.
+
+A tag that already exists stops step 3. Delete the old tag and its Release first, then start again.
+
+
+Each release has its own tag, and a Git install does not update by itself. To move to a newer release, remove the old entry with `opencode plugin remove github:joe-broadhead/opencode-plaud#v0.0.0`, then add the new tag with `opencode plugin add github:joe-broadhead/opencode-plaud#v<version>`.
+
+Or add the plugin to `opencode.json` instead, with the same spec:
+
+```json
+{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.0" }] }
+```

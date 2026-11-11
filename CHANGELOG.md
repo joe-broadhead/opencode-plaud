@@ -2,7 +2,8 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.0] - 2026-11-11
+<!-- kit-release: the GitHub release v0.0.0 -->
 
 ### Added
 
@@ -16,39 +17,43 @@ All notable changes to this project are documented here. The format follows [Kee
 - The tools RPC follows the same default: every method is allowed unless `access` or the session's rules restrict it.
 - The tools RPC is v2: every known read is a method with its class, plus `plaud_recent` (method `recent`) and `plaud_events_list` (method `events_list`), and a call runs only with a prior explicit `allow` in the agent's or the session's rules. An `ask` is refused before the tool runs, so no prompt waits, and a saved "Always allow" does not authorize an ad-hoc script. `plaud_export` writes a file and stays a direct tool: no script can call it. Signed links stay withheld on the script path.
 
-## [0.0.8] - 2026-11-08
+## Earlier releases on npm
 
-### Added
+These versions were published to npm before the plugin moved to GitHub releases. Their Git tags have been removed.
+
+### npm 0.0.8 - 2026-11-08
+
+#### Added
 
 - `plaud_events_list`, and the tools RPC method `events_list`: one account's recordings since a cursor, as Memory's normalised events, oldest first, each with its name, start (UTC) and length. It asserts `plaud_events_list` with the account as the resource and reads through that account's `get_current_user` and `list_files` (one week at a time, every page), never asks, and is allowed by default, so Memory's collector can run it unattended. A recording is listed once it started 6 hours ago. The owner is the signed-in Plaud user.
 - `src/host/events-list.ts`, the shared `events_list` source contract, carried unchanged; `scripts/check-copies.mjs` pins it like the other shared copies.
 - The errors `EVENTS_CURSOR_INVALID` and `EVENTS_OWNER_UNKNOWN`.
 
-## [0.0.7] - 2026-11-06
+### npm 0.0.7 - 2026-11-06
 
-### Added
+#### Added
 
 - The `jelly` declaration's `plaud` sign-in declares its accounts: `"account": { "option": "accounts", "required": false, "reserved": ["default"], … }`. A Jelly host asks for another account's name and adds it to `accounts`, read from this declaration, so Jelly keeps no Plaud code of its own; the `default` account needs no name, and no account may take it. It needs Jelly 0.3.2 or later; an older Jelly refuses the declaration's new key.
 
-### Changed
+#### Changed
 
 - The declaration test uses the shared kit, `test/support/jelly-kit.ts`, which checks the `jelly` declaration against Jelly's plugin authors' standard: its keys, title, summary, icon, skills, tool names and effects, sign-in labels, and `docs/jelly.md`. The test keeps only what this plugin alone declares.
 - `npm run check` runs `scripts/check-copies.mjs`, which fails when the shared part of `src/host/tools-rpc.ts` or the kit differs from the copy every plugin carries. The tools RPC's header no longer names `check-copy.mjs`, which no plugin had.
 
-## [0.0.6] - 2026-11-05
+### npm 0.0.6 - 2026-11-05
 
-### Changed
+#### Changed
 
 - `opencode-plaud-export` spells out the `list_files` call that finds a recording by date or name, with `start_at` in UTC, so it needs no catalogue search when the main skill isn't loaded. It says that the export itself refuses an existing file with `EXPORT_EXISTS`, so there is no need to list the folder first. When several recordings match, it exports only after the user answers, and never a guess or every match.
 - Scripts use a session created for them. `opencode-plaud` and `docs/scripting.md` say to create the script's session with `opencode api post /api/session` and keep `data.id`, and never to borrow a session found in history or a session list, which would run as that session's agent, under its rules.
 
-## [0.0.5] - 2026-11-05
+### npm 0.0.5 - 2026-11-05
 
-### Added
+#### Added
 
 - Status names a skill that shadows one of the plugin's. OpenCode keeps one skill per id, and a skill of your own or a project's wins, so a file such as `~/.config/opencode/skills/opencode-plaud/SKILL.md` stops the plugin's skill from loading. The `Skills` row names it and its path, the next step says to move or rename it, and the status RPC lists it in the new field `shadowedSkills`, as `{ id, path }`.
 
-### Changed
+#### Changed
 
 - The fix for agents without the default rules is one sentence, the same in every plugin of this family: "Put the default rules shown by /plaud-status first in each listed agent's own permissions, in opencode.json or the agent's Markdown file, followed by your top-level rules for Plaud tools." It is the `Next step` row, the status RPC's `nextStep` and the dialog's. The `Agents without default rules` row lists only the agents' names, followed by the rules to copy. Why the rules go in each agent's own permissions is in the configuration docs.
 - A transcript export reads 500 segments a page, Plaud's maximum, instead of Plaud's default of 50, so a long transcript takes a few reads instead of dozens.
@@ -58,37 +63,37 @@ All notable changes to this project are documented here. The format follows [Kee
 - `docs/scripting.md` shows how to take a result's JSON out of Plaud's untrusted-data tags.
 - The tools RPC uses the shared module v4. When a deny rule refuses a script's call, `PERMISSION_DENIED` names the denied action, such as `plaud_list_files` under `recent`, and its next step says to remove or narrow that deny rule, add a later allow rule for it to the session, or use a session whose agent allows it. A refused ask keeps its next step.
 
-### Removed
+#### Removed
 
 - The `maxTextBytes` option. A transcript or note export is now held to a fixed 25 MiB, about 50 times the longest transcript seen, so there is nothing to tune. Remove `maxTextBytes` from the plugin's options: OpenCode refuses to start the plugin with an unknown option (`OPTIONS_INVALID`). `maxAudioBytes` stays.
 
-### Fixed
+#### Fixed
 
 - `plaud_recent` shows each recording's start time in UTC, as Plaud recorded it. Plaud sends its times as UTC with no zone, and the plugin read them as the machine's local time, so every time was off by the machine's offset from UTC. An export's frontmatter `date` is now the recording's local calendar date on your machine, as documented; before, it was the UTC date.
 
-## [0.0.4] - 2026-11-04
+### npm 0.0.4 - 2026-11-04
 
-### Added
+#### Added
 
 - Jelly shows the plugin's one-line summary and icon: `jelly.summary`, and `jelly.icon`, shipped as `assets/icon.svg`.
 - Scripts can call `plaud_recent` through the tools RPC, as the method `recent`. Its input is `{ "limit"?: 1 to 20 }`; the account is the envelope's `account`, as for the five reads, and an account the options don't name is `ACCOUNT_UNKNOWN`. It runs under the same rules as for the model: `plaud_recent`, then the account's `list_files`, and a refused read is `PERMISSION_DENIED` naming that read. An input it does not take, such as `account`, is the new code `INPUT_INVALID`. `describe` lists it.
 
-## [0.0.3] - 2026-11-04
+### npm 0.0.3 - 2026-11-04
 
-### Added
+#### Added
 
 - `plaud_recent` (`tools.plaud.recent` in Code Mode): the newest recordings, one line each, with the title, the start time in UTC and the length. It takes an optional `account` and `limit` (1 to 20, 8 by default), and reads through the account's own `list_files`. It runs without asking: the default rules allow `plaud_recent` by its exact name, and a rule for the account's `list_files` applies to it too. Because it is one tool for every account, a rule can name the account as its resource, such as `{ "action": "plaud_recent", "resource": "work", "effect": "deny" }`. It is not a tools RPC method; a script reads `list_files`.
 - `/plaud-status` counts `plaud_recent` as one of the plugin's own tools, not as an unknown Plaud tool. The block it shows for agents defined in your config has the `plaud_recent` rule; copy it again into those agents.
 - A `jelly` section in `package.json`, for [Jelly](https://heyjelly.ai): the plugin's title, each tool with its permission, its default effect and whether it only reads, the skills, the `plaud*` sign-in, which folds every account into one row, and a Home feed preset, "Recent Plaud recordings", that shows `plaud_recent` every 30 minutes. Jelly reads it without loading the plugin. `docs/jelly.md` explains it.
 
-## [0.0.2] - 2026-11-04
+### npm 0.0.2 - 2026-11-04
 
-### Added
+#### Added
 
 - OpenCode 2.2.5 is a tested release, next to 2.2.3 and 2.2.4.
 - The status RPC (`plaud.recordings` `status`) has `version`, the plugin's version, and `state`, the most urgent account's state in the shared form: `connected`, `sign_in_required`, `connecting`, `failed`, `disabled` or `not_configured`.
 
-### Changed
+#### Changed
 
 - The status RPC uses the field names every plugin of this family shares. Scripts that read it need these changes:
   - `host` is now `{ version, range, tested }`: `host.warning` is gone, `host.range` is the supported range `>=2.2.3 <2.3.0`, `host.tested` is true only for 2.2.3, 2.2.4 and 2.2.5 (before, for any release in the range), and `host.version` is `null` when OpenCode reports no version;
@@ -100,7 +105,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `/plaud-status` has the dialog's title, `Plaud status`, and always shows the `Agents without default rules` row, with `none` when no agent needs the fix.
 - Code Mode's description of the `plaud` namespace names all five reads, `get_current_user` included, and sends the model to `get_note` or `get_transcript` before `get_file`. `get_file` can be over 100 KB for one recording: it repeats what `list_files` and `get_note` return, and adds only `source_list` and the withheld audio link. The `opencode-plaud` skill says the same, and the export skill and `plaud_export`'s `recordingId` description find recording ids with `list_files`.
 
-### Fixed
+#### Fixed
 
 - Status listed every agent without the default rules, also those whose own rules already ask for every tool, so it could name dozens of agents that need no fix. It now lists an agent only when its own rules would let an unknown Plaud tool run without asking.
 - The README's Uninstall now signs out of every account while the plugin is still installed, checks with `opencode auth list`, and only then removes the plugin; once it is removed, OpenCode can no longer remove the sign-ins. If a sign-out answers `MCP server not found` while the plugin is installed, OpenCode is still loading the plugin for that folder: wait a few seconds and run it again.
@@ -110,15 +115,15 @@ All notable changes to this project are documented here. The format follows [Kee
 - An audio export whose link Plaud sent in a form that does not parse failed with a bare `TypeError` and no next step. It now fails with `PLAUD_UNREADABLE` and a next step, and the error never holds the link.
 - An audio export followed redirects without checking them, so a redirect could lead to plain http. The export now follows redirects itself, at most 5: each one must be https with no user name or password, and one from another machine may not lead to this one. Otherwise it stops with `PLAUD_UNREADABLE` before fetching, and the error names no link. A link with a user name or password is refused the same way.
 
-## [0.0.1] - 2026-11-03
+### npm 0.0.1 - 2026-11-03
 
-### Added
+#### Added
 
 - The tools RPC, `plaud.recordings.tools`: a script can call Plaud's five read tools with no model, through `opencode api`, as a session and its agent, and with an optional `account` for another account. It gets exactly the access that agent's model has: a tool its rules hide is refused, OpenCode checks each call against the agent's and the session's rules, and an ask is refused at once because no one is there to answer it. Every signed link is withheld, as for the model. `describe` lists the methods with each tool's live input schema. `plaud_export` and any other Plaud tool are never methods. `docs/scripting.md` explains it.
 
-## [0.0.0] - 2026-11-01
+### npm 0.0.0 - 2026-11-01
 
-### Added
+#### Added
 
 - Connects OpenCode to Plaud's hosted MCP server, `https://mcp.plaud.ai/mcp`, as the server `plaud`, listed in `/connect` as **Plaud**. Sign in from `/connect` (press `o` or Enter to open the browser) or with `opencode mcp auth plaud`, which opens it itself; OpenCode stores and refreshes the tokens. `/connect` marks an account that needs a new sign-in **Sign in required**.
 - Plaud's own read tools: `plaud_list_files`, `plaud_get_file`, `plaud_get_transcript`, `plaud_get_note` and `plaud_get_current_user`.

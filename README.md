@@ -15,10 +15,18 @@ The plugin is plain JavaScript. It bundles no Node runtime or Plaud software, do
 ## Install
 
 ```sh
-opencode plugin add @joe-broadhead/opencode-plaud
+opencode plugin add github:joe-broadhead/opencode-plaud#v0.0.0
 ```
 
 Run `opencode reload`, or restart OpenCode. Then run `/plaud-status`: it shows `sign-in required` until you sign in.
+
+Each release has its own tag, and a Git install does not update by itself. To move to a newer release, remove the old entry with `opencode plugin remove github:joe-broadhead/opencode-plaud#v0.0.0`, then add the new tag with `opencode plugin add github:joe-broadhead/opencode-plaud#v<version>`.
+
+Or add the plugin to `opencode.json` instead, with the same spec:
+
+```json
+{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.0" }] }
+```
 
 **Update** with `opencode plugin update @joe-broadhead/opencode-plaud`, then run `opencode reload`. An entry pinned to a version, such as `@joe-broadhead/opencode-plaud@<version>`, does not update: remove the `@version` from its `plugins` entry first.
 
@@ -289,6 +297,7 @@ Sign out while the plugin is still installed: once it is removed, OpenCode no lo
 - **Signed links.** Tool results never show a signed link. Audio and transcripts reach a file only through `plaud_export`.
 - **Unattended exports.** An export folder is outside the project, so an unattended run needs the `external_directory` rule as well as `plaud_export` (see [Permissions](#permissions)).
 - **Tested hosts.** Tested on OpenCode 2.2.3, 2.2.4, 2.2.5 and 2.2.6. A later 2.2 release starts, and `/plaud-status` marks it untested.
+- Updates are not automatic for a Git install, and `opencode plugin update` and `opencode plugin check` do not work on one: to move to a newer release, remove the old entry and add the new tag.
 
 ## Links
 

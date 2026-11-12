@@ -72,9 +72,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tui.json --noEmit && tsc -p test/tsconfig.json",
     "lint": "vitest run --project lint && node scripts/check-copies.mjs && node scripts/check-icons.mjs && node scripts/check-workflows.mjs && node scripts/check-forbidden.mjs",
     "test": "vitest run --project unit",
+    "test:kit": "node --test scripts/release-kit.test.mjs",
     "test:host": "node scripts/host-tests.mjs",
     "test:pack": "vitest run --project pack",
-    "check": "npm run typecheck && npm run lint && npm run build && npm test && npm run test:host && npm run test:pack",
+    "check": "npm run typecheck && npm run lint && npm run build && npm test && npm run test:kit && npm run test:host && npm run test:pack",
     "check:upstream": "node scripts/check-upstream.mjs"
   },
   "devDependencies": {

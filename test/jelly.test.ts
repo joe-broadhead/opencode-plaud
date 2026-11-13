@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 import { DEFAULT_ACCOUNT, loadConfig } from "../src/domain/config.js"
 import { KNOWN_READS } from "../src/host/mcp.js"
 import { defaultRules, evaluate, EVENTS_ACTION, EXPORT_ACTION, RECENT_ACTION } from "../src/host/permissions.js"
+import { ACCESS_VALUES } from "../src/domain/types.js"
 import { type Declaration, type DeclaredTool, declarationProblems, docProblems, readPackage } from "./support/jelly-kit.js"
+import { ACCESS_CHOICES, type DeclaredSetting, settingChoices, settingsProblems, settingValueIssue } from "./support/jelly-settings.js"
 
 /**
  * The `jelly` section of package.json, which Jelly reads without loading the
@@ -24,11 +26,75 @@ const byPermission = new Map(jelly.tools.map((tool) => [tool.permission, tool]))
 const rules = [{ action: "*", resource: "*", effect: "allow" } as const, ...defaultRules(["plaud"])]
 
 describe("the jelly declaration", () => {
-  it("declares the flat access option", () => {
-    const settings = (jelly.contributes as unknown as { settings: { key: string; type: string; default: unknown }[] }).settings
-    expect(settings.map(({ key, type }) => ({ key, type }))).toEqual([{ key: "access", type: "string" }])
-    expect(loadConfig({ access: "read-only" }).access).toBe("read-only")
-    expect(settings[0]?.default).toBe(loadConfig({}).access)
+  const settings = (jelly.contributes as unknown as { settings: DeclaredSetting[] }).settings
+  const setting = (key: string) => settings.find((item) => item.key === key)!
+  const refused = (options: Record<string, unknown>) => () => loadConfig(options)
+
+  it("declares access with Jelly's three choices and the two export limits as bounded numbers, each default the parser's", () => {
+    expect(settings).toEqual([
+      {
+        key: "access",
+        label: "Access",
+        type: "string",
+        choices: ACCESS_CHOICES,
+        default: "all",
+        description: "all, ask-changes or read-only. Generates default rules for agents with a base allow rule.",
+      },
+      {
+        key: "maxAudioBytes",
+        label: "Largest audio export",
+        type: "number",
+        integer: true,
+        min: 1,
+        max: 68_719_476_736,
+        default: 2_147_483_648,
+        description: "The largest audio file an export writes, in bytes: a whole number up to 64 GiB. The default is 2 GiB.",
+      },
+      {
+        key: "exportTimeoutMs",
+        label: "Export time limit",
+        type: "number",
+        integer: true,
+        min: 1000,
+        max: 86_400_000,
+        default: 1_800_000,
+        description: "How long one export may take, in milliseconds, counted from your approval: 1 second to 24 hours. The default is 30 minutes.",
+      },
+    ])
+    const defaults = loadConfig({})
+    for (const item of settings) expect([item.key, item.default]).toEqual([item.key, defaults[item.key as keyof typeof defaults]])
+  })
+
+  it("passes Jelly's setting contract", () => {
+    expect(settingsProblems(settings)).toEqual([])
+  })
+
+  it("offers only access values the parser takes, and the parser refuses one outside the set", () => {
+    const access = setting("access")
+    const values = settingChoices(access)!.map((choice) => choice.value)
+    expect(values).toEqual([...ACCESS_VALUES])
+    for (const value of values) {
+      expect(settingValueIssue(access, value)).toBeNull()
+      expect(loadConfig({ access: value }).access).toBe(value)
+    }
+    for (const outside of ["write", "read", "none", ""]) {
+      expect(settingValueIssue(access, outside)).not.toBeNull()
+      expect(refused({ access: outside })).toThrow("OPTIONS_INVALID")
+    }
+  })
+
+  it("bounds each number exactly as the parser does: its ends are taken, a step past either end or a fraction refused", () => {
+    for (const key of ["maxAudioBytes", "exportTimeoutMs"]) {
+      const { min, max } = setting(key) as { min: number; max: number }
+      for (const value of [min, max]) {
+        expect(settingValueIssue(setting(key), value)).toBeNull()
+        expect(loadConfig({ [key]: value })[key as "maxAudioBytes" | "exportTimeoutMs"]).toBe(value)
+      }
+      for (const value of [min - 1, max + 1, min + 0.5]) {
+        expect(settingValueIssue(setting(key), value)).not.toBeNull()
+        expect(refused({ [key]: value })).toThrow("OPTIONS_INVALID")
+      }
+    }
   })
   it("follows the plugin authors' standard, with the effects the plugin's own default rules give", () => {
     expect(declarationProblems(ROOT, { effectOf: (permission) => evaluate(rules, permission) })).toEqual([])

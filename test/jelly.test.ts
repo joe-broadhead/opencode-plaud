@@ -4,7 +4,7 @@ import { KNOWN_READS } from "../src/host/mcp.js"
 import { defaultRules, evaluate, EVENTS_ACTION, EXPORT_ACTION, RECENT_ACTION } from "../src/host/permissions.js"
 import { ACCESS_VALUES } from "../src/domain/types.js"
 import { type Declaration, type DeclaredTool, declarationProblems, docProblems, readPackage } from "./support/jelly-kit.js"
-import { ACCESS_CHOICES, type DeclaredSetting, settingChoices, settingsProblems, settingValueIssue } from "./support/jelly-settings.js"
+import { ACCESS_CHOICES, type PluginSetting, settingChoices, settingsProblems, settingValueIssue } from "./support/jelly-settings.js"
 
 /**
  * The `jelly` section of package.json, which Jelly reads without loading the
@@ -26,7 +26,7 @@ const byPermission = new Map(jelly.tools.map((tool) => [tool.permission, tool]))
 const rules = [{ action: "*", resource: "*", effect: "allow" } as const, ...defaultRules(["plaud"])]
 
 describe("the jelly declaration", () => {
-  const settings = (jelly.contributes as unknown as { settings: DeclaredSetting[] }).settings
+  const settings = (jelly.contributes as unknown as { settings: PluginSetting[] }).settings
   const setting = (key: string) => settings.find((item) => item.key === key)!
   const refused = (options: Record<string, unknown>) => () => loadConfig(options)
 

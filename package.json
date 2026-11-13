@@ -1,6 +1,6 @@
 {
   "name": "@joe-broadhead/opencode-plaud",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Unofficial OpenCode plugin for Plaud recordings",
   "type": "module",
   "license": "MIT",
@@ -204,8 +204,45 @@
           "key": "access",
           "label": "Access",
           "type": "string",
+          "choices": [
+            {
+              "value": "all",
+              "label": "Allowed",
+              "description": "Every tool runs without asking, reads and changes alike."
+            },
+            {
+              "value": "ask-changes",
+              "label": "Ask before changes",
+              "description": "Reads run without asking. Each change asks you first."
+            },
+            {
+              "value": "read-only",
+              "label": "Read only",
+              "description": "Reads run. Changes never run."
+            }
+          ],
           "default": "all",
           "description": "all, ask-changes or read-only. Generates default rules for agents with a base allow rule."
+        },
+        {
+          "key": "maxAudioBytes",
+          "label": "Largest audio export",
+          "type": "number",
+          "integer": true,
+          "min": 1,
+          "max": 68719476736,
+          "default": 2147483648,
+          "description": "The largest audio file an export writes, in bytes: a whole number up to 64 GiB. The default is 2 GiB."
+        },
+        {
+          "key": "exportTimeoutMs",
+          "label": "Export time limit",
+          "type": "number",
+          "integer": true,
+          "min": 1000,
+          "max": 86400000,
+          "default": 1800000,
+          "description": "How long one export may take, in milliseconds, counted from your approval: 1 second to 24 hours. The default is 30 minutes."
         }
       ]
     }

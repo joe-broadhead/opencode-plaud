@@ -77,7 +77,8 @@
     "test:host": "node scripts/host-tests.mjs",
     "test:pack": "vitest run --project pack",
     "check": "npm run typecheck && npm run lint && npm run build && npm test && npm run test:kit && npm run test:host && npm run test:pack",
-    "check:upstream": "node scripts/check-upstream.mjs"
+    "check:upstream": "node scripts/check-upstream.mjs",
+    "capture": "node scripts/capture-tools.mjs"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",

@@ -15,17 +15,17 @@ The plugin is plain JavaScript. It bundles no Node runtime or Plaud software, do
 ## Install
 
 ```sh
-opencode plugin add github:joe-broadhead/opencode-plaud#v0.0.1
+opencode plugin add github:joe-broadhead/opencode-plaud#v0.0.2
 ```
 
 Run `opencode reload`, or restart OpenCode. Then run `/plaud-status`: it shows `sign-in required` until you sign in.
 
-Each release has its own tag, and a Git install does not update by itself. To move to a newer release, remove the old entry with `opencode plugin remove github:joe-broadhead/opencode-plaud#v0.0.0`, then add the new tag with `opencode plugin add github:joe-broadhead/opencode-plaud#v<version>`.
+Each release has its own tag, and a Git install does not update by itself. To move to a newer release, remove the old entry with `opencode plugin remove github:joe-broadhead/opencode-plaud#v0.0.1`, then add the new tag with `opencode plugin add github:joe-broadhead/opencode-plaud#v<version>`.
 
 Or add the plugin to `opencode.json` instead, with the same spec:
 
 ```json
-{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.1" }] }
+{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.2" }] }
 ```
 
 ## Sign in
@@ -110,7 +110,7 @@ See [Scripting](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/s
    | `"read-only"` | the reads and `plaud_recent` | nothing: exports and new tools are **denied** |
 
    ```json
-   { "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.1", "options": { "access": "read-only" } }] }
+   { "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.2", "options": { "access": "read-only" } }] }
    ```
 
 2. **An agent that is read-only or asks**, with rules of its own, later than the plugin's:
@@ -205,7 +205,7 @@ Every option is optional. To add a second Plaud account, give it an alias in `ac
 {
   "plugins": [
     {
-      "package": "github:joe-broadhead/opencode-plaud#v0.0.1",
+      "package": "github:joe-broadhead/opencode-plaud#v0.0.2",
       "options": { "accounts": ["work"], "exportRoots": ["~/Plaud", "~/Documents/Meetings"] }
     }
   ]
@@ -222,7 +222,7 @@ OpenCode registers itself with Plaud's server automatically, so there is no clie
 
 ```json
 {
-  "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.1", "options": { "exportRoots": ["~/Documents/Plaud"] } }],
+  "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.2", "options": { "exportRoots": ["~/Documents/Plaud"] } }],
   "permissions": [{ "action": "plaud_export", "resource": "*:audio", "effect": "deny" }]
 }
 ```
@@ -282,7 +282,7 @@ Sign out while the plugin is still installed: once it is removed, OpenCode no lo
 
 1. Sign out of each account: `opencode mcp logout plaud`, and `opencode mcp logout plaud-<alias>` for each account in `accounts`. If one answers `MCP server not found` while the plugin is still installed, OpenCode is still loading the plugin for that folder: wait a few seconds and run it again.
 2. Check: `opencode auth list` lists no **Plaud** entry.
-3. Remove the plugin: `opencode plugin remove github:joe-broadhead/opencode-plaud#v0.0.1`, then `opencode reload`.
+3. Remove the plugin: `opencode plugin remove github:joe-broadhead/opencode-plaud#v0.0.2`, then `opencode reload`.
 4. Your exports stay in your export roots (`~/Plaud` by default); delete them if you no longer want them. The plugin keeps no other data.
 5. Remove any Plaud rules you copied into your agents' own `permissions`.
 

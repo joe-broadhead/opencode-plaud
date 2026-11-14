@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.2] - 2026-11-14
 
 ### Added
 
@@ -19,6 +19,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - `docs/jelly.md` says Jelly reads the accounts (the sign-in's `account` option) and the patterns above. The README's
   Known limits say so too.
 - `scripts/check-upstream.mjs` says a new upstream tool follows `access`, so it runs at the default `all`.
+- `package.json` is `"private": true`, so nothing can be published to npm by accident; installs from the Git tag are
+  unaffected. The release workflow also refuses a `package.json` that is not private or not in its canonical form.
 
 ## [0.0.1] - 2026-11-13
 

@@ -12,9 +12,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
-- `docs/jelly.md` says Jelly reads the accounts (the sign-in's `account` option) and that another account's tools follow
-  the plugin's namespace in Jelly, denied at Read only, until a release declares them as patterns. The README's Known
-  limits say so too.
+- The `jelly` declaration names another account's reads as patterns: `plaud-*.list_files`, `plaud-*.get_file`,
+  `plaud-*.get_note`, `plaud-*.get_transcript` and `plaud-*.get_current_user`, each with the default account's
+  permission and `readOnly: true` (13 tools, 12 read-only). Jelly writes their rules at the engine's names, so another
+  account's reads run at Read only and in a read-only helper, in a Jelly that writes a pattern tool's rules.
+- `docs/jelly.md` says Jelly reads the accounts (the sign-in's `account` option) and the patterns above. The README's
+  Known limits say so too.
 - `scripts/check-upstream.mjs` says a new upstream tool follows `access`, so it runs at the default `all`.
 
 ## [0.0.1] - 2026-11-13

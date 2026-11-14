@@ -22,7 +22,7 @@ const jelly = pkg.jelly as Declaration & {
   tools: DeclaredTool[]
   contributes: { homeFeeds: { id: string; feed: { tools: string[]; template: string; cadence: number; script: string } }[] }
 }
-const byPermission = new Map(jelly.tools.map((tool) => [tool.permission, tool]))
+const byName = new Map(jelly.tools.map((tool) => [tool.name, tool]))
 const rules = [{ action: "*", resource: "*", effect: "allow" } as const, ...defaultRules(["plaud"])]
 
 describe("the jelly declaration", () => {
@@ -101,11 +101,11 @@ describe("the jelly declaration", () => {
   })
 
   it("declares each known read, plaud_recent and plaud_events_list as reads that run, and the export as a write that runs by default", () => {
-    for (const read of KNOWN_READS) expect(byPermission.get(`plaud_${read}`)).toMatchObject({ name: `plaud.${read}`, effect: "allow", readOnly: true })
-    expect(byPermission.get(EXPORT_ACTION)).toMatchObject({ name: "plaud.export", effect: "allow", readOnly: false })
-    expect(byPermission.get(RECENT_ACTION)).toMatchObject({ name: "plaud.recent", effect: "allow", readOnly: true })
-    expect(byPermission.get(EVENTS_ACTION)).toMatchObject({ name: "plaud.events_list", effect: "allow", readOnly: true })
-    expect(jelly.tools).toHaveLength(KNOWN_READS.length + 3)
+    for (const read of KNOWN_READS) expect(byName.get(`plaud.${read}`)).toMatchObject({ permission: `plaud_${read}`, effect: "allow", readOnly: true })
+    expect(byName.get("plaud.export")).toMatchObject({ permission: EXPORT_ACTION, effect: "allow", readOnly: false })
+    expect(byName.get("plaud.recent")).toMatchObject({ permission: RECENT_ACTION, effect: "allow", readOnly: true })
+    expect(byName.get("plaud.events_list")).toMatchObject({ permission: EVENTS_ACTION, effect: "allow", readOnly: true })
+    expect(jelly.tools).toHaveLength(2 * KNOWN_READS.length + 3)
   })
 
   it("feeds Home only from a declared read-only tool, which the feed's script calls", () => {
@@ -137,5 +137,40 @@ describe("the declared accounts", () => {
     const placeholder = signIn?.account?.placeholder ?? ""
     expect(loadConfig({ [signIn?.account?.option ?? ""]: [placeholder] }).accounts).toEqual([placeholder])
     expect(() => loadConfig({ accounts: [DEFAULT_ACCOUNT] })).toThrow()
+  })
+
+  /**
+   * Another account's server is `plaud-<alias>`, so the engine names its tools `plaud-<alias>_<tool>`. Jelly matches a
+   * declared name with one `*` (a non-empty run of `[A-Za-z0-9._-]`) against the engine's form of the name, inside the
+   * plugin's namespaces (the `plaud*` sign-in puts every account there), and writes the tool's access rules and
+   * read-only fence at that form too (D205). So each read is declared once more as `plaud-*.<read>`, with the default
+   * account's permission and `readOnly`.
+   */
+  const patterns = jelly.tools.filter((tool) => tool.name.includes("*"))
+  const engineForm = (name: string) => name.replaceAll(".", "_")
+  const matches = (declared: string, tool: string) => {
+    const [prefix, suffix] = engineForm(declared).split("*") as [string, string]
+    const run = tool.slice(prefix.length, tool.length - suffix.length)
+    return tool.length > prefix.length + suffix.length && tool.startsWith(prefix) && tool.endsWith(suffix) && /^[A-Za-z0-9._-]+$/u.test(run)
+  }
+
+  it("declare each known read of another account as a pattern, with the default account's permission and readOnly", () => {
+    expect(patterns.map((tool) => tool.name)).toEqual(KNOWN_READS.map((read) => `plaud-*.${read}`))
+    for (const tool of patterns) {
+      const twin = byName.get(tool.name.replace("plaud-*.", "plaud."))
+      expect(tool).toEqual({ ...twin, name: tool.name })
+    }
+  })
+
+  it("match each account's own server tools and nothing of the default account's", () => {
+    for (const alias of ["work", "w", "acct-2", "a".repeat(32)]) {
+      expect(loadConfig({ accounts: [alias] }).accounts).toEqual([alias])
+      for (const read of KNOWN_READS) {
+        const tool = `plaud-${alias}_${read}`
+        expect([tool, patterns.filter((pattern) => matches(pattern.name, tool)).map((pattern) => pattern.name)]).toEqual([tool, [`plaud-*.${read}`]])
+      }
+    }
+    for (const tool of jelly.tools.filter((each) => !each.name.includes("*")))
+      expect([tool.name, patterns.filter((pattern) => matches(pattern.name, engineForm(tool.name))).length]).toEqual([tool.name, 0])
   })
 })

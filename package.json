@@ -1,6 +1,6 @@
 {
   "name": "@joe-broadhead/opencode-plaud",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "description": "Unofficial OpenCode plugin for Plaud recordings",
   "type": "module",
@@ -138,6 +138,36 @@
       },
       {
         "name": "plaud.get_current_user",
+        "permission": "plaud_get_current_user",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud-*.list_files",
+        "permission": "plaud_list_files",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud-*.get_file",
+        "permission": "plaud_get_file",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud-*.get_note",
+        "permission": "plaud_get_note",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud-*.get_transcript",
+        "permission": "plaud_get_transcript",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "plaud-*.get_current_user",
         "permission": "plaud_get_current_user",
         "effect": "allow",
         "readOnly": true

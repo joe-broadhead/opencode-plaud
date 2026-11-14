@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.2] - 2026-11-14
+
+### Added
+
+- `test/fixtures/live-tools.json`, Plaud's tool list for a signed-in user, captured live on 14 November 2026, and a test
+  that fails when the declaration and that list disagree. The declaration already matches it: 5 served reads plus the
+  plugin's own `recent`, `events_list` and `export`.
+
+### Changed
+
+- The `jelly` declaration names another account's reads as patterns: `plaud-*.list_files`, `plaud-*.get_file`,
+  `plaud-*.get_note`, `plaud-*.get_transcript` and `plaud-*.get_current_user`, each with the default account's
+  permission and `readOnly: true` (13 tools, 12 read-only). Jelly writes their rules at the engine's names, so another
+  account's reads run at Read only and in a read-only helper, in a Jelly that writes a pattern tool's rules.
+- `docs/jelly.md` says Jelly reads the accounts (the sign-in's `account` option) and the patterns above. The README's
+  Known limits say so too.
+- `scripts/check-upstream.mjs` says a new upstream tool follows `access`, so it runs at the default `all`.
+- `package.json` is `"private": true`, so nothing can be published to npm by accident; installs from the Git tag are
+  unaffected. The release workflow also refuses a `package.json` that is not private or not in its canonical form.
+
 ## [0.0.1] - 2026-11-13
 
 ### Added

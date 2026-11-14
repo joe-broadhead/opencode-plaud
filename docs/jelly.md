@@ -13,7 +13,7 @@ declaration, because that schema accepts no unknown keys.
 
 ## Tools and permissions
 
-8 tools are declared (7 read-only). Jelly's agents have no base "allow everything"
+13 tools are declared (12 read-only). Jelly's agents have no base "allow everything"
 rule, so this plugin's own default rules, which it puts after that rule, never reach them. Jelly
 writes each declared `ask` or `deny` as that tool's default instead (the person's own choice
 replaces it), and denies a read-only helper every tool not marked `readOnly`. A declared `allow`
@@ -24,13 +24,18 @@ changes nothing in Jelly.
 
 The declared tools are the five reads of Plaud's server, `plaud_recent`, the plugin's own read of the newest recordings, `plaud_events_list`, the plugin's read for Memory's collector, which runs it unattended and so never asks, and `plaud_export`, the one tool that writes a file. To make the export ask in Jelly too, set `access: "ask-changes"` in the plugin options; `"read-only"` denies it there.
 
-The reads are declared for the default account's server, `plaud`. Another account's reads,
-`plaud-<alias>_<read>`, are not declared yet. Jelly does read the accounts: the sign-in's `account`
-names the `accounts` option, and its server `plaud*` puts every account's server in this plugin's
-scope. Declaring those reads as patterns (`plaud-*.get_file` and the rest) waits on Jelly's answer on
-how a pattern tool's permission is ruled. Until then another account's tools follow the plugin's
-namespace like any undeclared tool: they run at **Allowed**, ask at **Ask before changes**, and are
-denied at **Read only**, reads included. A tool the upstream server adds later is not declared either. In Jelly, a tool
+The reads are declared for the default account's server, `plaud`, and once more for every other account's
+server, `plaud-<alias>`: `plaud-*.list_files`, `plaud-*.get_file`, `plaud-*.get_note`, `plaud-*.get_transcript` and
+`plaud-*.get_current_user`, each with the default account's permission (`plaud_get_file` and so on) and `readOnly: true`.
+Jelly reads a name with one `*` as every tool whose engine name fits it, inside this plugin's namespaces: the sign-in's
+server `plaud*` puts every account's server there, and its `account` names the `accounts` option Jelly adds an account
+to. Jelly writes each pattern's access rule and read-only fence at the engine's form (`plaud-*_get_file`), so another
+account's read runs at all three access choices and in a read-only helper, like the default account's. A choice the
+person makes for `plaud_get_file` reaches every account's `get_file`. Plaud serves no write, so no account has a
+pattern that changes anything; `plaud_export` is one tool for every account (the account is its resource) and stays the
+one declared change. This needs a Jelly that writes a pattern tool's rules at the engine's form (D205); in an
+earlier Jelly another account's tools follow the plugin's namespace, and are denied at Read only, reads included.
+A tool the upstream server adds later is not declared. In Jelly, a tool
 that is not declared is not asked about by default. Keep `jelly.tools` in step with the known-tool list; `test/jelly.test.ts` checks
 each declared effect against the plugin's own default rules.
 

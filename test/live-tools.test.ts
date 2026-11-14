@@ -40,9 +40,16 @@ describe("the declaration against the live tool list", () => {
     for (const tool of declared) expect(tool.permission.startsWith(`${NAMESPACE}_`), tool.permission).toBe(true)
   })
 
-  it("declares every tool the server serves", () => {
-    const names = new Set(declared.map((tool) => short(tool.permission)))
-    expect([...served.keys()].filter((name) => !names.has(name))).toEqual([])
+  it("declares every tool the server serves under its own name, which a per-account pattern does not stand in for", () => {
+    const names = new Set(declared.map((tool) => tool.name))
+    expect([...served.keys()].filter((name) => !names.has(`${NAMESPACE}.${name}`))).toEqual([])
+  })
+
+  it("declares a per-account pattern only beside the default account's tool of the same permission and readOnly", () => {
+    for (const tool of declared.filter((each) => each.name.includes("*"))) {
+      const twin = declared.find((each) => each.name === `${NAMESPACE}.${short(tool.permission)}`)
+      expect({ pattern: tool.name, twin: twin && { permission: twin.permission, readOnly: twin.readOnly } }).toEqual({ pattern: tool.name, twin: { permission: tool.permission, readOnly: tool.readOnly } })
+    }
   })
 
   it("declares no tool the server lacks, unless it is the plugin's own or gated with a reason and a note", () => {

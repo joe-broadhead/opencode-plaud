@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `test/fixtures/live-tools.json`, Plaud's tool list for a signed-in user, captured live on 14 November 2026, and a test
+  that fails when the declaration and that list disagree. The declaration already matches it: 5 served reads plus the
+  plugin's own `recent`, `events_list` and `export`.
+
+### Changed
+
+- `docs/jelly.md` says Jelly reads the accounts (the sign-in's `account` option) and that another account's tools follow
+  the plugin's namespace in Jelly, denied at Read only, until a release declares them as patterns. The README's Known
+  limits say so too.
+- `scripts/check-upstream.mjs` says a new upstream tool follows `access`, so it runs at the default `all`.
+
 ## [0.0.1] - 2026-11-13
 
 ### Added

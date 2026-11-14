@@ -295,6 +295,7 @@ Sign out while the plugin is still installed: once it is removed, OpenCode no lo
 - **Signed links.** Tool results never show a signed link. Audio and transcripts reach a file only through `plaud_export`.
 - **Unattended exports.** An export folder is outside the project, so an unattended run needs the `external_directory` rule as well as `plaud_export` (see [Permissions](#permissions)).
 - **Tested hosts.** Tested on OpenCode 2.2.3, 2.2.4, 2.2.5 and 2.2.6. A later 2.2 release starts, and `/plaud-status` marks it untested.
+- **Other accounts in Jelly.** Jelly's declaration names the default account's tools only. Another account's tools (`plaud-<alias>_*`) follow the plugin's namespace in Jelly: they run at Allowed and ask at Ask before changes, but at Read only even their reads are denied, until a release declares them.
 - **Jelly.** The settings declare their choices and bounds, which only a Jelly that includes app#1301 reads; an older Jelly refuses the plugin's declaration.
 - Updates are not automatic for a Git install, and `opencode plugin update` and `opencode plugin check` do not work on one: to move to a newer release, remove the old entry and add the new tag.
 

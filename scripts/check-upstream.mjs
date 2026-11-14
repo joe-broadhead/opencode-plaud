@@ -2,8 +2,9 @@
 /**
  * Maintainer check: compare the Plaud MCP server's live tool list with the
  * tools this plugin treats as known reads, and their parameters with the ones
- * the plugin and its skills use. It only warns. A new upstream tool already
- * asks by default; a missing known read or parameter needs a plugin change.
+ * the plugin and its skills use. It only warns. A new upstream tool follows
+ * `access`, so it runs unasked at the default "all" until a release declares
+ * it; a missing known read or parameter needs a plugin change.
  *
  *   PLAUD_MCP_TOKEN=<OAuth access token> npm run check:upstream [-- --url <server URL>]
  *

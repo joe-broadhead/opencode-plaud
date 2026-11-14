@@ -25,8 +25,12 @@ changes nothing in Jelly.
 The declared tools are the five reads of Plaud's server, `plaud_recent`, the plugin's own read of the newest recordings, `plaud_events_list`, the plugin's read for Memory's collector, which runs it unattended and so never asks, and `plaud_export`, the one tool that writes a file. To make the export ask in Jelly too, set `access: "ask-changes"` in the plugin options; `"read-only"` denies it there.
 
 The reads are declared for the default account's server, `plaud`. Another account's reads,
-`plaud-<alias>_<read>`, are not declared, because the accounts are a plugin option that Jelly
-does not read. A tool the upstream server adds later is not declared either. In Jelly, a tool
+`plaud-<alias>_<read>`, are not declared yet. Jelly does read the accounts: the sign-in's `account`
+names the `accounts` option, and its server `plaud*` puts every account's server in this plugin's
+scope. Declaring those reads as patterns (`plaud-*.get_file` and the rest) waits on Jelly's answer on
+how a pattern tool's permission is ruled. Until then another account's tools follow the plugin's
+namespace like any undeclared tool: they run at **Allowed**, ask at **Ask before changes**, and are
+denied at **Read only**, reads included. A tool the upstream server adds later is not declared either. In Jelly, a tool
 that is not declared is not asked about by default. Keep `jelly.tools` in step with the known-tool list; `test/jelly.test.ts` checks
 each declared effect against the plugin's own default rules.
 

@@ -159,6 +159,48 @@ describe("plaud_events_list, contract 1's source plaud", () => {
     expect(fake.calls.filter((call) => call.id === "plaud_list_files" && call.args.date_from === "2026-10-26").length).toBe(2)
   })
 
+  describe("a server that ignores page under a date filter but keeps 20 per page", () => {
+    /** Runs `work` with RECORDINGS.plaud set to `recordings`, and every list_files answering page 1 whatever it is asked. */
+    async function ignoringPage(recordings: readonly Recording[], work: (fake: ReturnType<typeof plaud>) => Promise<void>) {
+      const saved = RECORDINGS["plaud"]!
+      RECORDINGS["plaud"] = recordings
+      try {
+        const fake = plaud()
+        const tools = await (fake.host as { tool: { list: () => Promise<{ id: string; execute: (args: Record<string, unknown>) => Promise<unknown> }[]> } }).tool.list()
+        for (const entry of tools.filter((item) => item.id === "plaud_list_files")) {
+          const execute = entry.execute
+          entry.execute = async (args) => execute({ ...args, page: 1 })
+        }
+        await work(fake)
+      } finally {
+        RECORDINGS["plaud"] = saved
+      }
+    }
+    const spread = Array.from({ length: 28 }, (_, index) => ({
+      id: `spread-${String(index).padStart(2, "0")}`,
+      name: `Spread ${index}`,
+      start_at: `2026-10-0${1 + Math.floor(index / 4)}T${String(8 + (index % 4) * 2).padStart(2, "0")}:00:00`,
+      duration: 60_000,
+    }))
+
+    it("lists a week of more than 20 recordings again day by day, and loses none", async () => {
+      await ignoringPage(spread, async (fake) => {
+        const result = (await lister(fake)({ since: SINCE, limit: PAGE.max })) as EventsListResult
+        expect(result.events.map((event) => event.external_id)).toEqual(spread.map((recording) => recording.id))
+        const days = fake.calls.filter((call) => call.id === "plaud_list_files").map((call) => [call.args.date_from, call.args.date_to])
+        // The week's full page repeated, so each of its days was asked for on its own (widened by a day on each side: 2 October is 1 to 4 October).
+        expect(days).toContainEqual(["2026-10-01", "2026-10-04"])
+      })
+    })
+
+    it("fails, never silently, when one day still fills a page and repeats it, and the cursor does not move", async () => {
+      const busy = Array.from({ length: 25 }, (_, index) => ({ id: `busy-${String(index).padStart(2, "0")}`, name: `Busy ${index}`, start_at: `2026-10-03T${String(index % 24).padStart(2, "0")}:15:00`, duration: 60_000 }))
+      await ignoringPage(busy, async (fake) => {
+        expect(await code(lister(fake)({ since: SINCE, limit: PAGE.max }))).toBe("PLAUD_READ_FAILED")
+      })
+    })
+  })
+
   it("names its source, account and owner on an empty first page, after reading only the owner", async () => {
     const fake = plaud()
     expect(await lister(fake)({ since: "2999-01-01", account: "work" })).toMatchObject({ source: "plaud", account: "work", owner: { id: "mailto:work@example.test" }, events: [], more: false })

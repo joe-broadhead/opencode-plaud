@@ -241,8 +241,11 @@ events_list({ since?, cursor?, limit?, account?, source? })
 
 It asserts `plaud_events_list` with the account as the resource, then reads through that account's server, so the rules
 of its `list_files` (and, for `plaud`, its `get_current_user`) apply too. `list_files` lists one week at a time, every
-page of it (`page_size` 20; a shorter page is the last, since Plaud says nothing about more, and so is a page that
-repeats the one before, since Plaud's docs say it ignores the page under a date filter). Its `date_from` and `date_to`
+page of it (`page_size` 20; a shorter page is the last, since Plaud says nothing about more). Plaud's docs say it
+ignores `page` under a date filter, so a page that repeats the one before ends the week when it holds more than 20
+recordings (all of them at once); a repeated page of exactly 20 may leave recordings out, so the week is listed again
+day by day, and a day that still repeats a full page fails with `PLAUD_READ_FAILED`, the cursor unmoved: no recording
+is ever skipped silently. Its `date_from` and `date_to`
 are whole days whose boundaries Plaud draws, so each week asks for one more day on each side and keeps the recordings
 that started within the week, by `start_at` (UTC without a `Z`, which the plugin adds).
 
@@ -265,10 +268,12 @@ A `recordings` page never reads `get_current_user`: that is the probe's, as the 
 each account's owner from its last probe, apart from every other account's, and a page names it, with the same id and
 label the probe gave. So:
 
-- a first listing of an account, with no cursor, needs a probe of that account since OpenCode started, or it is
-  refused with `UNAVAILABLE`, before any read; a consumer probes when it binds the source;
-- the cursor is the source contract's version 2, bound to (`plaud`, `recordings`, the account), and carries the owner,
-  so a later listing reads only `list_files`, after a restart too;
+- every listing of an account, with a cursor or without, needs a probe of that account since OpenCode started, or it
+  is refused with `UNAVAILABLE`, before any read: a page's owner is only ever one a probe read from Plaud, never a
+  cursor's, which anyone holding it could change; a consumer probes when it binds the source, and again after a
+  restart;
+- the cursor is the source contract's version 2, bound to (`plaud`, `recordings`, the account), and holds the owner's
+  id, so a listing reads only `list_files`;
 - a listing with a cursor names its account (`INPUT_INVALID` otherwise), another account's cursor is
   `ACCOUNT_MISMATCH`, and a cursor of another source, of another plugin, or from before this release (contract 1's) is
   `CURSOR_INVALID`, all before any read: start again with `since`;
@@ -301,7 +306,7 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | `SOURCE_UNKNOWN` | events list, probe | The call names a source the plugin does not have: an events list takes `recordings` or `plaud`, and probe `recordings`. |
 | `ACCOUNT_MISMATCH` | events list, probe | A `recordings` listing or a probe names an account the plugin does not have, or a `recordings` listing passes another account's cursor. |
 | `CURSOR_INVALID` | events list | A `recordings` cursor is not one it issued for this account, or the account's last probe named another user. Start again with `since`, without a cursor. |
-| `UNAVAILABLE` | events list | A first `recordings` listing, with no cursor, came before any probe of the account since OpenCode started. Call `probe` for it, then list again. |
+| `UNAVAILABLE` | events list | A `recordings` listing came before any probe of the account since OpenCode started. Call `probe` for it, then list again. |
 | `EVENTS_CURSOR_INVALID` | events list | A `plaud` cursor was not issued by `events_list` for this account and its signed-in user. Pass a cursor from a previous result of the same account, or start again with `since`. |
 | `EVENTS_OWNER_UNKNOWN` | events list, probe | Plaud's `get_current_user` named no email or id for the account. |
 | `AUTH_REQUIRED` | export, recent, events list, probe | The account's server is not connected or not signed in. |

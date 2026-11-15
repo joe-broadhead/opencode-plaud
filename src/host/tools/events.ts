@@ -132,8 +132,13 @@ export function ownerOf(payload: unknown): EventsOwner | undefined {
 
 /**
  * The recordings that started within [from, to], from every list_files page of the widened days. Plaud's docs say it
- * ignores `page` and `page_size` when a date filter is set, answering every recording of the days at once; then the
- * next page repeats the first, so a page that names no recording not seen before ends the week.
+ * ignores `page` (and may ignore `page_size`) when a date filter is set, so a page that names no recording not seen
+ * before is a repeat:
+ *
+ * - a repeat longer than a page answered every recording of the days at once, which ends the window;
+ * - a repeat of a full page answered only the first page, so recordings may be left: a window longer than a day is
+ *   listed again day by day, and a day that still fills a page and repeats it fails with PLAUD_READ_FAILED. Nothing is
+ *   ever left out silently, and the cursor never passes a recording it did not see.
  */
 async function window(read: Read, from: number, to: number): Promise<Dated[]> {
   const found: Dated[] = []
@@ -148,8 +153,23 @@ async function window(read: Read, from: number, to: number): Promise<Dated[]> {
       const time = at === undefined ? Number.NaN : Date.parse(at)
       if (Number.isFinite(time) && time >= from && time <= to) found.push({ ...recording, time })
     }
-    if (recordings.length < PAGE_SIZE || fresh.length === 0) return found
+    if (recordings.length < PAGE_SIZE) return found
+    if (fresh.length > 0) continue
+    if (recordings.length > PAGE_SIZE) return found
+    if (to - from > DAY_MS) return byDay(read, from, to)
+    fail(
+      "PLAUD_READ_FAILED",
+      `list_files answered one full page of ${PAGE_SIZE} recordings for the days around ${utcDay(from)} and the same page again for the next, so Plaud ignored the page, and the recordings after the first ${PAGE_SIZE} of those days cannot be listed.`,
+      "Retry later; if it keeps failing, report it to the plugin's maintainers. The cursor has not moved, so no recording was skipped.",
+    )
   }
+}
+
+/** [from, to] listed one day at a time, for a server that answers only the first page of a filtered list. */
+async function byDay(read: Read, from: number, to: number): Promise<Dated[]> {
+  const found: Dated[] = []
+  for (let start = from; start <= to; start += DAY_MS) found.push(...(await window(read, start, Math.min(start + DAY_MS, to))))
+  return found
 }
 
 /** Every recording after `after`, oldest first, week by week up to `end` or until more than `limit` are found. */

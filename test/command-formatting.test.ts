@@ -17,7 +17,7 @@ function status(overrides: Partial<Status> = {}): Status {
     ],
     exportRoots: ["/fixture/Plaud", "/fixture/Shared"],
     tools: { visible: 6, unknown: 0, unknownNames: [] },
-    host: { version: "2.2.3", range: ">=2.2.3 <2.3.0", tested: true },
+    host: { version: "2.2.3", range: ">=2.2.3 <2.4.0", tested: true },
     unguardedAgents: [],
     permissionsBlock: DEFAULT_RULES.map((rule) => ({ ...rule })),
     shadowedSkills: [],
@@ -57,7 +57,7 @@ describe("/plaud-status text", () => {
     expect(text).toContain("- Access: Reads run without asking. Exports ask, and write only in /fixture/Plaud, /fixture/Shared.")
     expect(text).toContain("- Tools: 6 available")
     expect(text).toContain("- Agents without default rules: none")
-    expect(text).toContain("- OpenCode: 2.2.3 (tested; supported range >=2.2.3 <2.3.0)")
+    expect(text).toContain("- OpenCode: 2.2.3 (tested; supported range >=2.2.3 <2.4.0)")
     expect(statusLines(value).map((line) => line.label)).toEqual(["Connection", "Account", "Access", "Tools", "Agents without default rules", "OpenCode", "Next step"])
     expect(text).toContain("- Next step: Run /connect and choose Plaud,")
     expect(summarizeStatus(value)).toBe("Plaud: sign-in required")

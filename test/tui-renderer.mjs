@@ -20,7 +20,7 @@ const RULES = [
   { action: "plaud_export", resource: "*", effect: "ask" },
   { action: "plaud_recent", resource: "*", effect: "allow" },
 ]
-const RANGE = ">=2.2.3 <2.3.0"
+const RANGE = ">=2.2.3 <2.4.0"
 const status = (overrides = {}) => ({
   version: "0.0.0-test",
   state: "sign_in_required",
@@ -44,7 +44,7 @@ const signedIn = status({
   nextStep: "Nothing to do.",
 })
 const attention = status({
-  host: { version: "2.3.0", range: RANGE, tested: false },
+  host: { version: "2.4.0", range: RANGE, tested: false },
   tools: { visible: 11, unknown: 1, unknownNames: ["delete_file"] },
   unguardedAgents: ["reviewer"],
   nextStep: "Agent reviewer did not get Plaud's default permission rules.",

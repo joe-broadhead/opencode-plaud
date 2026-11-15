@@ -130,12 +130,12 @@ describe("the tested releases", () => {
       const said = match[1]!.replace(/[.,\s]+$/u, "").split(/,\s*|\s+and\s+/).map(part => part.trim()).filter(Boolean)
       expect({ file: "CHANGELOG.md (Unreleased)", said }).toEqual({ file: "CHANGELOG.md (Unreleased)", said: TESTED_HOSTS })
     }
-    expect(TESTED_HOSTS).toContain("2.2.6")
+    expect(TESTED_HOSTS).toContain("2.3.0")
   })
 
   test("the Unreleased section states no tested release it has not run on", () => {
     const unreleased = read("CHANGELOG.md").split(/^## \[/m).find(section => section.startsWith("[Unreleased]")) ?? ""
-    expect(unreleased).not.toMatch(/2\.2\.[0-5]\b(?!.*2\.2\.6)/)
+    expect(unreleased).not.toMatch(/2\.2\.[0-7]\b(?!.*2\.3\.0)/)
   })
 })
 

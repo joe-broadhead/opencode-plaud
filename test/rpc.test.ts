@@ -52,7 +52,7 @@ describe("status model", () => {
     expect(status.nextStep).toBe(READY_STEP)
     expect(overallState(status)).toBe("signed_in")
     // The shared status fields (S13).
-    expect(status).toMatchObject({ version: PLUGIN_VERSION, state: "connected", host: { version: "2.2.3", range: ">=2.2.3 <2.3.0", tested: true }, unguardedAgents: [] })
+    expect(status).toMatchObject({ version: PLUGIN_VERSION, state: "connected", host: { version: "2.2.3", range: ">=2.2.3 <2.4.0", tested: true }, unguardedAgents: [] })
     expect(statusLines(status).map((line) => line.label)).toEqual(["Connection", "Account", "Access", "Tools", "Agents without default rules", "OpenCode", "Next step"])
     expect(statusLines(status).find((line) => line.label === "Agents without default rules")).toEqual({ label: "Agents without default rules", value: "none", tone: "info" })
     expect(statusLines(status).at(-1)).toEqual({ label: "Next step", value: READY_STEP, tone: "info" })
@@ -158,18 +158,18 @@ describe("status model", () => {
 
   it("calls 2.2.5 tested, and a release inside or outside the range that is not tested untested (INSTALL-4)", () => {
     const tested = buildStatus(facts({ host: checkHost("2.2.5", false) }))
-    expect(tested.host).toEqual({ version: "2.2.5", range: ">=2.2.3 <2.3.0", tested: true })
-    expect(statusLines(tested).find((line) => line.label === "OpenCode")).toEqual({ label: "OpenCode", value: "2.2.5 (tested; supported range >=2.2.3 <2.3.0)", tone: "info" })
+    expect(tested.host).toEqual({ version: "2.2.5", range: ">=2.2.3 <2.4.0", tested: true })
+    expect(statusLines(tested).find((line) => line.label === "OpenCode")).toEqual({ label: "OpenCode", value: "2.2.5 (tested; supported range >=2.2.3 <2.4.0)", tone: "info" })
     // Inside the range, an untested release sets up normally: the state and the next step are unchanged by it (S13).
     for (const [version, allow, nextStep] of [
       ["2.2.99", false, READY_STEP],
-      ["2.3.0", true, "If Plaud misbehaves, use a tested OpenCode release: 2.2.3, 2.2.4, 2.2.5 or 2.2.6."],
+      ["2.4.0", true, "If Plaud misbehaves, use a tested OpenCode release: 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 or 2.3.0."],
     ] as const) {
       const status = buildStatus(facts({ host: checkHost(version, allow) }))
-      expect(status.host).toEqual({ version, range: ">=2.2.3 <2.3.0", tested: false })
+      expect(status.host).toEqual({ version, range: ">=2.2.3 <2.4.0", tested: false })
       expect(status.state).toBe("connected")
       expect(status.nextStep).toBe(nextStep)
-      expect(statusLines(status).find((line) => line.label === "OpenCode")).toEqual({ label: "OpenCode", value: `${version} (untested; supported range >=2.2.3 <2.3.0)`, tone: "warning" })
+      expect(statusLines(status).find((line) => line.label === "OpenCode")).toEqual({ label: "OpenCode", value: `${version} (untested; supported range >=2.2.3 <2.4.0)`, tone: "warning" })
     }
     expect(buildStatus(facts({ host: checkHost("", true) })).host.version).toBeNull()
   })
@@ -198,7 +198,7 @@ describe("status model", () => {
     expect(status.accounts).toEqual([{ account: "default", server: "plaud", state: "sign_in_needed", userServer: true }])
     // At the default access nothing is held back, so an agent without the rules needs no fix.
     expect(status.unguardedAgents).toEqual([])
-    expect(status.host).toEqual({ version: "2.2.4", range: ">=2.2.3 <2.3.0", tested: true })
+    expect(status.host).toEqual({ version: "2.2.4", range: ">=2.2.3 <2.4.0", tested: true })
     // The block is the one for the configured servers.
     expect(status.permissionsBlock).toEqual(defaultRules(["plaud"]))
   })

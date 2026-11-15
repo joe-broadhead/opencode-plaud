@@ -83,10 +83,11 @@ It needs the network and a signed-in Plaud account, so it is not part of `npm ru
 | Default permission rules | `src/host/permissions.ts` |
 | `plaud_export` | `src/domain/contract/index.ts`, `src/host/tools/export.ts`, `src/domain/export.ts`, `src/domain/normalize.ts` |
 | `plaud_recent` | `src/domain/contract/index.ts`, `src/host/tools/recent.ts`, `src/domain/normalize.ts` |
+| `plaud_events_list`, `probe` and the `sources` declaration | the `sources` section of `package.json`, `src/host/tools/events.ts`, `test/conformance.test.ts`, `test/fixtures/sources.json` |
 | The Jelly declaration | the `jelly` section of `package.json`, `docs/jelly.md` |
 | Signed-link withholding | `src/domain/redact.ts`, `src/host/tools/index.ts`, and `shapeResult` in `src/host/tools-rpc.ts` |
 | Status, `/plaud-status`, the RPC and the TUI | `src/status.ts`, `src/rpc.ts`, `src/host/commands.ts`, `src/host/rpc.ts`, `src/tui.tsx` |
-| The tools RPC for scripts | `src/host/tools-rpc.ts` (only its `PLUGIN-SPECIFIC` block is Plaud's), `docs/scripting.md` |
+| The tools RPC for scripts | `src/host/tools-rpc.ts` (Plaud's part of the source contract's transport), `docs/scripting.md` |
 | Skills | `skills/<name>/SKILL.md` |
 
 Plaud's result shapes are read only in `src/domain/normalize.ts`. If Plaud changes a tool's arguments or results, that is the file to change.

@@ -2,6 +2,57 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Plaud's source under the shared source contract, `@we-the-rebel-alliance/source-contract` v0.1.0: `package.json`'s
+  new top-level `sources` key declares `plaud.recordings`, an `events` source of kind `meeting`, read with
+  `events_list` and input `source: "recordings"`, for a named account (`accounts.named`). Its operations are
+  `get_current_user` and `list_files`, with `get_current_user` its one identity operation; it is private, free
+  (`cost.class: "free"`), and `maxBytes` is 262,144. The tools RPC is `plaud.recordings.tools` and the probe action
+  `plaud_probe`. Memory and jelly read the declaration from the installed package, with the contract's `descriptor`.
+- For Memory and every consumer: the tools RPC method `probe` (action `plaud_probe`, allowed by the default rules at
+  every `access`) answers whose sign-in an account is, `{ source: "recordings", account, owner, trust }`, from that
+  account's `get_current_user`, and reads no recording. The owner is `mailto:<email>` when Plaud gives an email, or
+  `plaud:<user id>`, with the same label on every page.
+- For Memory and every consumer: `events_list` with `source: "recordings"` reads only `list_files`. Its page names the
+  owner the account's last `probe` named, which the plugin keeps per account, and carries `plugin` and `refused[]`: a
+  recording whose title holds a secret is refused for good with `reason: "secret"`, and the cursor moves past it. Its
+  cursor is the contract's version 2, bound to the plugin, the source and the account, and carries the owner, so a
+  later listing reads no identity, after a restart too. **A first listing of an account, with no cursor, needs a
+  `probe` of that account since OpenCode started**, or it answers `UNAVAILABLE` before any read. A listing with a
+  cursor must name its `account` (`INPUT_INVALID`), another account's cursor is `ACCOUNT_MISMATCH`, and a cursor from
+  another source or plugin, or contract 1's, is `CURSOR_INVALID`: start again with `since`. A cursor whose owner is
+  not the one the account's last probe named is `CURSOR_INVALID` too. An account the plugin does not have is
+  `ACCOUNT_MISMATCH`, and a source it does not have `SOURCE_UNKNOWN`.
+- `npm test` runs the contract's conformance kit over the declaration, `events_list` and `probe`
+  (`test/conformance.test.ts`), on invented Plaud answers with no Plaud call (`test/fixtures/sources.json`), and writes
+  `reports/conformance-report.json` (git-ignored, the same bytes on every run) for a release to attach. Every check
+  that applies passes. The report stays incomplete on the kit's expired-cursor check: Plaud keeps every recording until
+  the person deletes it, so no history behind a cursor is lost and the plugin never answers `CURSOR_EXPIRED`, which
+  v0.1.0 has no way to say.
+
+### Changed
+
+- The tools RPC and the events contract are the source contract's, bundled into `dist/index.js` from the pinned tag:
+  `src/host/events-list.ts`, the shared part of `src/host/tools-rpc.ts`, its two shared test suites
+  (`test/tools-rpc.test.ts`, `test/resolve.test.ts`, which the package runs verbatim) and their `check-copies` pins are
+  deleted. Plaud's part of the RPC is the `ToolsRpcPlugin` value in `src/host/tools-rpc.ts`. The RPC id
+  `plaud.recordings.tools`, its methods and their answers are unchanged, and `events_list` without `source`, or with
+  `source: "plaud"`, lists exactly as before, with its own cursor, for scripts and Memory's collector; only an unknown
+  `source` is now `SOURCE_UNKNOWN` rather than `INPUT_INVALID`.
+- `events_list` ends a week of `list_files` when a page repeats the one before: Plaud's docs say `list_files` ignores
+  `page` and `page_size` under a date filter, so a week of 20 recordings or more no longer reads the same page until
+  its 50-page cap.
+- The default rules allow `plaud_probe` by its exact name, at every `access` value.
+- For jelly: nothing to do. The `jelly` declaration is unchanged; `probe` is a tools RPC method, not a tool.
+- For Memory: move from contract 1's `plaud` listing to `plaud.recordings` by starting again with `since`: the old
+  cursors are refused by the new source (`CURSOR_INVALID`), while the `plaud` source still reads them. Probe each
+  account when binding it, and again after a change of Plaud sign-in. Only the `default` account can be read through
+  a session fenced by the contract's rules for now: v0.1.0 derives `plaud_list_files` and
+  `plaud_get_current_user` for every account, while another account's reads are its server's, `plaud-<alias>_…`.
+
 ## [0.0.2] - 2026-11-14
 
 ### Added

@@ -81,13 +81,24 @@ OpenCode creates agents defined only in the user's config after plugins run, so 
 
 ## Events list
 
-`plaud_events_list` (`src/host/tools/events.ts`) is Plaud's side of Memory's sources funnel, over the shared
-`events_list` contract (`src/host/events-list.ts`, a copy every source plugin carries unchanged). It asserts
+`plaud_events_list` (`src/host/tools/events.ts`) is Plaud's side of the source contract,
+`@we-the-rebel-alliance/source-contract` `v0.1.0`, pinned as a dev dependency and bundled into `dist/index.js`: its
+`events` module builds the page and the events and screens them for secrets, and its `cursor` module encodes the
+cursors. `package.json`'s `sources` declares one source, `plaud.recordings` (input `source: "recordings"`). It asserts
 `plaud_events_list` with the account as resource and save, then reads through the host's executors for the account's
-`get_current_user` (the owner) and `list_files`, one week at a time from the cursor's position to 6 hours ago. Each
-week asks for a day more on each side, reads every page until one is shorter than 20, and keeps the recordings that
-started within it; they are sorted by (start, id), and the cursor holds the last one listed with the account and a
-digest of the owner. The tools RPC runs the same spec as the method `events_list`, with the envelope's account.
+`list_files`, one week at a time from the cursor's position to 6 hours ago. Each week asks for a day more on each side,
+reads every page until one is shorter than 20 or repeats the one before, and keeps the recordings that started within
+it; they are sorted by (start, id). The tools RPC runs the same spec as the method `events_list`, with the envelope's
+account.
+
+The `recordings` source names the owner the account's last `probe` named: `probeMethod` asserts `plaud_probe` and reads
+the account's `get_current_user`, and `owners()` keeps the answer per account for this plugin instance, so a page reads
+no identity, as the contract's kit requires. Its cursor is the contract's version 2, bound to (`plaud`, `recordings`, the
+account), with the owner's id and label beside the position. The default source `plaud` is contract 1's listing,
+unchanged: it reads `get_current_user` itself, and its version 1 cursor holds the account and a digest of the owner.
+
+`test/conformance.test.ts` runs the contract's conformance kit over the declaration and both methods, on invented
+Plaud answers (`test/fixtures/sources.json`), and writes `reports/conformance-report.json`.
 
 ## Signed links
 
@@ -101,7 +112,7 @@ The hook runs on OpenCode's own tool path, for direct and Code Mode calls. Raw e
 
 ## Scripts
 
-The tools RPC, `plaud.recordings.tools`, lets a script call Plaud's five known reads and `plaud_recent` (method `recent`) with no model ([Scripting](scripting.md)). `src/host/tools-rpc.ts` is a copy of a module shared by several plugins; only its marked block is Plaud's: the reads (`KNOWN_READS` in `src/host/mcp.ts`), the next steps, `shapeResult`, which withholds the signed links, and `pluginError`, which gives `recent`'s own errors their code and next step. Setup passes `recent` as an owned method (`recentMethod` in `src/host/tools/recent.ts`).
+The tools RPC, `plaud.recordings.tools`, lets a script call Plaud's five known reads, `plaud_recent` (method `recent`), `plaud_events_list` (method `events_list`) and the source contract's `probe` with no model ([Scripting](scripting.md)). The transport is the source contract's `tools-rpc` module, bundled; `src/host/tools-rpc.ts` is Plaud's part of it, one `ToolsRpcPlugin` value: the reads (`KNOWN_READS` in `src/host/mcp.ts`), the next steps, `shapeResult`, which withholds the signed links, and `pluginError`, which gives the plugin's own errors their code and next step. Setup passes `recent`, `events_list` and `probe` as owned methods (`recentMethod` in `src/host/tools/recent.ts`, `eventsMethod` and `probeMethod` in `src/host/tools/events.ts`).
 
 Each call names a session; the session's agent and rules decide, exactly as for the model. The RPC refuses a tool those rules hide, then calls the tool's executor from `ctx.tool.list()`, which checks the agent's rules, the session's rules and saved approvals. A permission `evaluate` hook turns an ask on one of the RPC's own calls in flight into a deny, since no one can answer it; it touches no other call.
 

@@ -15,7 +15,7 @@ Give options with the object form of the plugin entry:
 {
   "plugins": [
     {
-      "package": "github:joe-broadhead/opencode-plaud#v0.0.2",
+      "package": "github:joe-broadhead/opencode-plaud#v0.0.3",
       "options": {
         "accounts": ["work"],
         "exportRoots": ["~/Plaud"],
@@ -87,7 +87,7 @@ If your config already defines an MCP server with one of these names in `mcp.ser
 | `"read-only"` | the reads | nothing: exports and new tools are **denied** |
 
 ```json
-{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.2", "options": { "access": "ask-changes" } }] }
+{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.3", "options": { "access": "ask-changes" } }] }
 ```
 
 `/plaud-status` shows the value and the block it inserts. The default block, for the default account's `plaud` server, generated from `defaultRules(servers, access)` in `src/host/permissions.ts`:
@@ -107,6 +107,7 @@ If your config already defines an MCP server with one of these names in `mcp.ser
 | `plaud_export` | `*` | `allow` |
 | `plaud_recent` | `*` | `allow` |
 | `plaud_events_list` | `*` | `allow` |
+| `plaud_probe` | `*` | `allow` |
 
 <!-- /generated:rules-all -->
 
@@ -115,7 +116,7 @@ Each account in `accounts` adds the same five allow rules for its own server, su
 So, in each case:
 
 - the five read tools of each account's server (`list_files`, `get_file`, `get_note`, `get_transcript` and `get_current_user`) always run, also in `opencode run`. They are allowed by exact name, so a later Plaud tool whose name only ends like a read, such as `plaud_bulk_get_file`, follows the `access` value, as do the tools of a server you named `plaud…` yourself;
-- `plaud_recent`, the plugin's own read of the newest recordings, always runs for every account. It is allowed by its exact name, and it reads through the account's own `list_files`, so a rule for that read applies to it too;
+- `plaud_recent`, the plugin's own read of the newest recordings, always runs for every account. It is allowed by its exact name, and it reads through the account's own `list_files`, so a rule for that read applies to it too. So do `plaud_events_list` and `plaud_probe`, the source contract's listing and probe ([Events list](#events-list));
 - `plaud_export` asks at `"ask-changes"` and is denied at `"read-only"`;
 - any other tool on a Plaud server follows the same rule, so `"all"` runs a tool Plaud adds later, and `"read-only"` denies it.
 
@@ -216,40 +217,77 @@ Do not add the default rules to the top-level `permissions`. Top-level rules com
 ## Events list
 
 `plaud_events_list` (`tools.plaud.events_list` in Code Mode, and the tools RPC method `events_list`) is Plaud's side of
-Memory's sources funnel: the shared `events_list` contract, `src/host/events-list.ts`, which every source plugin
-carries unchanged. It lists one account's recordings since a cursor, as normalised events, oldest first. It only reads,
-never asks and calls no model, so Memory's collector can run it unattended.
+the source contract, [`@we-the-rebel-alliance/source-contract`](https://github.com/we-the-rebel-alliance/source-contract)
+`v0.1.0`, which Memory and other consumers read. It lists one account's recordings since a cursor, as normalised events,
+oldest first. It only reads, never asks and calls no model, so a consumer can run it unattended. It serves two sources:
+
+- `recordings`, the declared source `plaud.recordings` (package.json's `sources`), for consumers of the source
+  contract;
+- `plaud`, the default, the listing scripts and Memory's collector read before the source contract, with the same
+  answers as before.
 
 ```
 events_list({ since?, cursor?, limit?, account?, source? })
-  → { source: "plaud", account, owner: { id, label }, events, cursor, more, trust: "untrusted" }
+  → { source, account, owner: { id, label }, events, cursor, more, plugin?, refused?, trust: "untrusted" }
 ```
 
 | Input | Meaning |
 | --- | --- |
 | `since` | Where to start without a cursor: an ISO date (a UTC day) or date-time with `Z` or an offset. Default: 24 hours ago. |
-| `cursor` | The previous result's cursor, for the same account. It wins over `since`. |
-| `limit` | Most events, 1 to 500; 100 by default. A result also stops before 900,000 bytes of JSON. |
-| `account` | `default` or an alias from `accounts`; `default` when left out. Through the tools RPC, the envelope's `account` names it too. |
-| `source` | `plaud`, the one source. |
+| `cursor` | The previous result's cursor, for the same account and source. It wins over `since`. |
+| `limit` | Most events, 1 to 500; 100 by default. A `recordings` page also stops before 262,144 bytes of JSON, and a `plaud` page before 900,000. |
+| `account` | `default` or an alias from `accounts`; `default` when left out. Through the tools RPC, the envelope's `account` names it too. A `recordings` listing with a cursor must name it. |
+| `source` | `recordings`, or `plaud` (the default). |
 
-It asserts `plaud_events_list` with the account as the resource, then reads through that account's server, so the
-rules of its `get_current_user` and `list_files` apply too:
-
-- `get_current_user` names the owner: `mailto:` and the email when Plaud gives one, or `plaud:` and the user's id.
-  The cursor holds the account and a digest of the owner, so another account's cursor, or one from before a sign-in to
-  another Plaud user, is refused.
-- `list_files` lists one week at a time, every page of it (`page_size` 20; a shorter page is the last, since Plaud
-  says nothing about more). Its `date_from` and `date_to` are whole days whose boundaries Plaud draws, so each week
-  asks for one more day on each side and keeps the recordings that started within the week, by `start_at` (UTC
-  without a `Z`, which the plugin adds).
+It asserts `plaud_events_list` with the account as the resource, then reads through that account's server, so the rules
+of its `list_files` (and, for `plaud`, its `get_current_user`) apply too. `list_files` lists one week at a time, every
+page of it (`page_size` 20; a shorter page is the last, since Plaud says nothing about more). Plaud's docs say it
+ignores `page` under a date filter. A page that is not empty and repeats the one before, whatever its length, may or
+may not hold every recording of those days, so it is never taken as complete: the week is listed again one UTC day at
+a time (each query asks for that day and one either side, since Plaud's days are its own), and a day whose query still
+repeats fails with `PLAUD_READ_FAILED`, the cursor unmoved: no recording is ever skipped silently. An empty page ends
+the window. Its `date_from` and `date_to`
+are whole days whose boundaries Plaud draws, so each week asks for one more day on each side and keeps the recordings
+that started within the week, by `start_at` (UTC without a `Z`, which the plugin adds).
 
 Each event is one recording: kind `meeting`, the recording's id (`file_id` for `get_note` and `get_transcript`),
 its start, its name as the title, and its length as the text. Its notes and transcript are not read: that would take a
 call per recording. A recording is listed once it started 6 hours ago, because a device can upload it hours after it
-ends; one uploaded later than that, after the cursor has passed its start, is not listed. The cursor is the (start, id)
-of the last recording listed: calling again with it lists what follows, and an older cursor lists the same recordings
-again.
+ends; one uploaded later than that, after the cursor has passed its start, is not listed. The cursor's position is the
+(start, id) of the last recording listed: calling again with it lists what follows, and an older cursor lists the same
+recordings again.
+
+### The `recordings` source and `probe`
+
+`probe` is a tools RPC method, not a tool: `probe({ source?, account? })` answers
+`{ source: "recordings", account, owner: { id, label }, trust: "untrusted" }`, whose sign-in an account is, and reads no
+recording. It asserts `plaud_probe` with the account as the resource, then reads only that account's
+`get_current_user`. The owner is `mailto:` and the email when Plaud gives one, or `plaud:` and the user's id, labelled
+with the user's nickname or name.
+
+A `recordings` page never reads `get_current_user`: that is the probe's, as the source contract asks. The plugin keeps
+each account's owner from its last probe, apart from every other account's, and a page names it, with the same id and
+label the probe gave. So:
+
+- every listing of an account, with a cursor or without, needs a probe of that account since OpenCode started, or it
+  is refused with `UNAVAILABLE`, before any read: a page's owner is only ever one a probe read from Plaud, never a
+  cursor's, which anyone holding it could change; a consumer probes when it binds the source, and again after a
+  restart;
+- the cursor is the source contract's version 2, bound to (`plaud`, `recordings`, the account), and holds the owner's
+  id, so a listing reads only `list_files`;
+- a listing with a cursor names its account (`INPUT_INVALID` otherwise), another account's cursor is
+  `ACCOUNT_MISMATCH`, and a cursor of another source, of another plugin, or from before this release (contract 1's) is
+  `CURSOR_INVALID`, all before any read: start again with `since`;
+- a cursor whose owner is not the one the account's last probe named is `CURSOR_INVALID`: the account was signed in to
+  another Plaud user since;
+- a recording whose title holds a secret, such as a password or a key, is left out for good: it is listed in `refused`
+  with the reason `secret`, and the cursor moves past it.
+
+### The `plaud` source
+
+`plaud`, the default, answers as before the source contract: it reads `get_current_user` itself for the owner, its
+cursor holds the account and a digest of the owner (another account's, or one from before a sign-in to another Plaud
+user, is `EVENTS_CURSOR_INVALID`), and its page has no `plugin` or `refused`.
 
 ## Code Mode
 
@@ -265,10 +303,14 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | `HOST_UNTESTED` | setup | OpenCode is outside `>=2.2.3 <2.3.0` and `allowUntestedHost` is not set. |
 | `SKILLS_INVALID` | setup | The package's `skills/` folder is missing or a skill file is malformed. Reinstall the plugin. |
 | `STATUS_UNAVAILABLE` | status views | The status could not be read. |
-| `INPUT_INVALID` | the tools RPC's `recent`, events list | `recent`'s input is not `{}` or `{ "limit": 1 to 20 }`; the account goes in the envelope. An events list's input breaks the contract, names another source or an account the plugin does not have, or names a different account from the envelope's. |
-| `EVENTS_CURSOR_INVALID` | events list | The cursor was not issued by `events_list` for this account and its signed-in user. Pass a cursor from a previous result of the same account, or start again with `since`. |
-| `EVENTS_OWNER_UNKNOWN` | events list | Plaud's `get_current_user` named no email or id for the account. |
-| `AUTH_REQUIRED` | export, recent, events list | The account's server is not connected or not signed in. |
+| `INPUT_INVALID` | the tools RPC's `recent`, events list, probe | `recent`'s input is not `{}` or `{ "limit": 1 to 20 }`; the account goes in the envelope. An events list's or probe's input breaks the contract, or names a different account from the envelope's; a `plaud` listing names an account the plugin does not have; a `recordings` listing with a cursor names no account. |
+| `SOURCE_UNKNOWN` | events list, probe | The call names a source the plugin does not have: an events list takes `recordings` or `plaud`, and probe `recordings`. |
+| `ACCOUNT_MISMATCH` | events list, probe | A `recordings` listing or a probe names an account the plugin does not have, or a `recordings` listing passes another account's cursor. |
+| `CURSOR_INVALID` | events list | A `recordings` cursor is not one it issued for this account, or the account's last probe named another user. Start again with `since`, without a cursor. |
+| `UNAVAILABLE` | events list | A `recordings` listing came before any probe of the account since OpenCode started. Call `probe` for it, then list again. |
+| `EVENTS_CURSOR_INVALID` | events list | A `plaud` cursor was not issued by `events_list` for this account and its signed-in user. Pass a cursor from a previous result of the same account, or start again with `since`. |
+| `EVENTS_OWNER_UNKNOWN` | events list, probe | Plaud's `get_current_user` named no email or id for the account. |
+| `AUTH_REQUIRED` | export, recent, events list, probe | The account's server is not connected or not signed in. |
 | `PLAUD_READ_FAILED` | export, recent, events list | A Plaud read failed or was denied, or one week held more recordings than an events list reads. |
 | `PLAUD_UNREADABLE` | export, recent, events list | Plaud returned something the plugin cannot use, such as an audio link that is not a valid https URL, an audio download that redirects to one or more than 5 times, a transcript that never ends, or a recording list that is not a list. |
 | `CONTENT_UNAVAILABLE` | export | The recording has no audio yet, or no such transcript block. |

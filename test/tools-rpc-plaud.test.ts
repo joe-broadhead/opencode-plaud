@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
 import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../src/domain/redact.js"
 import { accountServer, KNOWN_READS as PLAUD_READS } from "../src/host/mcp.js"
-import { defaultRules, EVENTS_ACTION, RECENT_ACTION } from "../src/host/permissions.js"
+import { defaultRules, EVENTS_ACTION, PROBE_ACTION, RECENT_ACTION } from "../src/host/permissions.js"
 import { reader } from "../src/host/tools/export.js"
 import { registerTools } from "../src/host/tools/index.js"
-import { eventsMethod } from "../src/host/tools/events.js"
+import { eventsMethod, owners, probeMethod } from "../src/host/tools/events.js"
 import { recentMethod } from "../src/host/tools/recent.js"
 import { METHODS, NEXT_STEPS, registerToolsRpc, shapeResult, TOOLS_RPC_ID, type McpResult, type ToolCall } from "../src/host/tools-rpc.js"
 
@@ -70,8 +70,9 @@ async function rpc(tools: readonly string[], result: Result = upstream, options:
     mcp: { list: async () => ({ data: [] }) },
   }
   const host = { tool: ctx.tool, permission: { assert: async (request: Record<string, unknown>) => void asserted.push(request) } } as never
+  const kept = owners()
   await registerToolsRpc(ctx as never, {
-    methods: [...METHODS, recentMethod(host, ["default", "work"]), eventsMethod(host, ["default", "work"])],
+    methods: [...METHODS, recentMethod(host, ["default", "work"]), eventsMethod(host, ["default", "work"], kept), probeMethod(host, ["default", "work"], kept)],
     mcp: { server: accountServer(["work"]), managed: () => true },
   })
   const context = { signal: new AbortController().signal, error: (type: string, message: string, data?: unknown) => ({ type, message, data }) }
@@ -101,8 +102,7 @@ async function modelHook() {
       },
       permission: { assert: async () => undefined },
     } as never,
-    { accounts: [], exportRoots: ["/fixture/Plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 },
-  )
+    { accounts: [], exportRoots: ["/fixture/Plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 }, owners())
   return (tool: string, result: Result) => {
     const event = { status: "completed", tool, result: structuredClone(result) }
     after!(event)
@@ -111,16 +111,16 @@ async function modelHook() {
 }
 
 describe("Plaud's tools RPC", () => {
-  it("is plaud.recordings.tools, with the five server reads, recent and events_list, and nothing else", async () => {
+  it("is plaud.recordings.tools, with the five server reads, recent, events_list and probe, and nothing else", async () => {
     expect(TOOLS_RPC_ID).toBe("plaud.recordings.tools")
     expect(METHODS.map((method) => method.name)).toEqual([...PLAUD_READS])
     expect(METHODS.map((method) => method.name)).toEqual(["list_files", "get_file", "get_note", "get_transcript", "get_current_user"])
     for (const method of METHODS) expect(method).toMatchObject({ kind: "mcp", class: "read" })
-    // The rules allow the server's five reads, then the plugin's own recent and events_list, which are methods too.
+    // The rules allow the server's five reads, then the plugin's own recent, events_list and probe, which are methods too.
     const allowed = defaultRules(["plaud"], "ask-changes").filter((rule) => rule.effect === "allow").map((rule) => rule.action)
-    expect(allowed).toEqual([...METHODS.map((read) => `plaud_${read.name}`), RECENT_ACTION, EVENTS_ACTION])
+    expect(allowed).toEqual([...METHODS.map((read) => `plaud_${read.name}`), RECENT_ACTION, EVENTS_ACTION, PROBE_ACTION])
     const { methods } = await rpc(["plaud_list_files", "plaud_recent", "plaud_events_list", "plaud_export"])
-    expect(methods.sort()).toEqual(["describe", ...METHODS.map((method) => method.name), "recent", "events_list"].sort())
+    expect(methods.sort()).toEqual(["describe", ...METHODS.map((method) => method.name), "recent", "events_list", "probe"].sort())
   })
 
   it("has no export method: plaud_export writes a file, so it stays a direct tool and no script reaches it", async () => {
@@ -290,8 +290,7 @@ describe("Plaud's tools RPC", () => {
         },
         permission: { assert: async () => undefined },
       } as never,
-      { accounts: [], exportRoots: ["/fixture/Plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 },
-    )
+      { accounts: [], exportRoots: ["/fixture/Plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 }, owners())
     const refused = { status: "error", tool: "plaud_export", error: new ToolError({ message: "permission.rejected: external_directory", metadata: { code: "other" } }) }
     after!(refused as never)
     expect(refused.error.message).toContain("EXPORT_PATH_NOT_PERMITTED:")

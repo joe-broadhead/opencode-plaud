@@ -199,14 +199,19 @@ describe("the tarball", () => {
     }
     expect(foreign(join(dist, "index.js"), SERVER_MODULES)).toEqual([])
     expect(foreign(join(dist, "tui.js"), TUI_MODULES)).toEqual([])
-    // The server part carries the tools RPC: its one evaluate hook, and exactly its source's reads of error tags.
+    // The server part carries the source contract's tools RPC: its one evaluate hook, and exactly the package's reads of
+    // error tags (the chunk its tools-rpc entry imports them from).
     const exempt: Record<string, Exemption[]> = { "index.js": ["evaluate hook", "error tags"] }
     const scripts = tree(dist).filter((path) => path.endsWith(".js"))
     expect(scripts.flatMap((path) => forbiddenUses(readFileSync(join(dist, path), "utf8"), path, "shipped", exempt[path]).map((problem) => `dist/${path}:${problem}`))).toEqual([])
     const server = readFileSync(join(dist, "index.js"), "utf8")
-    const source = join(REPO, "src", "host", "tools-rpc.ts")
+    const contract = join(REPO, "node_modules", "@we-the-rebel-alliance", "source-contract", "dist")
+    const entry = readFileSync(join(contract, "tools-rpc.js"), "utf8")
+    const chunks = [...entry.matchAll(/from "\.\/(chunks\/[\w-]+\.js)"/g)].map((match) => join(contract, match[1]!))
+    const packageTags = [join(contract, "tools-rpc.js"), ...chunks].reduce((sum, file) => sum + exemptUses(readFileSync(file, "utf8"), file, "error tags"), 0)
+    expect(packageTags).toBeGreaterThan(0)
     expect(exemptUses(server, "index.js", "evaluate hook")).toBe(1)
-    expect(exemptUses(server, "index.js", "error tags")).toBe(exemptUses(readFileSync(source, "utf8"), source, "error tags"))
+    expect(exemptUses(server, "index.js", "error tags")).toBe(packageTags)
     expect(exemptUses(readFileSync(join(dist, "tui.js"), "utf8"), "tui.js", "evaluate hook")).toBe(0)
   })
 })
@@ -392,8 +397,8 @@ describe.each(TESTED_HOSTS)("the tools RPC on stock OpenCode %s", (version) => {
         const { value } = await host.script("describe", {})
         return value?.methods?.every((method: { available: boolean }) => method.available) ? value : undefined
       })
-      expect(described.methods.map((method: { name: string }) => method.name)).toEqual([...READS, "recent", "events_list"])
-      expect(described.methods.map((method: { class: string }) => method.class)).toEqual([...READS.map(() => "read"), "read", "read"])
+      expect(described.methods.map((method: { name: string }) => method.name)).toEqual([...READS, "recent", "events_list", "probe"])
+      expect(described.methods.map((method: { class: string }) => method.class)).toEqual([...READS.map(() => "read"), "read", "read", "read"])
       const session = async (body: Record<string, unknown>) => ((await host.api("POST", "/api/session", { location: { directory: host.directory }, ...body })) as { data: { id: string } }).data.id
       const sessions = {
         build: await session({ agent: "build" }),

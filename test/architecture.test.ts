@@ -59,16 +59,6 @@ describe("source layout", () => {
   })
 })
 
-/**
- * The only exemptions, by file: the tools RPC's one evaluate hook and its reads of OpenCode's error tags, and its
- * shared unit test's fakes of those errors. See AGENTS.md.
- */
-const EXEMPT: Readonly<Record<string, readonly Exemption[]>> = {
-  "src/host/tools-rpc.ts": ["evaluate hook", "error tags"],
-  "test/tools-rpc.test.ts": ["error tags"],
-  "test/resolve.test.ts": ["error tags"],
-}
-
 describe("forbidden host APIs", () => {
   const scopes: [string, Scope][] = [
     ["src", "shipped"],
@@ -78,19 +68,18 @@ describe("forbidden host APIs", () => {
   it.each(scopes)("none in %s/", (directory, scope) => {
     const files = walk(join(ROOT, directory))
     expect(files.length).toBeGreaterThan(0)
-    expect(files.flatMap((file) => forbiddenUses(readFileSync(file, "utf8"), file, scope, EXEMPT[rel(file)]).map((problem) => `${rel(file)}:${problem}`))).toEqual([])
+    expect(files.flatMap((file) => forbiddenUses(readFileSync(file, "utf8"), file, scope).map((problem) => `${rel(file)}:${problem}`))).toEqual([])
   })
 
-  it("uses each exemption only where it is granted, and counts it", () => {
+  it("grants no exemption in src/, test/ or scripts/: the tools RPC that needs them is the source contract's, bundled", () => {
+    // The tools RPC's one evaluate hook and its reads of OpenCode's error tags are the source contract package's. They
+    // reach only dist/index.js, where the pack test counts them; no file of this repository may use either.
     const uses = (directory: string, exemption: Exemption) =>
       walk(join(ROOT, directory)).map((file) => [rel(file), exemptUses(readFileSync(file, "utf8"), file, exemption)] as const).filter(([, count]) => count > 0)
-    expect(uses("src", "evaluate hook")).toEqual([["src/host/tools-rpc.ts", 1]])
-    expect(uses("src", "error tags").map(([file]) => file)).toEqual(["src/host/tools-rpc.ts"])
-    // Without its exemptions, the tools RPC breaks both rules.
-    const rpc = join(SRC, "host", "tools-rpc.ts")
-    const problems = forbiddenUses(readFileSync(rpc, "utf8"), rpc, "shipped").join("\n")
-    expect(problems).toContain("a permission evaluate hook")
-    expect(problems).toContain("_tag: private host error tags")
+    for (const directory of ["src", "test", "scripts"]) {
+      expect(uses(directory, "evaluate hook")).toEqual([])
+      expect(uses(directory, "error tags")).toEqual([])
+    }
   })
 
   it("finds every module a file loads", () => {

@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.3] - 2026-11-15
+## [Unreleased]
 
 ### Added
 
@@ -45,9 +45,11 @@ All notable changes to this project are documented here. The format follows [Kee
   `source: "plaud"`, lists exactly as before, with its own cursor, for scripts and Memory's collector; only an unknown
   `source` is now `SOURCE_UNKNOWN` rather than `INPUT_INVALID`.
 - `events_list` never loses a recording when `list_files` ignores `page` under a date filter, as Plaud's docs say it
-  may: a repeated page longer than 20 ends the week (every recording came at once), a repeated full page of 20 lists
-  the week again day by day, and a day that still repeats a full page fails with `PLAUD_READ_FAILED` before the
-  cursor moves. Before, such a week read the same page until its 50-page cap.
+  may: a page that is not empty and repeats the one before, whatever its length, is never taken as complete. The week
+  is listed again one day at a time (each query asks for that day and one either side), and a day whose query still
+  repeats fails with `PLAUD_READ_FAILED` before the cursor moves. Before, such a week read the same page until its
+  50-page cap. While Plaud ignores `page`, three days that hold more than one page keep failing (README, Known
+  limits).
 - The default rules allow `plaud_probe` by its exact name, at every `access` value.
 - For jelly: the `jelly` declaration is unchanged, and `probe` is a tools RPC method, not a tool. Jelly's broker does
   not take this source yet: it drops `plaud_events_list`, whose action has no dot, until it reads declarations through

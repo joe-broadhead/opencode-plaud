@@ -132,7 +132,7 @@ describe("the tarball", () => {
     expect(Object.keys((manifest.scripts as Record<string, string> | undefined) ?? {}).filter((name) => LIFECYCLE.includes(name))).toEqual([])
     expect(manifest.opencode).toMatchObject({
       host: SUPPORTED_HOSTS,
-      vendor: { id: "plaud", name: "Plaud", domain: "plaud.ai" },
+      vendor: { id: "plaud", name: "Plaud", domain: "plaud.ai", mark: true },
       icons: [
         { src: "assets/icon.svg", mimeType: "image/svg+xml", sizes: ["any"] },
         { src: "assets/icon-128.png", mimeType: "image/png", sizes: ["128x128"] },

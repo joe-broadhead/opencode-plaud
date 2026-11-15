@@ -4,6 +4,8 @@ Use your Plaud voice recordings in OpenCode: list and search them, read their tr
 
 Unofficial; not affiliated with Plaud.
 
+Plaud is a trademark of PLAUD LLC; this unofficial plugin is not endorsed by them.
+
 ## Requirements
 
 - OpenCode `>=2.2.3 <2.4.0` (2.2.3 or a later 2.2 or 2.3 release), tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 and 2.3.0. Another release inside that range starts, and `/plaud-status` calls it untested. Outside the range the plugin does not start, unless you set [`allowUntestedHost`](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#options).
@@ -318,4 +320,4 @@ Sign out while the plugin is still installed: once it is removed, OpenCode no lo
 - [Contributing](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/CONTRIBUTING.md)
 - [Security](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/SECURITY.md)
 - [Changelog](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/CHANGELOG.md)
-- [MIT license](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/LICENSE) and the [notice](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/NOTICE) for bundled third-party code. Plaud is a trademark of its owner, used here only to name the service the plugin connects to.
+- [MIT license](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/LICENSE) and the [notice](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/NOTICE) for bundled third-party code. Plaud is a trademark of PLAUD LLC, used here only to name the service the plugin connects to.

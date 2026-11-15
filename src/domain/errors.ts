@@ -74,7 +74,7 @@ export const ERRORS = {
     next: "Pass source `recordings`, or leave it out.",
   },
   UNAVAILABLE: {
-    meaning: "A first listing of the recordings source, with no cursor, came before any probe named the account's owner since OpenCode started.",
+    meaning: "A listing of the recordings source came before any probe named the account's owner since OpenCode started.",
     next: "Call `probe` for the account, then list again.",
   },
   EVENTS_OWNER_UNKNOWN: {

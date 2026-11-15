@@ -280,15 +280,40 @@ describe("the recordings source, plaud.recordings", () => {
     expect(fake.calls).toEqual([])
   })
 
-  it("pages with a cursor that carries the owner, so a later listing reads no identity, in a fresh plugin too", async () => {
+  it("pages with a cursor under the owner a probe in this process named, and reads no identity on a page", async () => {
     const first = instance()
     await first.probe("work")
     const page = await first.list({ since: SINCE, account: "work", limit: 1 })
     expect(page.events.map((event) => event.external_id)).toEqual(["work-1"])
     const restarted = instance()
+    await restarted.probe("work")
+    const before = restarted.fake.calls.length
     const next = await restarted.list({ account: "work", cursor: page.cursor })
     expect(next).toMatchObject({ owner: { id: "mailto:work@example.test", label: "Work" }, events: [] })
-    expect(restarted.fake.calls.every((call) => call.id === "plaud-work_list_files")).toBe(true)
+    expect(restarted.fake.calls.slice(before).every((call) => call.id === "plaud-work_list_files")).toBe(true)
+  })
+
+  it("after a restart, never labels a page with the cursor's owner: no probe is UNAVAILABLE, and a new user on the account is CURSOR_INVALID", async () => {
+    const first = instance()
+    await first.probe("work")
+    const page = await first.list({ since: SINCE, account: "work", limit: 1 })
+    // OpenCode restarts, and the alias work is now signed in to another Plaud user.
+    const restarted = instance(plaud({ plaud: { id: "user-1", nickname: "Fixture" }, "plaud-work": { id: "user-7", email: "new@example.test", nickname: "New" } }))
+    expect(await code(restarted.list({ account: "work", cursor: page.cursor }))).toBe("UNAVAILABLE")
+    expect(restarted.fake.calls).toEqual([])
+    await restarted.probe("work")
+    expect(await code(restarted.list({ account: "work", cursor: page.cursor }))).toBe("CURSOR_INVALID")
+    expect(restarted.fake.calls.every((call) => call.id === "plaud-work_get_current_user")).toBe(true)
+  })
+
+  it("never names a forged cursor's owner: a cursor that claims Mallory lists nothing under that name", async () => {
+    const forged = encodeBoundCursor({ plugin: "plaud", source: RECORDINGS_SOURCE, account: "work" }, { a: "work", o: "mailto:mallory@example.test", l: "Mallory", t: 0, i: "" })
+    const { list, probe, fake } = instance()
+    expect(await code(list({ account: "work", cursor: forged }))).toBe("UNAVAILABLE")
+    expect(fake.calls).toEqual([])
+    await probe("work")
+    expect(await code(list({ account: "work", cursor: forged }))).toBe("CURSOR_INVALID")
+    expect(fake.calls.some((call) => call.id.endsWith("_list_files"))).toBe(false)
   })
 
   it("names the account with a cursor, refuses another account's cursor before any read, and a forged or old one", async () => {

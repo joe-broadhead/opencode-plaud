@@ -38,10 +38,11 @@ import { type ExportHost, reader } from "./export.js"
  *
  * - `recordings` (`plaud.recordings`, the declared source): reads only `list_files`. Who is signed in is `probe`'s to
  *   read (`get_current_user`, the source's identity operation): the plugin keeps each account's owner from its last
- *   probe, and a page names it. The cursor is the source contract's version 2, bound to (plaud, recordings, account),
- *   and carries the owner, so a later listing reads no identity at all; a listing with a cursor names its account, a
- *   cursor for another account is ACCOUNT_MISMATCH, and a cursor whose owner is not the one a later probe named is
- *   CURSOR_INVALID. A recording whose title holds a secret is refused for good.
+ *   probe, and a page names it; with no probe since OpenCode started, every listing is UNAVAILABLE, cursor or not. The
+ *   cursor is the source contract's version 2, bound to (plaud, recordings, account), and holds the owner's id; a
+ *   listing with a cursor names its account, a cursor for another account is ACCOUNT_MISMATCH, and a cursor whose
+ *   owner is not the one the last probe named is CURSOR_INVALID. A recording whose title holds a secret is refused for
+ *   good.
  * - `plaud` (contract 1, the default): what scripts and Memory's collector read before the source contract, with the
  *   same answers: it names the owner from its own `get_current_user` read, and keeps its version 1 cursor.
  *
@@ -254,28 +255,26 @@ function recordingsKey(cursor: string, account: string): { key: Key; owner: Even
  * cursor's. A recording whose title holds a secret is refused for good, and the cursor moves past it.
  */
 async function recordingsPage(read: Read, request: EventsListRequest, account: string, named: boolean, kept: Owners, now: number): Promise<EventsListResult> {
-  let after: Key
-  let owner: EventsOwner
   if (request.cursor !== undefined) {
     if (!named) fail("INPUT_INVALID", "A cursor belongs to one account, and this listing names none.", "Pass the account the cursor was issued for as account, with the cursor.")
     const other = cursorAccount(request.cursor)
     if (other !== undefined && other !== account) {
       fail("ACCOUNT_MISMATCH", `The cursor is for another Plaud account than "${account}".`, `Pass the cursor with the account it was issued for, or call events_list for "${account}" with since, without a cursor, to start again.`)
     }
+  }
+  // The owner is only ever the one a probe in this process read from Plaud. A cursor's owner is never trusted on its
+  // own: its hash catches mix-ups, it is no signature, and after a restart the account may be signed in to another user.
+  const owner = kept.get(account)
+  if (owner === undefined) {
+    fail("UNAVAILABLE", `No probe has named the signed-in user of the Plaud account "${account}" since OpenCode started, and a page names its owner.`, `Call probe for "${account}", then call events_list again.`)
+  }
+  let after: Key = { t: startTime(request, now), i: "" }
+  if (request.cursor !== undefined) {
     const decoded = recordingsKey(request.cursor, account)
-    const current = kept.get(account)
-    if (current !== undefined && current.id !== decoded.owner.id) {
-      fail("CURSOR_INVALID", `The Plaud account "${account}" is signed in as another user than the one the cursor was issued for.`, `Start again: call events_list for "${account}" with since, without a cursor.`)
+    if (decoded.owner.id !== owner.id) {
+      fail("CURSOR_INVALID", `The cursor was issued for another user than the one the Plaud account "${account}" is signed in as now.`, `Start again: call events_list for "${account}" with since, without a cursor.`)
     }
     after = decoded.key
-    owner = current ?? decoded.owner
-  } else {
-    const current = kept.get(account)
-    if (current === undefined) {
-      fail("UNAVAILABLE", `No probe has named the signed-in user of the Plaud account "${account}" since OpenCode started, and a page names its owner.`, `Call probe for "${account}", then call events_list again.`)
-    }
-    after = { t: startTime(request, now), i: "" }
-    owner = current
   }
   const end = now - SETTLE_MS
   const { ordered, scanned } = await scan(read, after, end, request.limit)

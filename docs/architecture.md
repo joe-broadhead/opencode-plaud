@@ -94,7 +94,8 @@ account.
 The `recordings` source names the owner the account's last `probe` named: `probeMethod` asserts `plaud_probe` and reads
 the account's `get_current_user`, and `owners()` keeps the answer per account for this plugin instance, so a page reads
 no identity, as the contract's kit requires. Its cursor is the contract's version 2, bound to (`plaud`, `recordings`, the
-account), with the owner's id and label beside the position. The default source `plaud` is contract 1's listing,
+account), with the owner's id and label beside the position; a listing checks that id against the account's kept owner,
+and with none kept answers `UNAVAILABLE`, so a page never names an owner only a cursor states. The default source `plaud` is contract 1's listing,
 unchanged: it reads `get_current_user` itself, and its version 1 cursor holds the account and a digest of the owner.
 
 `test/conformance.test.ts` runs the contract's conformance kit over the declaration and both methods, on invented

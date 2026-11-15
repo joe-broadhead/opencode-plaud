@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest version gets security fixes. It supports OpenCode `>=2.2.3 <2.3.0` and is tested on 2.2.3, 2.2.4, 2.2.5 and 2.2.6.
+Only the latest version gets security fixes. It supports OpenCode `>=2.2.3 <2.4.0` and is tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 and 2.3.0.
 
 ## Reporting a vulnerability
 

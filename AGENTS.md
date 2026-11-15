@@ -4,8 +4,8 @@ This repository builds `@joe-broadhead/opencode-plaud`, an unofficial OpenCode p
 
 ## Platform
 
-- Use only public APIs of `@opencode/plugin` that exist in OpenCode 2.2.3. The supported host range is exactly `>=2.2.3 <2.3.0`. Never write it as `^2.2.3`, which would accept an untested 2.3.
-- Test against stock OpenCode 2.2.3, 2.2.4, 2.2.5 and 2.2.6, never a fork or a patched host. `TESTED_HOSTS` in `src/version.ts` is the one list of tested releases; tests and CI read it, no other code lists them, and only the README's Requirements, SECURITY and `docs/configuration.md` (`allowUntestedHost`) state them for users; a test checks all four.
+- Use only public APIs of `@opencode/plugin` that exist in OpenCode 2.2.3. The supported host range is exactly `>=2.2.3 <2.4.0`. Never write it as `^2.2.3`, which would accept an untested 2.4.
+- Test against stock OpenCode 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 and 2.3.0, never a fork or a patched host. `TESTED_HOSTS` in `src/version.ts` is the one list of tested releases; tests and CI read it, no other code lists them, and only the README's Requirements, SECURITY and `docs/configuration.md` (`allowUntestedHost`) state them for users; a test checks all four.
 - Call `ctx.permission.assert(input)` with the input only: no signal and no second argument. Rethrow what it throws.
 - A plugin tool that returns `output` declares an `output` schema.
 - Tests never import host source. Use the public `@opencode/plugin`, `@opencode/sdk` and `@opencode/client` packages. Write test doubles as narrow `Pick<Plugin.Context, ...>` fakes, not full context objects.
@@ -55,7 +55,7 @@ Also forbidden, though no scan can find them: imported OAuth grants, V1 APIs, mi
 - No `dependencies` and no peer dependencies (`peerDependencies`, `peerDependenciesMeta`). OpenCode supplies `@opencode/plugin`, OpenTUI and Solid to plugins at runtime. `zod` is bundled into `dist/index.js` only, for the tool and option schemas. The RPC contract is plain JSON Schema, never zod, so `dist/tui.js` carries none.
 - Never bundle the host's runtime: `@opencode/plugin`, `effect`, OpenTUI or Solid. Do not ship TypeScript, build tools or a Node runtime.
 - `@opencode/plugin` is an exact dev dependency at 2.2.3, as are `@opencode/sdk` and `@opencode/client` for the host tests. OpenTUI and Solid are dev dependencies for the TUI build and tests. Do not add another SDK release to a lockfile.
-- `package.json` states compatibility as `"opencode": { "host": ">=2.2.3 <2.3.0" }`. The start-up check in `src/version.ts` uses the same range.
+- `package.json` states compatibility as `"opencode": { "host": ">=2.2.3 <2.4.0" }`. The start-up check in `src/version.ts` uses the same range.
 - No lifecycle scripts, including `prepare`. Ship prebuilt JavaScript in `dist/`.
 - `dist/` holds exactly `index.js` and `tui.js`, each one self-contained esbuild bundle: no chunks and no relative imports. OpenCode reloads a plugin in place and keeps modules it already loaded, so a shared sibling module could be stale.
 - Releases come only from `.github/workflows/release.yml` ("Releasing" in [CONTRIBUTING.md](CONTRIBUTING.md)). A

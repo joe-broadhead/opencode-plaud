@@ -407,7 +407,7 @@ describe("status", () => {
       ],
       exportRoots: [host.exportRoot],
       tools: { visible: 13, unknown: 2, unknownNames: ["delete_everything"] },
-      host: { version: host.sdkVersion, range: ">=2.2.3 <2.3.0", tested: true },
+      host: { version: host.sdkVersion, range: ">=2.2.3 <2.4.0", tested: true },
       // asker's own rules already ask for every Plaud tool (LIVE-1).
       unguardedAgents: ["reviewer"],
       permissionsBlock: BLOCK,

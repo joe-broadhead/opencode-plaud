@@ -84,8 +84,8 @@ describe("plugin setup", () => {
   })
 
   it("refuses an untested host before registering anything", async () => {
-    const { ctx, transform } = fakeContext("2.3.0", {})
-    await expect(plugin.setup(ctx)).rejects.toThrow(/^HOST_UNTESTED: .*OpenCode 2\.3\.0/)
+    const { ctx, transform } = fakeContext("2.4.0", {})
+    await expect(plugin.setup(ctx)).rejects.toThrow(/^HOST_UNTESTED: .*OpenCode 2\.4\.0/)
     expect(transform).not.toHaveBeenCalled()
   })
 

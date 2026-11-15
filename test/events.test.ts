@@ -146,22 +146,12 @@ describe("plaud_events_list, contract 1's source plaud", () => {
     expect(fake.calls.every((call) => call.id.startsWith("plaud_"))).toBe(true)
   })
 
-  it("ends a week when list_files ignores page under a date filter, as Plaud's docs say it may, and answers every day's recordings at once", async () => {
-    const fake = plaud()
-    const tools = await (fake.host as { tool: { list: () => Promise<{ id: string; execute: (args: Record<string, unknown>) => Promise<unknown> }[]> } }).tool.list()
-    for (const entry of tools.filter((item) => item.id === "plaud_list_files")) {
-      const execute = entry.execute
-      entry.execute = async (args) => execute({ ...args, page: 1, page_size: 500 })
-    }
-    const result = (await lister(fake)({ since: SINCE, limit: PAGE.max })) as EventsListResult
-    expect(result.events.map((event) => event.external_id)).toEqual(EXPECTED)
-    // The busy week answers its 23 recordings on page 1 and the same again on page 2, which ends it.
-    expect(fake.calls.filter((call) => call.id === "plaud_list_files" && call.args.date_from === "2026-10-26").length).toBe(2)
-  })
-
-  describe("a server that ignores page under a date filter but keeps 20 per page", () => {
-    /** Runs `work` with RECORDINGS.plaud set to `recordings`, and every list_files answering page 1 whatever it is asked. */
-    async function ignoringPage(recordings: readonly Recording[], work: (fake: ReturnType<typeof plaud>) => Promise<void>) {
+  describe("a server that ignores page under a date filter", () => {
+    /**
+     * Runs `work` with RECORDINGS.plaud set to `recordings`, and every list_files answering page 1 whatever page it is
+     * asked for, with `size` recordings per page (the asked page_size when undefined).
+     */
+    async function ignoringPage(recordings: readonly Recording[], size: number | undefined, work: (fake: ReturnType<typeof plaud>) => Promise<void>) {
       const saved = RECORDINGS["plaud"]!
       RECORDINGS["plaud"] = recordings
       try {
@@ -169,35 +159,57 @@ describe("plaud_events_list, contract 1's source plaud", () => {
         const tools = await (fake.host as { tool: { list: () => Promise<{ id: string; execute: (args: Record<string, unknown>) => Promise<unknown> }[]> } }).tool.list()
         for (const entry of tools.filter((item) => item.id === "plaud_list_files")) {
           const execute = entry.execute
-          entry.execute = async (args) => execute({ ...args, page: 1 })
+          entry.execute = async (args) => execute({ ...args, page: 1, ...(size === undefined ? {} : { page_size: size }) })
         }
         await work(fake)
       } finally {
         RECORDINGS["plaud"] = saved
       }
     }
-    const spread = Array.from({ length: 28 }, (_, index) => ({
-      id: `spread-${String(index).padStart(2, "0")}`,
-      name: `Spread ${index}`,
-      start_at: `2026-10-0${1 + Math.floor(index / 4)}T${String(8 + (index % 4) * 2).padStart(2, "0")}:00:00`,
-      duration: 60_000,
-    }))
+    /** `perDay` recordings on each of `days` days from 1 October, two hours apart from 08:00. */
+    const daily = (days: number, perDay: number) =>
+      Array.from({ length: days * perDay }, (_, index) => ({
+        id: `daily-${String(index).padStart(2, "0")}`,
+        name: `Daily ${index}`,
+        start_at: `2026-10-${String(1 + Math.floor(index / perDay)).padStart(2, "0")}T${String(8 + (index % perDay) * 2).padStart(2, "0")}:00:00`,
+        duration: 60_000,
+      }))
+    const listed = async (fake: ReturnType<typeof plaud>) => ((await lister(fake)({ since: SINCE, limit: PAGE.max })) as EventsListResult).events.map((event) => event.external_id)
+    const asked = (fake: ReturnType<typeof plaud>) => fake.calls.filter((call) => call.id === "plaud_list_files").map((call) => [call.args.date_from, call.args.date_to])
 
-    it("lists a week of more than 20 recordings again day by day, and loses none", async () => {
-      await ignoringPage(spread, async (fake) => {
-        const result = (await lister(fake)({ since: SINCE, limit: PAGE.max })) as EventsListResult
-        expect(result.events.map((event) => event.external_id)).toEqual(spread.map((recording) => recording.id))
-        const days = fake.calls.filter((call) => call.id === "plaud_list_files").map((call) => [call.args.date_from, call.args.date_to])
-        // The week's full page repeated, so each of its days was asked for on its own (widened by a day on each side: 2 October is 1 to 4 October).
-        expect(days).toContainEqual(["2026-10-01", "2026-10-04"])
+    it("keeps 20 per page: lists a week of more than 20 again day by day, each day with one either side, and loses none", async () => {
+      const recordings = daily(7, 4)
+      await ignoringPage(recordings, undefined, async (fake) => {
+        expect(await listed(fake)).toEqual(recordings.map((recording) => recording.id))
+        expect(asked(fake)).toContainEqual(["2026-10-01", "2026-10-03"])
       })
     })
 
-    it("fails, never silently, when one day still fills a page and repeats it, and the cursor does not move", async () => {
-      const busy = Array.from({ length: 25 }, (_, index) => ({ id: `busy-${String(index).padStart(2, "0")}`, name: `Busy ${index}`, start_at: `2026-10-03T${String(index % 24).padStart(2, "0")}:15:00`, duration: 60_000 }))
-      await ignoringPage(busy, async (fake) => {
-        expect(await code(lister(fake)({ since: SINCE, limit: PAGE.max }))).toBe("PLAUD_READ_FAILED")
+    it("answers 30 whatever the page or page_size: 40 recordings in the window are all listed, never 30 with more false", async () => {
+      const recordings = daily(8, 5)
+      await ignoringPage(recordings, 30, async (fake) => {
+        const result = (await lister(fake)({ since: SINCE, limit: PAGE.max })) as EventsListResult
+        expect(result.events.map((event) => event.external_id)).toEqual(recordings.map((recording) => recording.id))
+        expect(result.more).toBe(false)
+        expect(asked(fake)).toContainEqual(["2026-10-01", "2026-10-03"])
       })
+    })
+
+    it("answers every recording at once: a repeat is never taken as complete, so a week is listed day by day", async () => {
+      const recordings = daily(7, 4)
+      await ignoringPage(recordings, 500, async (fake) => {
+        expect(await listed(fake)).toEqual(recordings.map((recording) => recording.id))
+        expect(asked(fake)).toContainEqual(["2026-10-01", "2026-10-03"])
+      })
+    })
+
+    it("fails, never silently, when one day and its neighbours still repeat a page, and the cursor does not move", async () => {
+      const busy = Array.from({ length: 25 }, (_, index) => ({ id: `busy-${String(index).padStart(2, "0")}`, name: `Busy ${index}`, start_at: `2026-10-03T${String(index % 24).padStart(2, "0")}:15:00`, duration: 60_000 }))
+      for (const size of [undefined, 30]) {
+        await ignoringPage(busy, size, async (fake) => {
+          expect(await code(lister(fake)({ since: SINCE, limit: PAGE.max }))).toBe("PLAUD_READ_FAILED")
+        })
+      }
     })
   })
 

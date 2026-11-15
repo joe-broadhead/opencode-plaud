@@ -131,14 +131,15 @@ export function ownerOf(payload: unknown): EventsOwner | undefined {
 }
 
 /**
- * The recordings that started within [from, to], from every list_files page of the widened days. Plaud's docs say it
- * ignores `page` (and may ignore `page_size`) when a date filter is set, so a page that names no recording not seen
- * before is a repeat:
+ * The recordings that started within [from, to], from every list_files page of the widened days. Its `date_from` and
+ * `date_to` are whole days (`YYYY-MM-DD`) in a time zone Plaud's docs do not name, so each query asks for a day more on
+ * each side and keeps the recordings that started within the window.
  *
- * - a repeat longer than a page answered every recording of the days at once, which ends the window;
- * - a repeat of a full page answered only the first page, so recordings may be left: a window longer than a day is
- *   listed again day by day, and a day that still fills a page and repeats it fails with PLAUD_READ_FAILED. Nothing is
- *   ever left out silently, and the cursor never passes a recording it did not see.
+ * Plaud's docs say `list_files` ignores `page` and `page_size` when a date filter is set. So a page that is not empty
+ * and names no recording not seen before is a repeat: Plaud ignored `page`, and whether its answer held every
+ * recording of those days or only as many as it chose to send cannot be told. Nothing is ever taken as complete then:
+ * a window longer than a day is listed again day by day, and a day that still repeats fails with PLAUD_READ_FAILED
+ * before the cursor moves. A short page is the last, as before, and an empty one ends the window.
  */
 async function window(read: Read, from: number, to: number): Promise<Dated[]> {
   const found: Dated[] = []
@@ -147,6 +148,14 @@ async function window(read: Read, from: number, to: number): Promise<Dated[]> {
     if (page > MAX_PAGES) fail("PLAUD_READ_FAILED", `list_files listed more than ${MAX_PAGES * PAGE_SIZE} recordings for one week.`, "Call events_list again with a later since.")
     const recordings = recordingList(await read(PLAUD_TOOLS.list, { date_from: utcDay(from - DAY_MS), date_to: utcDay(to + DAY_MS), page, page_size: PAGE_SIZE }))
     const fresh = recordings.filter((recording) => !seen.has(recording.id))
+    if (recordings.length > 0 && fresh.length === 0) {
+      if (to - from >= DAY_MS) return byDay(read, from, to)
+      fail(
+        "PLAUD_READ_FAILED",
+        `list_files answered the same ${recordings.length} recordings for page ${page} of ${utcDay(from)} and the day on each side as for the page before, so Plaud ignored the page, and any recordings after those cannot be listed.`,
+        "Retry later; if it keeps failing, report it to the plugin's maintainers. The cursor has not moved, so no recording was skipped.",
+      )
+    }
     for (const recording of fresh) {
       seen.add(recording.id)
       const at = recording.startedAt ?? recording.createdAt
@@ -154,21 +163,18 @@ async function window(read: Read, from: number, to: number): Promise<Dated[]> {
       if (Number.isFinite(time) && time >= from && time <= to) found.push({ ...recording, time })
     }
     if (recordings.length < PAGE_SIZE) return found
-    if (fresh.length > 0) continue
-    if (recordings.length > PAGE_SIZE) return found
-    if (to - from > DAY_MS) return byDay(read, from, to)
-    fail(
-      "PLAUD_READ_FAILED",
-      `list_files answered one full page of ${PAGE_SIZE} recordings for the days around ${utcDay(from)} and the same page again for the next, so Plaud ignored the page, and the recordings after the first ${PAGE_SIZE} of those days cannot be listed.`,
-      "Retry later; if it keeps failing, report it to the plugin's maintainers. The cursor has not moved, so no recording was skipped.",
-    )
   }
 }
 
-/** [from, to] listed one day at a time, for a server that answers only the first page of a filtered list. */
+/**
+ * [from, to] listed one UTC day at a time, each window ending a millisecond before the next day, so each query asks for
+ * exactly that day and one either side: three days, the least the plugin can ask for while Plaud's day boundaries are
+ * its own.
+ */
 async function byDay(read: Read, from: number, to: number): Promise<Dated[]> {
   const found: Dated[] = []
-  for (let start = from; start <= to; start += DAY_MS) found.push(...(await window(read, start, Math.min(start + DAY_MS, to))))
+  const first = from - (from % DAY_MS)
+  for (let start = first; start <= to; start += DAY_MS) found.push(...(await window(read, Math.max(start, from), Math.min(start + DAY_MS - 1, to))))
   return found
 }
 

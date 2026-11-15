@@ -242,10 +242,11 @@ events_list({ since?, cursor?, limit?, account?, source? })
 It asserts `plaud_events_list` with the account as the resource, then reads through that account's server, so the rules
 of its `list_files` (and, for `plaud`, its `get_current_user`) apply too. `list_files` lists one week at a time, every
 page of it (`page_size` 20; a shorter page is the last, since Plaud says nothing about more). Plaud's docs say it
-ignores `page` under a date filter, so a page that repeats the one before ends the week when it holds more than 20
-recordings (all of them at once); a repeated page of exactly 20 may leave recordings out, so the week is listed again
-day by day, and a day that still repeats a full page fails with `PLAUD_READ_FAILED`, the cursor unmoved: no recording
-is ever skipped silently. Its `date_from` and `date_to`
+ignores `page` under a date filter. A page that is not empty and repeats the one before, whatever its length, may or
+may not hold every recording of those days, so it is never taken as complete: the week is listed again one UTC day at
+a time (each query asks for that day and one either side, since Plaud's days are its own), and a day whose query still
+repeats fails with `PLAUD_READ_FAILED`, the cursor unmoved: no recording is ever skipped silently. An empty page ends
+the window. Its `date_from` and `date_to`
 are whole days whose boundaries Plaud draws, so each week asks for one more day on each side and keeps the recordings
 that started within the week, by `start_at` (UTC without a `Z`, which the plugin adds).
 

@@ -64,7 +64,8 @@
     "vendor": {
       "id": "plaud",
       "name": "Plaud",
-      "domain": "plaud.ai"
+      "domain": "plaud.ai",
+      "mark": true
     }
   },
   "sources": {

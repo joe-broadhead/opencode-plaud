@@ -118,12 +118,12 @@ const TEST_RULES: readonly Rule[] = [notRun(["skip", "skipIf", "runIf", "only", 
 export type Scope = "shipped" | "test" | "tooling"
 
 /**
- * Rules a file may be exempt from, in the scopes they apply to. Only the tools RPC and its unit test, a module and a
- * test shared by several plugins, are exempt (see AGENTS.md):
+ * Rules a file may be exempt from, in the scopes they apply to. Only the source contract's tools RPC, which the build
+ * bundles into dist/index.js, is exempt, and only there (see AGENTS.md):
  * - `evaluate hook`: the RPC's one hook turns an ask on one of its own script calls in flight into a deny, because no
  *   one can answer it, and touches nothing else;
  * - `error tags`: the RPC reads OpenCode's `Tool.Error` and `Session.NotFoundError` tags to tell a refusal from an
- *   upstream failure and a missing session from other failures; its unit test fakes those errors.
+ *   upstream failure and a missing session from other failures.
  */
 export type Exemption = "evaluate hook" | "error tags"
 

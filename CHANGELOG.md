@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.3] - 2026-11-15
+## [Unreleased]
 
 ### Added
 
@@ -19,12 +19,14 @@ All notable changes to this project are documented here. The format follows [Kee
 - For Memory and every consumer: `events_list` with `source: "recordings"` reads only `list_files`. Its page names the
   owner the account's last `probe` named, which the plugin keeps per account, and carries `plugin` and `refused[]`: a
   recording whose title holds a secret is refused for good with `reason: "secret"`, and the cursor moves past it. Its
-  cursor is the contract's version 2, bound to the plugin, the source and the account, and carries the owner, so a
-  later listing reads no identity, after a restart too. **A first listing of an account, with no cursor, needs a
-  `probe` of that account since OpenCode started**, or it answers `UNAVAILABLE` before any read. A listing with a
+  cursor is the contract's version 2, bound to the plugin, the source and the account, and holds the owner's id.
+  **Every listing of an account, with a cursor or without, needs a `probe` of that account since OpenCode started**,
+  or it answers `UNAVAILABLE` before any read: a page's owner is only ever one a probe read from Plaud, never a
+  cursor's, whose binding hash is no signature. A listing with a
   cursor must name its `account` (`INPUT_INVALID`), another account's cursor is `ACCOUNT_MISMATCH`, and a cursor from
   another source or plugin, or contract 1's, is `CURSOR_INVALID`: start again with `since`. A cursor whose owner is
-  not the one the account's last probe named is `CURSOR_INVALID` too. An account the plugin does not have is
+  not the one the account's last probe named is `CURSOR_INVALID` too, as after a restart with another Plaud user on the
+  account. An account the plugin does not have is
   `ACCOUNT_MISMATCH`, and a source it does not have `SOURCE_UNKNOWN`.
 - `npm test` runs the contract's conformance kit over the declaration, `events_list` and `probe`
   (`test/conformance.test.ts`), on invented Plaud answers with no Plaud call (`test/fixtures/sources.json`), and writes
@@ -42,14 +44,18 @@ All notable changes to this project are documented here. The format follows [Kee
   `plaud.recordings.tools`, its methods and their answers are unchanged, and `events_list` without `source`, or with
   `source: "plaud"`, lists exactly as before, with its own cursor, for scripts and Memory's collector; only an unknown
   `source` is now `SOURCE_UNKNOWN` rather than `INPUT_INVALID`.
-- `events_list` ends a week of `list_files` when a page repeats the one before: Plaud's docs say `list_files` ignores
-  `page` and `page_size` under a date filter, so a week of 20 recordings or more no longer reads the same page until
-  its 50-page cap.
+- `events_list` never loses a recording when `list_files` ignores `page` under a date filter, as Plaud's docs say it
+  may: a repeated page longer than 20 ends the week (every recording came at once), a repeated full page of 20 lists
+  the week again day by day, and a day that still repeats a full page fails with `PLAUD_READ_FAILED` before the
+  cursor moves. Before, such a week read the same page until its 50-page cap.
 - The default rules allow `plaud_probe` by its exact name, at every `access` value.
-- For jelly: nothing to do. The `jelly` declaration is unchanged; `probe` is a tools RPC method, not a tool.
+- For jelly: the `jelly` declaration is unchanged, and `probe` is a tools RPC method, not a tool. Jelly's broker does
+  not take this source yet: it drops `plaud_events_list`, whose action has no dot, until it reads declarations through
+  the source contract's `descriptor`.
 - For Memory: move from contract 1's `plaud` listing to `plaud.recordings` by starting again with `since`: the old
   cursors are refused by the new source (`CURSOR_INVALID`), while the `plaud` source still reads them. Probe each
-  account when binding it, and again after a change of Plaud sign-in. Only the `default` account can be read through
+  account when binding it, again after OpenCode restarts (until then every listing is `UNAVAILABLE`), and again after
+  a change of Plaud sign-in. Only the `default` account can be read through
   a session fenced by the contract's rules for now: v0.1.0 derives `plaud_list_files` and
   `plaud_get_current_user` for every account, while another account's reads are its server's, `plaud-<alias>_…`.
 

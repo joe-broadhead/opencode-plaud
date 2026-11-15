@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MAX_TEXT_BYTES } from "../src/domain/export.js"
 import type { ToolContext } from "../src/host/context.js"
 import { NAMESPACE, registerTools, type ToolOptions, type ToolsHost } from "../src/host/tools/index.js"
+import { owners } from "../src/host/tools/events.js"
 
 /**
  * plaud_export against a narrow fake host: the permission assertion, the
@@ -105,7 +106,7 @@ function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request
 
 async function exporter(options: Parameters<typeof fakeHost>[0] = {}) {
   const host = fakeHost(options)
-  const registration = await registerTools(host.ctx, host.settings)
+  const registration = await registerTools(host.ctx, host.settings, owners())
   const tool = host.added[0] as Tool
   const progress = vi.fn(async (_update: Record<string, unknown>) => undefined)
   /** Validates like the host, then runs the export with a tool context. */

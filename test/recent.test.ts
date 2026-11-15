@@ -3,6 +3,7 @@ import type { ToolContext } from "../src/host/context.js"
 import { defaultRules, evaluate, RECENT_ACTION } from "../src/host/permissions.js"
 import { line, MIN_PAGE_SIZE } from "../src/host/tools/recent.js"
 import { registerTools, type ToolsHost } from "../src/host/tools/index.js"
+import { owners } from "../src/host/tools/events.js"
 
 /**
  * plaud_recent against a fake host: each account's list_files executor answers
@@ -60,7 +61,7 @@ async function recent(list: (args: Record<string, unknown>) => unknown, accounts
     },
     permission: { assert },
   }
-  await registerTools(ctx, { accounts, exportRoots: ["/tmp/plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 })
+  await registerTools(ctx, { accounts, exportRoots: ["/tmp/plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 }, owners())
   const tool = added.find((entry) => entry.name === "recent")
   if (tool === undefined) throw new Error("recent was not registered")
   const run = async (input: unknown) => {

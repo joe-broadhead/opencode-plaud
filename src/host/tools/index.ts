@@ -3,7 +3,7 @@ import { DEFAULT_ACCOUNT } from "../../domain/config.js"
 import { PlaudError } from "../../domain/errors.js"
 import type { PluginConfig } from "../../domain/types.js"
 import type { PluginContext, Registration } from "../context.js"
-import { eventsTool } from "./events.js"
+import { eventsTool, type Owners } from "./events.js"
 import { exportTool } from "./export.js"
 import { recentTool } from "./recent.js"
 
@@ -40,11 +40,12 @@ export type ToolsHost = {
   readonly permission: Pick<PluginContext["permission"], "assert">
 }
 
-export async function registerTools(ctx: ToolsHost, options: ToolOptions): Promise<Registration> {
+/** `kept` is the plugin's record of each account's owner, which probe sets and the recordings source's pages name. */
+export async function registerTools(ctx: ToolsHost, options: ToolOptions, kept: Owners): Promise<Registration> {
   const accounts: [string, ...string[]] = [DEFAULT_ACCOUNT, ...options.accounts]
   const tool = exportTool(ctx, options, accounts)
   const recent = recentTool(ctx, accounts)
-  const events = eventsTool(ctx, accounts)
+  const events = eventsTool(ctx, accounts, kept)
   const registrations = [
     await ctx.tool.transform((editor) => {
       editor.namespace(NAMESPACE)

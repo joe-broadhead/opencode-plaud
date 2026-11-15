@@ -25,6 +25,9 @@ import type { Rule } from "../rpc.js"
  * - `plaud_events_list`, the plugin's other read, for Memory's collector, is
  *   allowed the same way: it asserts `plaud_events_list` with the account as
  *   the resource, and reads through `get_current_user` and `list_files`.
+ * - `plaud_probe`, the source contract's probe (a tools RPC method, not a
+ *   tool), is allowed the same way: it asserts `plaud_probe` with the account
+ *   as the resource, and reads only `get_current_user`.
  *
  * Everything that follows the base allow comes later and still wins: an
  * agent's own stricter rules (Plan, Explore), the user's `permissions` rules
@@ -43,8 +46,11 @@ export const RECENT_ACTION = "plaud_recent"
 /** The permission action of the plugin's other read, `plaud_events_list`, for Memory's collector. `plaud*_*` matches it too. */
 export const EVENTS_ACTION = "plaud_events_list"
 
-/** The plugin's own tools: `plaud_` names them too, but they are not a server's. */
-export const OWN_TOOLS: readonly string[] = [EXPORT_ACTION, RECENT_ACTION, EVENTS_ACTION]
+/** The permission action of the source contract's probe, a tools RPC method: `sources.probe.action` in package.json. */
+export const PROBE_ACTION = "plaud_probe"
+
+/** The plugin's own actions: `plaud_` names them too, but they are not a server's. */
+export const OWN_TOOLS: readonly string[] = [EXPORT_ACTION, RECENT_ACTION, EVENTS_ACTION, PROBE_ACTION]
 
 /** The plugin's namespace: a tool Plaud adds later follows the same effect, so `all` means everything. */
 export const NAMESPACE_ACTION = "plaud*_*"
@@ -60,6 +66,7 @@ export function defaultRules(servers: readonly string[], access: Access = "all")
     { action: EXPORT_ACTION, resource: "*", effect: other },
     { action: RECENT_ACTION, resource: "*", effect: "allow" },
     { action: EVENTS_ACTION, resource: "*", effect: "allow" },
+    { action: PROBE_ACTION, resource: "*", effect: "allow" },
   ]
 }
 

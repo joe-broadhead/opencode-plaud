@@ -95,9 +95,9 @@ export const RecentOutput = z.strictObject({
 export type RecentResult = z.output<typeof RecentOutput>
 
 /**
- * The contract of `plaud_events_list`: the shared events_list input (src/host/events-list.ts), which the tool checks
- * again with the shared parser, and its result. The domain imports nothing outside it, so the limits are written out
- * here; test/events.test.ts keeps them equal to the shared module's.
+ * The contract of `plaud_events_list`: the source contract's events_list input, which the tool checks again with the
+ * package's parser, and its result. The domain imports nothing outside it, so the limits are written out here;
+ * test/events.test.ts keeps them equal to the package's.
  */
 export function eventsInput(accounts: readonly [string, ...string[]]) {
   return z.strictObject({
@@ -108,15 +108,18 @@ export function eventsInput(accounts: readonly [string, ...string[]]) {
       .describe("Where to start when there is no cursor: an ISO date (a UTC day) or an ISO date-time with Z or an offset. Default: 24 hours ago"),
     cursor: z.string().min(1).max(1024).optional().describe("The cursor of the previous result, to list what came after it. It wins over since"),
     limit: z.number().int().min(1).max(500).optional().describe("Most events to return, 1 to 500; 100 by default"),
-    account: z.enum(accounts).optional().describe(`Account to list; defaults to "${accounts[0]}"`),
-    source: z.literal("plaud").optional().describe("The one source this plugin lists; plaud"),
+    account: z.enum(accounts).optional().describe(`Account to list; defaults to "${accounts[0]}". A listing with a cursor of the recordings source names it`),
+    source: z
+      .enum(["recordings", "plaud"])
+      .optional()
+      .describe("recordings: the source contract's plaud.recordings, whose owner the account's probe names; plaud (the default): the listing scripts read before it"),
   })
 }
 
 const EventActor = z.strictObject({ role: z.string(), id: z.string(), name: z.string().optional() })
 
 const SourceEvent = z.strictObject({
-  source: z.literal("plaud"),
+  source: z.enum(["recordings", "plaud"]),
   account: z.string().describe("The account"),
   external_id: z.string().describe("The recording's id: file_id for get_note and get_transcript"),
   kind: z.literal("meeting"),
@@ -130,12 +133,33 @@ const SourceEvent = z.strictObject({
   hash: z.string().describe("sha256: of the other fields"),
 })
 
+const Owner = z.strictObject({ id: z.string().describe("mailto: and the email, or plaud: and the user id"), label: z.string() })
+
 export const EventsListOutput = z.strictObject({
-  source: z.literal("plaud"),
+  source: z.enum(["recordings", "plaud"]),
   account: z.string(),
-  owner: z.strictObject({ id: z.string(), label: z.string() }).describe("The signed-in Plaud user"),
+  owner: Owner.describe("The signed-in Plaud user"),
   events: z.array(SourceEvent).describe("Oldest first"),
   cursor: z.string().describe("Pass it to the next call"),
   more: z.boolean().describe("True when another call now would list more"),
+  plugin: z.string().optional().describe("The package, on a recordings page"),
+  refused: z
+    .array(z.strictObject({ external_id: z.string(), reason: z.enum(["instruction", "secret", "owner"]), detail: z.string().optional() }))
+    .optional()
+    .describe("Recordings left out for good, such as a title that holds a secret; the cursor moves past them"),
+  trust: z.literal("untrusted"),
+})
+
+/** The source contract's probe input: the source and the account, both optional. */
+export const ProbeInput = z.strictObject({
+  source: z.literal("recordings").optional().describe("The source: recordings, the default"),
+  account: z.string().min(1).max(64).optional().describe("The account: default, or an alias from the accounts option"),
+})
+
+/** The probe's answer: whose the source is, and nothing it reads. */
+export const ProbeOutput = z.strictObject({
+  source: z.literal("recordings"),
+  account: z.string(),
+  owner: Owner.describe("The signed-in Plaud user, as the recordings source's pages name it"),
   trust: z.literal("untrusted"),
 })

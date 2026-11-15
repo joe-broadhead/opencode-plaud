@@ -61,6 +61,22 @@ export const ERRORS = {
     meaning: "The cursor was not issued by `events_list` for this account and its signed-in user.",
     next: "Pass a cursor from a previous result of the same account, or start again with `since`.",
   },
+  CURSOR_INVALID: {
+    meaning: "The cursor was not issued by `events_list` for the recordings of this account, or the account is signed in as another user since.",
+    next: "Start again: call `events_list` for the account with `since`, without a cursor.",
+  },
+  ACCOUNT_MISMATCH: {
+    meaning: "The recordings source was asked about an account the plugin does not have, or given another account's cursor.",
+    next: "Pass the account the cursor was issued for, or an account /plaud-status lists.",
+  },
+  SOURCE_UNKNOWN: {
+    meaning: "`events_list` or `probe` was asked for a source this plugin does not have.",
+    next: "Pass source `recordings`, or leave it out.",
+  },
+  UNAVAILABLE: {
+    meaning: "A first listing of the recordings source, with no cursor, came before any probe named the account's owner since OpenCode started.",
+    next: "Call `probe` for the account, then list again.",
+  },
   EVENTS_OWNER_UNKNOWN: {
     meaning: "Plaud's `get_current_user` named no email or id for the account.",
     next: "Run /plaud-status, and sign in to this account again if it shows a problem.",

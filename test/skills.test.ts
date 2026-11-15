@@ -17,10 +17,11 @@ const SKILLS = new URL("../skills/", import.meta.url)
 const IDS = ["opencode-plaud", "opencode-plaud-digest", "opencode-plaud-export"]
 /**
  * Every code plaud_export can fail with; typed, so a new code must be added here and to the skill. INPUT_INVALID is
- * the tools RPC's recent method's only: a tool's input is checked by OpenCode. The EVENTS_ codes are plaud_events_list's,
- * which Memory's collector runs, not the model, so no skill teaches them.
+ * the tools RPC's recent method's only: a tool's input is checked by OpenCode. The EVENTS_ codes and the source contract's
+ * (CURSOR_INVALID, ACCOUNT_MISMATCH, SOURCE_UNKNOWN, UNAVAILABLE) are plaud_events_list's and probe's, which Memory's
+ * collector and other consumers run, not the model, so no skill teaches them.
  */
-const CODES: Record<Exclude<ErrorCode, "INPUT_INVALID" | "EVENTS_CURSOR_INVALID" | "EVENTS_OWNER_UNKNOWN">, true> = {
+const CODES: Record<Exclude<ErrorCode, "INPUT_INVALID" | "EVENTS_CURSOR_INVALID" | "EVENTS_OWNER_UNKNOWN" | "CURSOR_INVALID" | "ACCOUNT_MISMATCH" | "SOURCE_UNKNOWN" | "UNAVAILABLE">, true> = {
   AUTH_REQUIRED: true,
   PLAUD_READ_FAILED: true,
   PLAUD_UNREADABLE: true,

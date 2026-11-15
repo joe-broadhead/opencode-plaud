@@ -32,12 +32,13 @@ function union(source: string, name: string): string[] {
 
 const ERRORS = read("src/domain/errors.ts")
 const PLAUD_CODES = union(ERRORS, "ErrorCode")
-const RPC_MODULE = "src/host/tools-rpc.ts"
+/** The source contract's tools RPC, whose `Code` union is every code the shared transport returns. */
+const RPC_TYPES = "node_modules/@we-the-rebel-alliance/source-contract/dist/tools-rpc.d.ts"
 
 /** The plugin's codes: every PlaudError code, and each code a plain `CODE: …` message starts with. */
 function raised(): Set<string> {
   const codes = new Set<string>()
-  for (const file of files("src").filter((path) => path !== RPC_MODULE)) {
+  for (const file of files("src")) {
     const source = read(file)
     for (const m of source.matchAll(/\bfail\(\s*"([A-Z_]+)"/g)) codes.add(m[1]!)
     for (const m of source.matchAll(/new PlaudError\(\s*"([A-Z_]+)"/g)) codes.add(m[1]!)
@@ -56,10 +57,24 @@ describe("documented errors", () => {
   })
 
   it("lists every code a script can get in docs/scripting.md, and no other", () => {
-    // Plaud's servers are all the plugin's own (managed: () => true), so a script never gets SERVER_CONFLICT.
-    const shared = union(read(RPC_MODULE), "Code").filter((code) => code !== "SERVER_CONFLICT")
-    // The `recent` and `events_list` methods run their tools' own specs, so they can raise these PlaudErrors too.
-    const recent = ["INPUT_INVALID", "AUTH_REQUIRED", "PLAUD_READ_FAILED", "PLAUD_UNREADABLE", "EVENTS_CURSOR_INVALID", "EVENTS_OWNER_UNKNOWN"]
+    // Plaud's servers are all the plugin's own (managed: () => true), so a script never gets SERVER_CONFLICT, and no
+    // method has a resource resolver, so never RESOURCE_UNRESOLVED.
+    const declared = /export type Code = ([^;]+);/.exec(read(RPC_TYPES))![1]!
+    const shared = [...declared.matchAll(/"([A-Z_]+)"/g)].map((m) => m[1]!).filter((code) => code !== "SERVER_CONFLICT" && code !== "RESOURCE_UNRESOLVED")
+    expect(shared).toContain("ACCOUNT_UNKNOWN")
+    // The `recent`, `events_list` and `probe` methods run the plugin's own specs, so they can raise these PlaudErrors too.
+    const recent = [
+      "INPUT_INVALID",
+      "AUTH_REQUIRED",
+      "PLAUD_READ_FAILED",
+      "PLAUD_UNREADABLE",
+      "EVENTS_CURSOR_INVALID",
+      "EVENTS_OWNER_UNKNOWN",
+      "CURSOR_INVALID",
+      "ACCOUNT_MISMATCH",
+      "SOURCE_UNKNOWN",
+      "UNAVAILABLE",
+    ]
     for (const code of recent) expect(read("src/host/tools/recent.ts") + read("src/host/tools/events.ts") + read("src/host/tools/export.ts") + read("src/domain/normalize.ts")).toContain(`"${code}"`)
     expect([...new Set([...shared, ...recent])].sort()).toEqual([...documented("docs/scripting.md")].sort())
   })

@@ -67,6 +67,42 @@
       "domain": "plaud.ai"
     }
   },
+  "sources": {
+    "contractVersion": 1,
+    "rpc": "plaud.recordings.tools",
+    "probe": {
+      "action": "plaud_probe"
+    },
+    "items": [
+      {
+        "id": "plaud.recordings",
+        "kind": "events",
+        "reads": "meeting",
+        "tool": "events_list",
+        "input": {
+          "source": "recordings"
+        },
+        "accounts": {
+          "named": true
+        },
+        "permission": {
+          "events": "plaud_events_list",
+          "operations": [
+            "get_current_user",
+            "list_files"
+          ],
+          "identity": [
+            "get_current_user"
+          ]
+        },
+        "private": true,
+        "cost": {
+          "class": "free"
+        },
+        "maxBytes": 262144
+      }
+    ]
+  },
   "scripts": {
     "clean": "node scripts/clean.mjs",
     "build": "npm run clean && node scripts/build.mjs",

@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.6] - 2026-11-17
 
 ### Changed
 
@@ -24,6 +24,7 @@ All notable changes to this project are documented here. The format follows [Kee
   download. `docs/jelly.md` carries Jelly's shared paragraph on tools and permissions, and the declaration test knows
   Jelly's `cost` and `admin` lines.
 - CI run by hand (`workflow_dispatch`) has its own concurrency group, so it never cancels a push run on `master`.
+- Tested on OpenCode 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 and 2.3.0; the host range is still `>=2.2.3 <2.4.0`.
 
 ### Fixed
 
@@ -37,6 +38,7 @@ All notable changes to this project are documented here. The format follows [Kee
   `gap: { reason: "expired", since }` from its start, once per read: a consumer lists again from `since`. One that
   started before those 7 days is not seen. Each listing now reads at least three weeks of `list_files`. A cursor from
   0.0.5 is still accepted, and lists on from its position. The default source `plaud` is unchanged.
+
 ## [0.0.5] - 2026-11-15
 
 ### Changed

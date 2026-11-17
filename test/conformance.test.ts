@@ -28,12 +28,17 @@ interface Recording {
   readonly id: string
   readonly name: string
   readonly start_at: string
+  readonly created_at: string
   readonly duration: number
 }
-const PLAUD = JSON.parse(readFileSync(join(ROOT, "test/fixtures/sources.json"), "utf8")) as { user: Record<string, unknown>; recordings: Recording[]; later: Recording[] }
+const PLAUD = JSON.parse(readFileSync(join(ROOT, "test/fixtures/sources.json"), "utf8")) as { user: Record<string, unknown>; recordings: Recording[]; later: Recording[]; late: Recording[] }
+/** Every recording, each held by Plaud from its `created_at` on. */
+const HELD = [...PLAUD.recordings, ...PLAUD.later, ...PLAUD.late]
 
-const NOW = Date.parse("2026-11-08T12:00:00Z")
-const SINCE = "2026-11-01T00:00:00Z"
+/** When the first listing is read, and when the kit's cases are: by then, two recordings reached Plaud late (`late`). */
+const FIRST = Date.parse("2026-11-06T00:00:00Z")
+const NOW = Date.parse("2026-11-09T12:00:00Z")
+const SINCE = "2026-10-15T00:00:00Z"
 const ACCOUNT = "default"
 const ACCOUNTS: [string, ...string[]] = ["default", "work"]
 const ATOMIC = "list_files answers whole pages of recordings, and a recording is never read on its own, so no single recording can fail on its own"
@@ -45,17 +50,17 @@ const enveloped = (value: unknown) => ({
 
 /**
  * OpenCode's executors of the default account's server, `plaud`, answering from the fixture: list_files filters whole
- * UTC days and lists newest first, as Plaud does. Each asserts its own tool id on the session's permission first, as the
- * host does for an MCP tool. `seen` is the recordings Plaud holds now.
+ * UTC days by start and lists newest first, as Plaud does, and holds a recording from its `created_at` on. Each asserts
+ * its own tool id on the session's permission first, as the host does for an MCP tool.
  */
-function executors(permission: () => SessionContext["permission"], seen: () => readonly Recording[]) {
+function executors(permission: () => SessionContext["permission"], clock: () => number) {
   const answer = (tool: string, args: Record<string, unknown>) => {
     if (tool === "get_current_user") return { content: [{ type: "text", text: JSON.stringify(PLAUD.user) }] }
     const from = String(args["date_from"])
     const to = String(args["date_to"])
     const page = Number(args["page"] ?? 1)
     const size = Number(args["page_size"])
-    const days = seen()
+    const days = HELD.filter((item) => Date.parse(`${item.created_at}Z`) <= clock())
       .filter((item) => item.start_at.slice(0, 10) >= from && item.start_at.slice(0, 10) <= to)
       .sort((a, b) => b.start_at.localeCompare(a.start_at))
     return enveloped({ type: "files", data: days.slice((page - 1) * size, page * size), page, page_size: size })
@@ -72,17 +77,17 @@ function executors(permission: () => SessionContext["permission"], seen: () => r
 const call = (): ToolCall => ({ sessionID: "ses_conformance", agent: "build", messageID: "msg_conformance", id: "call_conformance", signal: new AbortController().signal, progress: async () => {} })
 
 /** One plugin instance: its record of owners, and its methods over the executors, with whichever session is calling. */
-function plugin(seen: () => readonly Recording[], kept: Owners = owners()) {
+function plugin(clock: () => number, kept: Owners = owners()) {
   let current: SessionContext["permission"] | undefined
   const permission = () => {
     if (current === undefined) throw new Error("an assert ran outside a kit call")
     return current
   }
   const host = {
-    tool: { list: async () => executors(permission, seen) },
+    tool: { list: async () => executors(permission, clock) },
     permission: { assert: async (request: { action: string; resources: string[] }) => permission().assert({ action: request.action, resources: request.resources }) },
   } as never
-  const events = eventsMethod(host, ACCOUNTS, kept, () => NOW)
+  const events = eventsMethod(host, ACCOUNTS, kept, clock)
   const probe = probeMethod(host, ACCOUNTS, kept)
   const run = (method: typeof events, input: Readonly<Record<string, unknown>>, context: SessionContext) => {
     current = context.permission
@@ -120,17 +125,26 @@ describe("the source contract's conformance kit", () => {
   })
 
   it("plaud.recordings keeps the contract", async () => {
-    let seen: readonly Recording[] = PLAUD.recordings
-    const { list, probe } = plugin(() => seen)
+    let now = FIRST
+    const { list, probe } = plugin(() => now)
     // A consumer binds the source with probe first: it names the owner, which every page then carries.
     await probe({ source: RECORDINGS, account: ACCOUNT }, open)
-    const first = (await list({ source: RECORDINGS, account: ACCOUNT, since: SINCE }, open)) as { cursor: string }
-    seen = [...PLAUD.recordings, ...PLAUD.later]
-    const done = (await list({ source: RECORDINGS, account: ACCOUNT, cursor: first.cursor }, open)) as { cursor: string }
+    const first = (await list({ source: RECORDINGS, account: ACCOUNT, since: SINCE }, open)) as { cursor: string; events: { external_id: string }[] }
+    expect(first.events.map((event) => event.external_id)).toEqual(["rec-1999", "rec-2001", "rec-2002", "rec-2003", "rec-2005"])
+    now = NOW
+    let done = (await list({ source: RECORDINGS, account: ACCOUNT, cursor: first.cursor }, open)) as { cursor: string; more: boolean; events: { external_id: string }[]; gap?: unknown }
+    // rec-2009 reached Plaud two days after it started, behind the cursor, and is listed; rec-2010 reached it 22 days
+    // after, before the lookback, so the page answers an expired gap from its start.
+    expect([done.events.map((event) => event.external_id), done.gap]).toEqual([["rec-2009", "rec-2006", "rec-2007", "rec-2008"], { reason: "expired", since: "2026-10-18T11:00:00.000Z" }])
+    while (done.more) done = (await list({ source: RECORDINGS, account: ACCOUNT, cursor: done.cursor }, open)) as typeof done
     const cases: PageCase[] = [
       { name: "a first listing, one recording refused for a secret in its title", input: { source: RECORDINGS, account: ACCOUNT, since: SINCE }, expect: "page" },
-      { name: "what came after the first listing", input: { source: RECORDINGS, account: ACCOUNT, cursor: first.cursor }, expect: "page" },
-      { name: "the same, two at a time", input: { source: RECORDINGS, account: ACCOUNT, cursor: first.cursor, limit: 2 }, expect: "page" },
+      {
+        name: "what came after the first listing: one recording that reached Plaud two days after it started, and an expired gap for one that reached it later than the lookback",
+        input: { source: RECORDINGS, account: ACCOUNT, cursor: first.cursor },
+        expect: "expired",
+      },
+      { name: "the same, two at a time, the gap on the first page only", input: { source: RECORDINGS, account: ACCOUNT, cursor: first.cursor, limit: 2 }, expect: "page" },
       { name: "nothing new since the last listing", input: { source: RECORDINGS, account: ACCOUNT, cursor: done.cursor }, expect: "empty" },
       { name: "a cursor without the account it reads", input: { source: RECORDINGS, cursor: first.cursor }, expect: { refuses: "INPUT_INVALID" } },
       { name: "a cursor passed for another account", input: { source: RECORDINGS, account: "work", cursor: first.cursor }, expect: { refuses: "ACCOUNT_MISMATCH" } },
@@ -156,10 +170,11 @@ describe("the source contract's conformance kit", () => {
     })
     reports.push(report)
     expect(report.problems).toEqual([])
-    // A cursor is a recording's start and id, and Plaud keeps every recording until the person deletes it, so no
-    // history behind a cursor is ever lost: the plugin never answers CURSOR_EXPIRED, and the kit's gap check cannot run.
-    // v0.1.0 has no way to say so (source-contract#30, item 5), so the report stays incomplete on that one check.
-    expect(report.checks.filter((check) => !check.ran && !check.notApplicable).map((check) => check.name)).toEqual(["gap-and-cursor-expired"])
+    expect(report.ok).toBe(true)
+    // Every check runs, the expired gap's two included, except failed-holds-cursor, which cannot apply, with its reason.
+    expect(report.checks.filter((check) => !check.ran && !check.notApplicable).map((check) => check.name)).toEqual([])
+    expect(report.checks.filter((check) => check.ran).map((check) => check.name)).toEqual(expect.arrayContaining(["gap-and-cursor-expired", "gap-once-per-read"]))
+    expect(report.checks.filter((check) => check.notApplicable && check.reason !== undefined).map((check) => [check.name, check.reason])).toEqual([["failed-holds-cursor", ATOMIC]])
   })
 
   it("a consumer's fenced session reaches the default account's server, and not yet another account's", () => {

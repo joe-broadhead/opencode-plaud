@@ -15,7 +15,7 @@ Give options with the object form of the plugin entry:
 {
   "plugins": [
     {
-      "package": "github:joe-broadhead/opencode-plaud#v0.0.5",
+      "package": "github:joe-broadhead/opencode-plaud#v0.0.6",
       "options": {
         "accounts": ["work"],
         "exportRoots": ["~/Plaud"],
@@ -87,7 +87,7 @@ If your config already defines an MCP server with one of these names in `mcp.ser
 | `"read-only"` | the reads | nothing: exports and new tools are **denied** |
 
 ```json
-{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.5", "options": { "access": "ask-changes" } }] }
+{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.6", "options": { "access": "ask-changes" } }] }
 ```
 
 `/plaud-status` shows the value and the block it inserts. The default block, for the default account's `plaud` server, generated from `defaultRules(servers, access)` in `src/host/permissions.ts`:
@@ -218,7 +218,7 @@ Do not add the default rules to the top-level `permissions`. Top-level rules com
 
 `plaud_events_list` (`tools.plaud.events_list` in Code Mode, and the tools RPC method `events_list`) is Plaud's side of
 the source contract, [`@we-the-rebel-alliance/source-contract`](https://github.com/we-the-rebel-alliance/source-contract)
-`v0.1.0`, which Memory and other consumers read. It lists one account's recordings since a cursor, as normalised events,
+`v0.2.0`, which Memory and other consumers read. It lists one account's recordings since a cursor, as normalised events,
 oldest first. It only reads, never asks and calls no model, so a consumer can run it unattended. It serves two sources:
 
 - `recordings`, the declared source `plaud.recordings` (package.json's `sources`), for consumers of the source
@@ -228,7 +228,7 @@ oldest first. It only reads, never asks and calls no model, so a consumer can ru
 
 ```
 events_list({ since?, cursor?, limit?, account?, source? })
-  → { source, account, owner: { id, label }, events, cursor, more, plugin?, refused?, trust: "untrusted" }
+  → { source, account, owner: { id, label }, events, cursor, more, plugin?, refused?, gap?, trust: "untrusted" }
 ```
 
 | Input | Meaning |
@@ -253,7 +253,8 @@ that started within the week, by `start_at` (UTC without a `Z`, which the plugin
 Each event is one recording: kind `meeting`, the recording's id (`file_id` for `get_note` and `get_transcript`),
 its start, its name as the title, and its length as the text. Its notes and transcript are not read: that would take a
 call per recording. A recording is listed once it started 6 hours ago, because a device can upload it hours after it
-ends; one uploaded later than that, after the cursor has passed its start, is not listed. The cursor's position is the
+ends. On a `recordings` page, one uploaded later than that, after the cursor has passed its start, is listed too, if
+it started within the 14 days before the cursor (below); with `plaud`, it is not listed. The cursor's position is the
 (start, id) of the last recording listed: calling again with it lists what follows, and an older cursor lists the same
 recordings again.
 
@@ -281,7 +282,18 @@ label the probe gave. So:
 - a cursor whose owner is not the one the account's last probe named is `CURSOR_INVALID`: the account was signed in to
   another Plaud user since;
 - a recording whose title holds a secret, such as a password or a key, is left out for good: it is listed in `refused`
-  with the reason `secret`, and the cursor moves past it.
+  with the reason `secret`, and the cursor moves past it;
+- a recording that reaches Plaud after the cursor passed its start is listed by the next page, if it started within the
+  14 days before the cursor: a device keeps its recordings until the Plaud app connects to it, so an upload can come
+  days late. Each page reads those 14 days again, and the cursor remembers which recordings it listed there (with more
+  than its 1,024 characters hold, fewer days), so none is listed twice. These recordings come first on the page, older
+  than the cursor's position;
+- a recording that reached Plaud later than that, found in the 7 days before those 14 with a `created_at` after the
+  last page was read, makes the page answer `gap: { reason: "expired", since }`, once per read: list again from
+  `since` to find it. Plaud documents `created_at` only as the creation time; the plugin reads it as when the recording
+  reached Plaud. A recording that started before those 7 days is not seen at all;
+- a recording deleted before a listing reaches it is not listed: it no longer exists, so nothing is lost. Once Memory
+  and Jelly read source-contract `v0.2.0`, a recording deleted after it was listed will be announced in `removals[]`.
 
 ### The `plaud` source
 

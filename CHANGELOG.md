@@ -2,6 +2,43 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.6] - 2026-11-17
+
+### Changed
+
+- The source contract is `@we-the-rebel-alliance/source-contract` `v0.2.0` (it was `v0.1.0`), pinned to its tag and
+  bundled into `dist/index.js`, so an install still has no runtime dependency. `plaud.recordings`, `events_list`,
+  `probe` and their answers are unchanged: the plugin declares and sends none of `v0.2.0`'s new keys, which Memory and
+  Jelly refuse until they read `v0.2.0` themselves.
+- The conformance report is complete, and its `ok` is `true`: every check of the kit runs, the expired-gap checks
+  (`gap-and-cursor-expired`, `gap-once-per-read`) included, except `failed-holds-cursor`, which cannot apply to this
+  source and says why in the report (`atomicPages`, as before: `list_files` answers whole pages and no recording is read
+  on its own, so none can fail alone). `npm run conformance` runs the conformance test alone and writes
+  `reports/conformance-report.json`.
+- A recording deleted in Plaud before a listing reaches it is not listed, and is not lost history: it no longer exists.
+  Once Memory and Jelly read source-contract `v0.2.0`, a recording deleted after it was listed will be announced in the
+  page's `removals[]`; until then the plugin sends no `removals[]`.
+- Releases use the family's release kit r4.1: a release runs `npm run conformance` on its parent in a job of its own,
+  with no write token, stops unless the report is `ok` for its version, and attaches it as the Release asset
+  `conformance-report.json`, listed in `SHA256SUMS`; the tarball the pack job keeps is checked by its sha256 after every
+  download. `docs/jelly.md` carries Jelly's shared paragraph on tools and permissions, and the declaration test knows
+  Jelly's `cost` and `admin` lines.
+- CI run by hand (`workflow_dispatch`) has its own concurrency group, so it never cancels a push run on `master`.
+- Tested on OpenCode 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 and 2.3.0; the host range is still `>=2.2.3 <2.4.0`.
+
+### Fixed
+
+- `recordings` no longer skips a recording that reaches Plaud late. A device keeps its recordings until the Plaud app
+  connects to it, so a recording can reach Plaud hours or days after it started, once the cursor has passed its start;
+  the cursor only moved forward, so such a recording was never listed. A `recordings` page now reads again the 14 days
+  before its cursor and lists every recording there the cursor has not listed: the cursor keeps a 24-bit digest of each
+  recording it listed in those days (as many as fit the contract's 1,024 characters; with more, its lookback is shorter),
+  the time its page was read, and where its lookback starts. A recording that reached Plaud later than that, found in the
+  7 days before the lookback with a `created_at` after the last page was read, makes the page answer
+  `gap: { reason: "expired", since }` from its start, once per read: a consumer lists again from `since`. One that
+  started before those 7 days is not seen. Each listing now reads at least three weeks of `list_files`. A cursor from
+  0.0.5 is still accepted, and lists on from its position. The default source `plaud` is unchanged.
+
 ## [0.0.5] - 2026-11-15
 
 ### Changed

@@ -82,7 +82,7 @@ OpenCode creates agents defined only in the user's config after plugins run, so 
 ## Events list
 
 `plaud_events_list` (`src/host/tools/events.ts`) is Plaud's side of the source contract,
-`@we-the-rebel-alliance/source-contract` `v0.1.0`, pinned as a dev dependency and bundled into `dist/index.js`: its
+`@we-the-rebel-alliance/source-contract` `v0.2.0`, pinned as a dev dependency and bundled into `dist/index.js`: its
 `events` module builds the page and the events and screens them for secrets, and its `cursor` module encodes the
 cursors. `package.json`'s `sources` declares one source, `plaud.recordings` (input `source: "recordings"`). It asserts
 `plaud_events_list` with the account as resource and save, then reads through the host's executors for the account's
@@ -99,7 +99,20 @@ and with none kept answers `UNAVAILABLE`, so a page never names an owner only a 
 unchanged: it reads `get_current_user` itself, and its version 1 cursor holds the account and a digest of the owner.
 
 `test/conformance.test.ts` runs the contract's conformance kit over the declaration and both methods, on invented
-Plaud answers (`test/fixtures/sources.json`), and writes `reports/conformance-report.json`.
+Plaud answers (`test/fixtures/sources.json`), and writes `reports/conformance-report.json`; `npm run conformance` runs it
+alone, and the release attaches the report. Every check runs but `failed-holds-cursor`, which the test states cannot
+apply, with its reason in the report (`atomicPages`: `list_files` answers whole pages and no recording is read on its
+own, so none can fail alone). The fixture has a recording that reaches Plaud two days after it started, behind the
+cursor, and one that reaches it later than the lookback, so the kit's expired-gap checks run.
+
+A device keeps its recordings until the Plaud app connects to it, so a recording can reach Plaud days after it
+started, once the cursor has passed its start. A `recordings` page reads again `LOOKBACK_MS` (14 days) before its
+cursor and lists every recording there the cursor has not listed. The cursor keeps a 24-bit digest of each recording it
+listed from where its lookback starts (`c`), as many as fit the contract's 1,024 characters (`k`; with more, `c` moves
+forward), the time its page was read (`n`) and the earliest start its listing asked for (`f`). A recording in the
+`BAND_MS` (7 days) before the lookback whose `created_at` is after `n` reached Plaud later than the lookback: the page
+answers `gap: { reason: "expired", since: its start }`, and the next page's `n` is its own read, so the read answers it
+once. Contract 1's `plaud` listing does none of this.
 
 ## Signed links
 

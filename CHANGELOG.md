@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The source contract is `@we-the-rebel-alliance/source-contract` `v0.2.0` (it was `v0.1.0`), pinned to its tag and
+  bundled into `dist/index.js`, so an install still has no runtime dependency. `plaud.recordings`, `events_list`,
+  `probe` and their answers are unchanged: the plugin declares and sends none of `v0.2.0`'s new keys, which Memory and
+  Jelly refuse until they read `v0.2.0` themselves.
+- The conformance report is complete, and its `ok` is `true`: every check of the kit runs except two that cannot apply
+  to this source, each stated with its reason in the report. `gap-and-cursor-expired` (`noExpiry`): a cursor is a
+  recording's start and id, read again from `list_files` by date, and Plaud keeps every recording until the person
+  deletes it, so the source never answers `CURSOR_EXPIRED`. `failed-holds-cursor` (`atomicPages`, as before):
+  `list_files` answers whole pages and no recording is read on its own, so none can fail alone. `npm run conformance`
+  runs the conformance test alone and writes `reports/conformance-report.json`.
+- Releases use the family's release kit r4.1: a release runs `npm run conformance` on its parent in a job of its own,
+  with no write token, stops unless the report is `ok` for its version, and attaches it as the Release asset
+  `conformance-report.json`, listed in `SHA256SUMS`; the tarball the pack job keeps is checked by its sha256 after every
+  download. `docs/jelly.md` carries Jelly's shared paragraph on tools and permissions, and the declaration test knows
+  Jelly's `cost` and `admin` lines.
+- CI run by hand (`workflow_dispatch`) has its own concurrency group, so it never cancels a push run on `master`.
+
 ## [0.0.5] - 2026-11-15
 
 ### Changed

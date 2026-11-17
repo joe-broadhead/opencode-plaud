@@ -37,6 +37,7 @@ const SINCE = "2026-11-01T00:00:00Z"
 const ACCOUNT = "default"
 const ACCOUNTS: [string, ...string[]] = ["default", "work"]
 const ATOMIC = "list_files answers whole pages of recordings, and a recording is never read on its own, so no single recording can fail on its own"
+const NO_EXPIRY = "a cursor is a recording's start and id, read again from list_files by date, and Plaud keeps every recording until the person deletes it, so no history behind a cursor is lost and the source never answers CURSOR_EXPIRED"
 const tools = pkg.jelly.tools.map((tool) => ({ id: tool.name.replace(/^plaud\./, ""), readOnly: tool.readOnly }))
 
 const enveloped = (value: unknown) => ({
@@ -153,13 +154,17 @@ describe("the source contract's conformance kit", () => {
       sources,
       describe: { id: TOOLS_RPC_ID },
       atomicPages: { reason: ATOMIC },
+      noExpiry: { reason: NO_EXPIRY },
     })
     reports.push(report)
     expect(report.problems).toEqual([])
-    // A cursor is a recording's start and id, and Plaud keeps every recording until the person deletes it, so no
-    // history behind a cursor is ever lost: the plugin never answers CURSOR_EXPIRED, and the kit's gap check cannot run.
-    // v0.1.0 has no way to say so (source-contract#30, item 5), so the report stays incomplete on that one check.
-    expect(report.checks.filter((check) => !check.ran && !check.notApplicable).map((check) => check.name)).toEqual(["gap-and-cursor-expired"])
+    expect(report.ok).toBe(true)
+    // Every check runs, except the two this source states cannot apply, each with its reason in the report.
+    expect(report.checks.filter((check) => !check.ran && !check.notApplicable).map((check) => check.name)).toEqual([])
+    expect(report.checks.filter((check) => check.notApplicable && check.reason !== undefined).map((check) => [check.name, check.reason])).toEqual([
+      ["failed-holds-cursor", ATOMIC],
+      ["gap-and-cursor-expired", NO_EXPIRY],
+    ])
   })
 
   it("a consumer's fenced session reaches the default account's server, and not yet another account's", () => {

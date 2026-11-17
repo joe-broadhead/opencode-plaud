@@ -218,7 +218,7 @@ Do not add the default rules to the top-level `permissions`. Top-level rules com
 
 `plaud_events_list` (`tools.plaud.events_list` in Code Mode, and the tools RPC method `events_list`) is Plaud's side of
 the source contract, [`@we-the-rebel-alliance/source-contract`](https://github.com/we-the-rebel-alliance/source-contract)
-`v0.1.0`, which Memory and other consumers read. It lists one account's recordings since a cursor, as normalised events,
+`v0.2.0`, which Memory and other consumers read. It lists one account's recordings since a cursor, as normalised events,
 oldest first. It only reads, never asks and calls no model, so a consumer can run it unattended. It serves two sources:
 
 - `recordings`, the declared source `plaud.recordings` (package.json's `sources`), for consumers of the source

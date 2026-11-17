@@ -82,7 +82,7 @@ OpenCode creates agents defined only in the user's config after plugins run, so 
 ## Events list
 
 `plaud_events_list` (`src/host/tools/events.ts`) is Plaud's side of the source contract,
-`@we-the-rebel-alliance/source-contract` `v0.1.0`, pinned as a dev dependency and bundled into `dist/index.js`: its
+`@we-the-rebel-alliance/source-contract` `v0.2.0`, pinned as a dev dependency and bundled into `dist/index.js`: its
 `events` module builds the page and the events and screens them for secrets, and its `cursor` module encodes the
 cursors. `package.json`'s `sources` declares one source, `plaud.recordings` (input `source: "recordings"`). It asserts
 `plaud_events_list` with the account as resource and save, then reads through the host's executors for the account's
@@ -99,7 +99,12 @@ and with none kept answers `UNAVAILABLE`, so a page never names an owner only a 
 unchanged: it reads `get_current_user` itself, and its version 1 cursor holds the account and a digest of the owner.
 
 `test/conformance.test.ts` runs the contract's conformance kit over the declaration and both methods, on invented
-Plaud answers (`test/fixtures/sources.json`), and writes `reports/conformance-report.json`.
+Plaud answers (`test/fixtures/sources.json`), and writes `reports/conformance-report.json`; `npm run conformance` runs it
+alone, and the release attaches the report. Every check runs but two, which the test states cannot apply, each with its
+reason in the report: `failed-holds-cursor` (`atomicPages`: `list_files` answers whole pages and no recording is read on
+its own, so none can fail alone) and `gap-and-cursor-expired` (`noExpiry`: a cursor is a recording's start and id, read
+again from `list_files` by date, and Plaud keeps every recording until the person deletes it, so the source never
+answers `CURSOR_EXPIRED`).
 
 ## Signed links
 

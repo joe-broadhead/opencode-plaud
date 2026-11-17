@@ -147,6 +147,10 @@ export const EventsListOutput = z.strictObject({
     .array(z.strictObject({ external_id: z.string(), reason: z.enum(["instruction", "secret", "owner"]), detail: z.string().optional() }))
     .optional()
     .describe("Recordings left out for good, such as a title that holds a secret; the cursor moves past them"),
+  gap: z
+    .strictObject({ reason: z.literal("expired"), since: z.string().describe("UTC ISO") })
+    .optional()
+    .describe("On a recordings page: a recording reached Plaud more than 14 days after it started, so recordings from since may be missing; list again from since"),
   trust: z.literal("untrusted"),
 })
 

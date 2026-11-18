@@ -116,26 +116,33 @@ describe("the README's generated blocks", () => {
 })
 
 describe("the tested releases", () => {
+  // The newest CHANGELOG section: [Unreleased] while a release is being prepared, otherwise the newest release's notes.
+  const newest = () => {
+    const text = read("CHANGELOG.md")
+    const unreleased = text.split(/^## \[/m).find(section => section.startsWith("[Unreleased]"))
+    if (unreleased !== undefined) return { name: "CHANGELOG.md (Unreleased)", text: unreleased }
+    return { name: "CHANGELOG.md (newest release)", text: /## \[[^\]]+\][^\n]*\n([\s\S]*?)(?=\n## \[|$)/.exec(text)?.[1] ?? "" }
+  }
+
   test("every tested-host mention is TESTED_HOSTS, in the same order", () => {
-    const unreleased = read("CHANGELOG.md").split(/^## \[/m).find(section => section.startsWith("[Unreleased]")) ?? ""
+    const changelog = newest()
     const files = [...FILES.filter(file => file !== "CHANGELOG.md"), ...DOCS]
     for (const file of files) {
       const text = read(file)
-      for (const match of text.matchAll(/tested on ([0-9][0-9.,\s]*(?:and\s+[0-9][0-9.]*)?)/g)) {
+      for (const match of text.matchAll(/\btested on (?:OpenCode )?([0-9][0-9.,\s]*(?:and\s+[0-9][0-9.]*)?)/gi)) {
         const said = match[1]!.replace(/[.,\s]+$/u, "").split(/,\s*|\s+and\s+/).map(part => part.trim()).filter(Boolean)
         expect({ file, said }).toEqual({ file, said: TESTED_HOSTS })
       }
     }
-    for (const match of unreleased.matchAll(/tested on ([0-9][0-9.,\s]*(?:and\s+[0-9][0-9.]*)?)/g)) {
+    for (const match of changelog.text.matchAll(/\btested on (?:OpenCode )?([0-9][0-9.,\s]*(?:and\s+[0-9][0-9.]*)?)/gi)) {
       const said = match[1]!.replace(/[.,\s]+$/u, "").split(/,\s*|\s+and\s+/).map(part => part.trim()).filter(Boolean)
-      expect({ file: "CHANGELOG.md (Unreleased)", said }).toEqual({ file: "CHANGELOG.md (Unreleased)", said: TESTED_HOSTS })
+      expect({ file: changelog.name, said }).toEqual({ file: changelog.name, said: TESTED_HOSTS })
     }
     expect(TESTED_HOSTS).toContain("2.3.0")
   })
 
-  test("the Unreleased section states no tested release it has not run on", () => {
-    const unreleased = read("CHANGELOG.md").split(/^## \[/m).find(section => section.startsWith("[Unreleased]")) ?? ""
-    expect(unreleased).not.toMatch(/2\.2\.[0-7]\b(?!.*2\.3\.0)/)
+  test("the newest section states no tested release it has not run on", () => {
+    expect(newest().text).not.toMatch(/2\.2\.[0-7]\b(?!.*2\.3\.0)/)
   })
 })
 

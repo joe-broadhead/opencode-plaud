@@ -10,11 +10,11 @@ describe("host check", () => {
     expect(PLUGIN_VERSION).toBe(manifest.version)
   })
 
-  it("lists the tested releases once: 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 and 2.3.0", () => {
-    expect(TESTED_HOSTS).toEqual(["2.2.3", "2.2.4", "2.2.5", "2.2.6", "2.2.7", "2.3.0"])
+  it("lists the tested releases once: 2.2.3 to 2.3.2", () => {
+    expect(TESTED_HOSTS).toEqual(["2.2.3", "2.2.4", "2.2.5", "2.2.6", "2.2.7", "2.3.0", "2.3.1", "2.3.2"])
   })
 
-  it.each(["2.2.3", "2.2.4", "2.2.5", "2.2.6", "2.2.7", "2.3.0"])("treats %s as tested, with no warning", (version) => {
+  it.each(["2.2.3", "2.2.4", "2.2.5", "2.2.6", "2.2.7", "2.3.0", "2.3.1", "2.3.2"])("treats %s as tested, with no warning", (version) => {
     expect(isTestedHost(version)).toBe(true)
     const host = checkHost(version, false)
     expect(host).toEqual({ version, range: SUPPORTED_HOSTS, tested: true, inRange: true })

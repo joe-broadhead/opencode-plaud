@@ -8,7 +8,7 @@ Plaud is a trademark of PLAUD LLC; this unofficial plugin is not endorsed by the
 
 ## Requirements
 
-- OpenCode `>=2.2.3 <2.4.0` (2.2.3 or a later 2.2 or 2.3 release), tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 and 2.3.0. Another release inside that range starts, and `/plaud-status` calls it untested. Outside the range the plugin does not start, unless you set [`allowUntestedHost`](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#options).
+- OpenCode `>=2.2.3 <2.4.0` (2.2.3 or a later 2.2 or 2.3 release), tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 and 2.3.2. Another release inside that range starts, and `/plaud-status` calls it untested. Outside the range the plugin does not start, unless you set [`allowUntestedHost`](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#options).
 - macOS or Linux.
 - A Plaud account. Plaud's hosted MCP server, `https://mcp.plaud.ai/mcp`, is in the US; accounts in other regions are untested. If Plaud gives you another address, set it with the [`url`](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/configuration.md#options) option.
 
@@ -303,7 +303,7 @@ Sign out while the plugin is still installed: once it is removed, OpenCode no lo
 - **New Plaud tools.** A tool Plaud adds later follows `access`, so it runs at the default `"all"`. It is not a script method until a plugin release.
 - **Signed links.** Tool results never show a signed link. Audio and transcripts reach a file only through `plaud_export`.
 - **Unattended exports.** An export folder is outside the project, so an unattended run needs the `external_directory` rule as well as `plaud_export` (see [Permissions](#permissions)).
-- **Tested hosts.** Tested on OpenCode 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 and 2.3.0. A later 2.2 or 2.3 release starts, and `/plaud-status` marks it untested.
+- **Tested hosts.** Tested on OpenCode 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 and 2.3.2. A later 2.2 or 2.3 release starts, and `/plaud-status` marks it untested.
 - **Other accounts in Jelly.** Jelly's declaration names another account's reads as patterns (`plaud-*.get_file` and the rest), so they keep their read-only rules in Jelly. In a Jelly that does not yet write a pattern's rules, those tools follow the plugin's namespace and are denied at Read only, reads included.
 - **Jelly.** The settings declare their choices and bounds, which only a Jelly that includes app#1301 reads; an older Jelly refuses the plugin's declaration.
 - **The recordings source.** `plaud.recordings` names the owner the account's last `probe` named, so every listing of an account, with a cursor or without, needs a probe of it since OpenCode started (`UNAVAILABLE` otherwise). A cursor issued for another Plaud user than the one the probe names is refused (`CURSOR_INVALID`). The source contract `v0.2.0` can let a page read who is signed in itself (`permission.readsIdentity`), but a consumer on `v0.1.x` refuses that key, so the plugin declares it only once Memory and Jelly read `v0.2.0`.

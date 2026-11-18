@@ -46,7 +46,7 @@ Rules for the values:
 - **`exportRoots`**: at least one folder. Each is an absolute path, `~`, or a path that starts with `~/`. The plugin expands `~` to your home folder, normalizes the paths and drops duplicates. A folder is created (mode 0700) the first time an export needs it.
 - **`maxAudioBytes`**: a whole number from 1 to 64 GiB.
 - **`exportTimeoutMs`**: a whole number from 1000 (1 second) to 86400000 (24 hours). The time starts after you approve the export, so time spent on the prompt does not count. It is separate from OpenCode's own tool time limits.
-- **`allowUntestedHost`**: the plugin supports OpenCode `>=2.2.3 <2.4.0` and is tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 and 2.3.0. Inside the range it always starts; on a release there that is not tested, it prints a warning and `/plaud-status` calls it untested. Outside the range, which includes prereleases and development builds, it does not start, unless this option is set: then it starts, prints a warning, and `/plaud-status` calls the release untested.
+- **`allowUntestedHost`**: the plugin supports OpenCode `>=2.2.3 <2.4.0` and is tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 and 2.3.2. Inside the range it always starts; on a release there that is not tested, it prints a warning and `/plaud-status` calls it untested. Outside the range, which includes prereleases and development builds, it does not start, unless this option is set: then it starts, prints a warning, and `/plaud-status` calls the release untested.
 - **`access`**: one of the three values above, and nothing else. It changes only the rules the plugin inserts; your own rules still come later and win.
 
 An unknown key or a wrong value stops the plugin from starting. The error names every problem at once:

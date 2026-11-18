@@ -5,10 +5,10 @@ This repository builds `@joe-broadhead/opencode-plaud`, an unofficial OpenCode p
 ## Platform
 
 - Use only public APIs of `@opencode/plugin` that exist in OpenCode 2.2.3. The supported host range is exactly `>=2.2.3 <2.4.0`. Never write it as `^2.2.3`, which would accept an untested 2.4.
-- Test against stock OpenCode 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 and 2.3.0, never a fork or a patched host. `TESTED_HOSTS` in `src/version.ts` is the one list of tested releases; tests and CI read it, no other code lists them, and only the README's Requirements, SECURITY and `docs/configuration.md` (`allowUntestedHost`) state them for users; a test checks all four.
+- Test against stock OpenCode 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 and 2.3.2, never a fork or a patched host. `TESTED_HOSTS` in `src/version.ts` is the one list of tested releases; tests and CI read it, no other code lists them, and only the README's Requirements, SECURITY and `docs/configuration.md` (`allowUntestedHost`) state them for users; a test checks all four.
 - Call `ctx.permission.assert(input)` with the input only: no signal and no second argument. Rethrow what it throws.
 - A plugin tool that returns `output` declares an `output` schema.
-- Tests never import host source. Use the public `@opencode/plugin`, `@opencode/sdk` and `@opencode/client` packages. Write test doubles as narrow `Pick<Plugin.Context, ...>` fakes, not full context objects.
+- Tests never import host source. Use the public `@opencode/plugin`, `@opencode/sdk` and `@opencode/client` packages. Write test doubles as narrow `Pick<Plugin.Context, ...>` fakes, not full context objects. The host test's Code Mode runs with nobody present: up to 2.3.0 as a schedule's `if: { code }` check, and from 2.3.1 as an automation's code action, authorized at creation and run when the scheduler finds it due. The harness builds that host through `PromiseSdk.create`, which `OpenCode.create` calls, with the SDK's `overrides` so its Automation service also runs the scheduler, as `opencode serve` does (`unattended` in `test/host/harness.ts`).
 
 ## Forbidden
 

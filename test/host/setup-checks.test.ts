@@ -30,7 +30,7 @@ it("refuses an OpenCode release outside the supported range before registering a
 })
 
 it.each([
-  ["2.4.0", "outside the range, with allowUntestedHost", { allowUntestedHost: true }, "If Plaud misbehaves, use a tested OpenCode release: 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 or 2.3.0."],
+  ["2.4.0", "outside the range, with allowUntestedHost", { allowUntestedHost: true }, "If Plaud misbehaves, use a tested OpenCode release: 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 or 2.3.2."],
   ["2.2.99", "inside the range but not tested", {}, "Nothing to do."],
 ])("loads %s, %s, and status calls it untested (INSTALL-4)", async (version, _why, options, nextStep) => {
   const host = await startHost({ version, options })

@@ -222,7 +222,9 @@ the source contract, [`@we-the-rebel-alliance/source-contract`](https://github.c
 oldest first. It only reads, never asks and calls no model, so a consumer can run it unattended. It serves two sources:
 
 - `recordings`, the declared source `plaud.recordings` (package.json's `sources`), for consumers of the source
-  contract;
+  contract. `plaud.recordings.list` is the same `list_files` read as the contract's `list` output (`events_list` with
+  `{ "source": "recordings", "list": "recordings" }`), so an app can render titles without knowing Plaud. It is not a
+  rename of `plaud.recordings`, and it declares no write.
 - `plaud`, the default, the listing scripts and Memory's collector read before the source contract, with the same
   answers as before.
 

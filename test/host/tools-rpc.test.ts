@@ -94,7 +94,7 @@ describe("the tools RPC in OpenCode", () => {
     expect(value.methods[5]).toMatchObject({ kind: "plugin", class: "read", tool: "recent", action: "plaud_recent", available: true, input: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false } })
     expect(Object.keys(value.methods[5].input.properties)).toEqual(["limit"])
     expect(value.methods[6]).toMatchObject({ kind: "plugin", class: "read", tool: "events_list", action: "plaud_events_list", available: true })
-    expect(Object.keys(value.methods[6].input.properties)).toEqual(["since", "cursor", "limit", "account", "source"])
+    expect(Object.keys(value.methods[6].input.properties)).toEqual(["since", "cursor", "limit", "account", "source", "list"])
     expect(value.methods[7]).toMatchObject({ kind: "plugin", class: "read", tool: "probe", action: "plaud_probe", available: true })
     expect(value.methods.find((method: { name: string }) => method.name === "get_file").input).toMatchObject({ properties: { file_id: { type: "string" } }, required: ["file_id"] })
     expect(Object.hasOwn(value.methods[0], "permission")).toBe(false)

@@ -113,6 +113,10 @@ export function eventsInput(accounts: readonly [string, ...string[]]) {
       .enum(["recordings", "plaud"])
       .optional()
       .describe("recordings: the source contract's plaud.recordings, whose owner the account's probe names; plaud (the default): the listing scripts read before it"),
+    list: z
+      .enum(["recordings"])
+      .optional()
+      .describe("A list snapshot for an app, instead of events: the recordings list_files lists. Pass source recordings and the account."),
   })
 }
 

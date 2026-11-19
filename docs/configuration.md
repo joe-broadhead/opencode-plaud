@@ -83,7 +83,7 @@ If your config already defines an MCP server with one of these names in `mcp.ser
 | Value | What runs | What asks |
 | --- | --- | --- |
 | `"all"` (the default) | every tool, and one Plaud adds later | nothing |
-| `"ask-changes"` | the reads, `plaud_recent` and one Plaud adds later | `plaud_export` |
+| `"ask-changes"` | the reads and `plaud_recent` | `plaud_export`, and one Plaud adds later |
 | `"read-only"` | the reads | nothing: exports and new tools are **denied** |
 
 ```json

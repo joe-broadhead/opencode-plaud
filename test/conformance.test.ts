@@ -121,7 +121,11 @@ describe("the source contract's conformance kit", () => {
     expect(declarationProblems(pkg.sources, { tools })).toEqual([])
     expect(sources.rpc).toBe(TOOLS_RPC_ID)
     expect(pkg.name).toBe(PACKAGE)
-    expect(sources.items.map((item) => [item.id, item.input?.["source"]])).toEqual([["plaud.recordings", RECORDINGS]])
+    expect(sources.items.map((item) => [item.id, item.kind, item.input?.["source"]])).toEqual([
+      ["plaud.recordings", "events", RECORDINGS],
+      ["plaud.recordings.list", "snapshot", RECORDINGS],
+    ])
+    expect(sources.items.find((item) => item.id === "plaud.recordings.list")).toMatchObject({ output: "list", tool: "events_list" })
   })
 
   it("plaud.recordings keeps the contract", async () => {
@@ -175,6 +179,33 @@ describe("the source contract's conformance kit", () => {
     expect(report.checks.filter((check) => !check.ran && !check.notApplicable).map((check) => check.name)).toEqual([])
     expect(report.checks.filter((check) => check.ran).map((check) => check.name)).toEqual(expect.arrayContaining(["gap-and-cursor-expired", "gap-once-per-read"]))
     expect(report.checks.filter((check) => check.notApplicable && check.reason !== undefined).map((check) => [check.name, check.reason])).toEqual([["failed-holds-cursor", ATOMIC]])
+  })
+
+  it("plaud.recordings.list keeps the contract", async () => {
+    const listed = sources.items.find((item) => item.id === "plaud.recordings.list")!
+    const { list, probe } = plugin(() => NOW)
+    const snapshot = await list({ source: RECORDINGS, list: "recordings", account: ACCOUNT }, open)
+    expect(snapshot).toMatchObject({ account: ACCOUNT, trust: "untrusted", data: { editable: false } })
+    expect(Array.isArray((snapshot as { data: { items: unknown } }).data.items)).toBe(true)
+    const report = await sourceConformance({
+      plugin: PACKAGE,
+      source: listed,
+      tools,
+      calls: {
+        snapshot: (input, session) => list(input, session),
+        probe,
+      },
+      snapshotCases: [{ ...(listed.input ?? {}), account: ACCOUNT }],
+      cases: [],
+      account: ACCOUNT,
+      sources,
+      describe: { id: TOOLS_RPC_ID },
+    })
+    reports.push(report)
+    expect(report.problems).toEqual([])
+    expect(report.checks.filter((check) => !check.ran && !check.notApplicable).map((check) => check.name)).toEqual([])
+    expect(report.ok).toBe(true)
+    expect(report.incomplete).toBe(false)
   })
 
   it("a consumer's fenced session reaches the default account's server, and not yet another account's", () => {

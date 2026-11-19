@@ -84,7 +84,7 @@ OpenCode creates agents defined only in the user's config after plugins run, so 
 `plaud_events_list` (`src/host/tools/events.ts`) is Plaud's side of the source contract,
 `@we-the-rebel-alliance/source-contract` `v0.2.0`, pinned as a dev dependency and bundled into `dist/index.js`: its
 `events` module builds the page and the events and screens them for secrets, and its `cursor` module encodes the
-cursors. `package.json`'s `sources` declares one source, `plaud.recordings` (input `source: "recordings"`). It asserts
+cursors. `package.json`'s `sources` declares `plaud.recordings` (input `source: "recordings"`) and the list snapshot `plaud.recordings.list`. The events source asserts
 `plaud_events_list` with the account as resource and save, then reads through the host's executors for the account's
 `list_files`, one week at a time from the cursor's position to 6 hours ago. Each week asks for a day more on each side,
 reads every page until one is shorter than 20 or repeats the one before, and keeps the recordings that started within

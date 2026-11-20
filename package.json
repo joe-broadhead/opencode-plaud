@@ -84,7 +84,8 @@
           "source": "recordings"
         },
         "accounts": {
-          "named": true
+          "named": true,
+          "server": "plaud-{account}"
         },
         "permission": {
           "events": "plaud_events_list",

@@ -177,9 +177,9 @@ describe("the source contract's conformance kit", () => {
     expect(report.checks.filter((check) => check.notApplicable && check.reason !== undefined).map((check) => [check.name, check.reason])).toEqual([["failed-holds-cursor", ATOMIC]])
   })
 
-  it("a consumer's fenced session reaches the default account's server, and not yet another account's", () => {
-    // The contract derives a bare operation's rule as `<namespace>_<operation>` on `*` for every account, while another
-    // account's reads are its own server's, plaud-<alias>: a fenced read of that account is refused by the session.
+  it("a consumer's fenced session allows the server the account's reads actually call", () => {
+    // accounts.server is plaud-{account}: the default account keeps plaud_<operation>, and a named account's grant
+    // allows plaud-<alias>_<operation>, which is what reader() calls. The other server stays denied.
     const source = sources.items[0]!
     const fenced = (account: string) => {
       const rules = sessionRules(source as never, { source: source.id, account })
@@ -187,6 +187,7 @@ describe("the source contract's conformance kit", () => {
       return rules.value
     }
     expect(["plaud_events_list", "plaud_get_current_user", "plaud_list_files"].map((action) => evaluate(fenced("default"), action))).toEqual(["allow", "allow", "allow"])
-    expect(["plaud_events_list", "plaud-work_get_current_user", "plaud-work_list_files"].map((action) => evaluate(fenced("work"), action))).toEqual(["allow", "deny", "deny"])
+    expect(["plaud_events_list", "plaud-work_get_current_user", "plaud-work_list_files"].map((action) => evaluate(fenced("work"), action))).toEqual(["allow", "allow", "allow"])
+    expect(["plaud_list_files", "plaud-home_list_files"].map((action) => evaluate(fenced("work"), action))).toEqual(["deny", "deny"])
   })
 })

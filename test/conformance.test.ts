@@ -98,6 +98,19 @@ function plugin(clock: () => number, kept: Owners = owners()) {
 
 const open: SessionContext = { account: ACCOUNT, permission: { assert: async () => {} } }
 const reports: ConformanceReport[] = []
+/**
+ * v0.3 checks this source carries nothing for. The kit marks each not applicable and states no reason of its own; an
+ * empty reason would be no reason, so the test states why. A recording's page names no actors at all.
+ */
+const ABSENT = {
+  "actor-kind": "the fixture names no machine actor, so actor-kind does not apply",
+  "commitment-key": "no page carries a commitment, so commitment-key does not apply",
+  facts: "no page carries a fact, so facts does not apply",
+  hints: "the source declares no hint file, so hints does not apply",
+  "one-author": "no page lists a from or author actor, so one-author does not apply",
+  "parts-stable": "no page carries a part, so parts-stable does not apply",
+  routines: "the source declares no routine file, so routines does not apply",
+}
 
 afterAll(() => {
   if (reports.length === 0) return
@@ -183,6 +196,10 @@ describe("the source contract's conformance kit", () => {
     expect(report.checks.filter((check) => !check.ran && !check.notApplicable).map((check) => check.name)).toEqual([])
     expect(report.checks.filter((check) => check.ran).map((check) => check.name)).toEqual(expect.arrayContaining(["gap-and-cursor-expired", "gap-once-per-read"]))
     expect(report.checks.filter((check) => check.notApplicable && check.reason !== undefined).map((check) => [check.name, check.reason])).toEqual([["failed-holds-cursor", ATOMIC]])
+    for (const [name, reason] of Object.entries(ABSENT)) {
+      expect(reason.trim()).not.toBe("")
+      expect(report.checks.find((check) => check.name === name)).toMatchObject({ ran: false, notApplicable: true, problems: [] })
+    }
   })
 
   it("plaud.recordings.list keeps the contract", async () => {
@@ -210,6 +227,10 @@ describe("the source contract's conformance kit", () => {
     expect(report.checks.filter((check) => !check.ran && !check.notApplicable).map((check) => check.name)).toEqual([])
     expect(report.ok).toBe(true)
     expect(report.incomplete).toBe(false)
+    for (const [name, reason] of Object.entries(ABSENT)) {
+      expect(reason.trim()).not.toBe("")
+      expect(report.checks.find((check) => check.name === name)).toMatchObject({ ran: false, notApplicable: true, problems: [] })
+    }
   })
 
   it("a consumer's fenced session allows the server the account's reads actually call, on both sources", () => {

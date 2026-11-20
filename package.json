@@ -1,6 +1,6 @@
 {
   "name": "@joe-broadhead/opencode-plaud",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "private": true,
   "description": "Unofficial OpenCode plugin for Plaud recordings",
   "type": "module",
@@ -84,7 +84,8 @@
           "source": "recordings"
         },
         "accounts": {
-          "named": true
+          "named": true,
+          "server": "plaud-{account}"
         },
         "permission": {
           "events": "plaud_events_list",
@@ -100,6 +101,36 @@
         "cost": {
           "class": "free"
         },
+        "maxBytes": 262144
+      },
+      {
+        "id": "plaud.recordings.list",
+        "kind": "snapshot",
+        "tool": "events_list",
+        "input": {
+          "source": "recordings",
+          "list": "recordings"
+        },
+        "output": "list",
+        "accounts": {
+          "named": true,
+          "server": "plaud-{account}"
+        },
+        "permission": {
+          "tool": "plaud_events_list",
+          "operations": [
+            "get_current_user",
+            "list_files"
+          ],
+          "identity": [
+            "get_current_user"
+          ]
+        },
+        "private": true,
+        "cost": {
+          "class": "free"
+        },
+        "maxAgeSec": 900,
         "maxBytes": 262144
       }
     ]
@@ -127,7 +158,7 @@
     "@opentui/core": "0.8.0",
     "@opentui/solid": "0.8.0",
     "@types/node": "24.19.2",
-    "@we-the-rebel-alliance/source-contract": "github:we-the-rebel-alliance/source-contract#v0.2.0",
+    "@we-the-rebel-alliance/source-contract": "github:we-the-rebel-alliance/source-contract#v0.3.0",
     "babel-preset-solid": "1.9.16",
     "esbuild": "0.28.2",
     "solid-js": "1.9.18",

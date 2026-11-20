@@ -94,7 +94,7 @@ describe("the tools RPC in OpenCode", () => {
     expect(value.methods[5]).toMatchObject({ kind: "plugin", class: "read", tool: "recent", action: "plaud_recent", available: true, input: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 20 } }, additionalProperties: false } })
     expect(Object.keys(value.methods[5].input.properties)).toEqual(["limit"])
     expect(value.methods[6]).toMatchObject({ kind: "plugin", class: "read", tool: "events_list", action: "plaud_events_list", available: true })
-    expect(Object.keys(value.methods[6].input.properties)).toEqual(["since", "cursor", "limit", "account", "source"])
+    expect(Object.keys(value.methods[6].input.properties)).toEqual(["since", "cursor", "limit", "account", "source", "list"])
     expect(value.methods[7]).toMatchObject({ kind: "plugin", class: "read", tool: "probe", action: "plaud_probe", available: true })
     expect(value.methods.find((method: { name: string }) => method.name === "get_file").input).toMatchObject({ properties: { file_id: { type: "string" } }, required: ["file_id"] })
     expect(Object.hasOwn(value.methods[0], "permission")).toBe(false)
@@ -167,6 +167,21 @@ describe("the tools RPC in OpenCode", () => {
     expect(await call("build", "events_list", { account: "default", input: { source: "recordings", cursor: result.value.cursor } })).toMatchObject({ value: { events: [], more: false } })
     expect(await call("build", "events_list", { account: "team", input: { source: "recordings", cursor: result.value.cursor } })).toMatchObject({ type: "failed", code: "ACCOUNT_MISMATCH" })
     expect(await host.pending(sessions.build!)).toBe(0)
+  })
+
+  it("returns the recordings list through the tools RPC, for the default account and an alias, reading only list_files", async () => {
+    const from = host.fake.calls.length
+    const defaults = await call("build", "events_list", { input: { source: "recordings", list: "recordings" } })
+    expect(defaults.value).toMatchObject({
+      source: "recordings",
+      account: "default",
+      data: { editable: false, items: [{ id: "rec-1", text: "Weekly sync" }] },
+      trust: "untrusted",
+      asOf: expect.any(String),
+    })
+    const alias = await call("build", "events_list", { account: "team", input: { source: "recordings", list: "recordings" } })
+    expect(alias.value).toMatchObject({ source: "recordings", account: "team", data: { editable: false } })
+    expect(toolCalls(from).every((tool) => tool === "list_files")).toBe(true)
   })
 
   it("never lets a signed link reach a script", async () => {

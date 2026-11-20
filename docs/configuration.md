@@ -15,7 +15,7 @@ Give options with the object form of the plugin entry:
 {
   "plugins": [
     {
-      "package": "github:joe-broadhead/opencode-plaud#v0.0.7",
+      "package": "github:joe-broadhead/opencode-plaud#v0.0.8",
       "options": {
         "accounts": ["work"],
         "exportRoots": ["~/Plaud"],
@@ -83,11 +83,11 @@ If your config already defines an MCP server with one of these names in `mcp.ser
 | Value | What runs | What asks |
 | --- | --- | --- |
 | `"all"` (the default) | every tool, and one Plaud adds later | nothing |
-| `"ask-changes"` | the reads, `plaud_recent` and one Plaud adds later | `plaud_export` |
+| `"ask-changes"` | the reads and `plaud_recent` | `plaud_export`, and one Plaud adds later |
 | `"read-only"` | the reads | nothing: exports and new tools are **denied** |
 
 ```json
-{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.7", "options": { "access": "ask-changes" } }] }
+{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.8", "options": { "access": "ask-changes" } }] }
 ```
 
 `/plaud-status` shows the value and the block it inserts. The default block, for the default account's `plaud` server, generated from `defaultRules(servers, access)` in `src/host/permissions.ts`:
@@ -218,11 +218,15 @@ Do not add the default rules to the top-level `permissions`. Top-level rules com
 
 `plaud_events_list` (`tools.plaud.events_list` in Code Mode, and the tools RPC method `events_list`) is Plaud's side of
 the source contract, [`@we-the-rebel-alliance/source-contract`](https://github.com/we-the-rebel-alliance/source-contract)
-`v0.2.0`, which Memory and other consumers read. It lists one account's recordings since a cursor, as normalised events,
+`v0.3.0` (it sends no v0.3-only key, so a consumer on v0.2.0 reads it too). It lists one account's recordings since a cursor, as normalised events,
 oldest first. It only reads, never asks and calls no model, so a consumer can run it unattended. It serves two sources:
 
 - `recordings`, the declared source `plaud.recordings` (package.json's `sources`), for consumers of the source
-  contract;
+  contract. `plaud.recordings.list` is the same `list_files` read as the contract's `list` output (`events_list` with
+  `{ "source": "recordings", "list": "recordings" }`), so an app can render titles without knowing Plaud. The `list`
+  input is on the tools RPC method only: the model tool's schema has no `list`. A list holds at most 50 titles, newest
+  first; a title is screened whole and then cut to 200 characters, control characters are stripped, an id appears
+  once, and the answer stops short of 262,144 bytes. It is not a rename of `plaud.recordings`, and it declares no write.
 - `plaud`, the default, the listing scripts and Memory's collector read before the source contract, with the same
   answers as before.
 

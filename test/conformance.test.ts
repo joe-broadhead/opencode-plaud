@@ -98,6 +98,19 @@ function plugin(clock: () => number, kept: Owners = owners()) {
 
 const open: SessionContext = { account: ACCOUNT, permission: { assert: async () => {} } }
 const reports: ConformanceReport[] = []
+/**
+ * v0.3 checks this source carries nothing for. The kit marks each not applicable and states no reason of its own; an
+ * empty reason would be no reason, so the test states why. A recording's page names no actors at all.
+ */
+const ABSENT = {
+  "actor-kind": "the fixture names no machine actor, so actor-kind does not apply",
+  "commitment-key": "no page carries a commitment, so commitment-key does not apply",
+  facts: "no page carries a fact, so facts does not apply",
+  hints: "the source declares no hint file, so hints does not apply",
+  "one-author": "no page lists a from or author actor, so one-author does not apply",
+  "parts-stable": "no page carries a part, so parts-stable does not apply",
+  routines: "the source declares no routine file, so routines does not apply",
+}
 
 afterAll(() => {
   if (reports.length === 0) return
@@ -121,7 +134,15 @@ describe("the source contract's conformance kit", () => {
     expect(declarationProblems(pkg.sources, { tools })).toEqual([])
     expect(sources.rpc).toBe(TOOLS_RPC_ID)
     expect(pkg.name).toBe(PACKAGE)
-    expect(sources.items.map((item) => [item.id, item.input?.["source"]])).toEqual([["plaud.recordings", RECORDINGS]])
+    expect(sources.items.map((item) => [item.id, item.kind, item.input?.["source"]])).toEqual([
+      ["plaud.recordings", "events", RECORDINGS],
+      ["plaud.recordings.list", "snapshot", RECORDINGS],
+    ])
+    expect(sources.items.map((item) => [item.id, item.accounts?.server])).toEqual([
+      ["plaud.recordings", "plaud-{account}"],
+      ["plaud.recordings.list", "plaud-{account}"],
+    ])
+    expect(sources.items.find((item) => item.id === "plaud.recordings.list")).toMatchObject({ output: "list", tool: "events_list" })
   })
 
   it("plaud.recordings keeps the contract", async () => {
@@ -175,18 +196,55 @@ describe("the source contract's conformance kit", () => {
     expect(report.checks.filter((check) => !check.ran && !check.notApplicable).map((check) => check.name)).toEqual([])
     expect(report.checks.filter((check) => check.ran).map((check) => check.name)).toEqual(expect.arrayContaining(["gap-and-cursor-expired", "gap-once-per-read"]))
     expect(report.checks.filter((check) => check.notApplicable && check.reason !== undefined).map((check) => [check.name, check.reason])).toEqual([["failed-holds-cursor", ATOMIC]])
+    for (const [name, reason] of Object.entries(ABSENT)) {
+      expect(reason.trim()).not.toBe("")
+      expect(report.checks.find((check) => check.name === name)).toMatchObject({ ran: false, notApplicable: true, problems: [] })
+    }
   })
 
-  it("a consumer's fenced session reaches the default account's server, and not yet another account's", () => {
-    // The contract derives a bare operation's rule as `<namespace>_<operation>` on `*` for every account, while another
-    // account's reads are its own server's, plaud-<alias>: a fenced read of that account is refused by the session.
-    const source = sources.items[0]!
-    const fenced = (account: string) => {
-      const rules = sessionRules(source as never, { source: source.id, account })
-      if (!rules.ok) throw new Error(rules.problems.join("; "))
-      return rules.value
+  it("plaud.recordings.list keeps the contract", async () => {
+    const listed = sources.items.find((item) => item.id === "plaud.recordings.list")!
+    const { list, probe } = plugin(() => NOW)
+    const snapshot = await list({ source: RECORDINGS, list: "recordings", account: ACCOUNT }, open)
+    expect(snapshot).toMatchObject({ account: ACCOUNT, trust: "untrusted", data: { editable: false } })
+    expect(Array.isArray((snapshot as { data: { items: unknown } }).data.items)).toBe(true)
+    const report = await sourceConformance({
+      plugin: PACKAGE,
+      source: listed,
+      tools,
+      calls: {
+        snapshot: (input, session) => list(input, session),
+        probe,
+      },
+      snapshotCases: [{ ...(listed.input ?? {}), account: ACCOUNT }],
+      cases: [],
+      account: ACCOUNT,
+      sources,
+      describe: { id: TOOLS_RPC_ID },
+    })
+    reports.push(report)
+    expect(report.problems).toEqual([])
+    expect(report.checks.filter((check) => !check.ran && !check.notApplicable).map((check) => check.name)).toEqual([])
+    expect(report.ok).toBe(true)
+    expect(report.incomplete).toBe(false)
+    for (const [name, reason] of Object.entries(ABSENT)) {
+      expect(reason.trim()).not.toBe("")
+      expect(report.checks.find((check) => check.name === name)).toMatchObject({ ran: false, notApplicable: true, problems: [] })
     }
-    expect(["plaud_events_list", "plaud_get_current_user", "plaud_list_files"].map((action) => evaluate(fenced("default"), action))).toEqual(["allow", "allow", "allow"])
-    expect(["plaud_events_list", "plaud-work_get_current_user", "plaud-work_list_files"].map((action) => evaluate(fenced("work"), action))).toEqual(["allow", "deny", "deny"])
+  })
+
+  it("a consumer's fenced session allows the server the account's reads actually call, on both sources", () => {
+    // accounts.server is plaud-{account} on both sources: the default account keeps plaud_<operation>, and a named
+    // account's grant allows plaud-<alias>_<operation>, which is what reader() calls. The other server stays denied.
+    for (const source of sources.items) {
+      const fenced = (account: string) => {
+        const rules = sessionRules(source as never, { source: source.id, account })
+        if (!rules.ok) throw new Error(`${source.id}: ${rules.problems.join("; ")}`)
+        return rules.value
+      }
+      expect([source.id, ["plaud_events_list", "plaud_get_current_user", "plaud_list_files"].map((action) => evaluate(fenced("default"), action))]).toEqual([source.id, ["allow", "allow", "allow"]])
+      expect([source.id, ["plaud_events_list", "plaud-work_get_current_user", "plaud-work_list_files"].map((action) => evaluate(fenced("work"), action))]).toEqual([source.id, ["allow", "allow", "allow"]])
+      expect([source.id, ["plaud_list_files", "plaud-home_list_files"].map((action) => evaluate(fenced("work"), action))]).toEqual([source.id, ["deny", "deny"]])
+    }
   })
 })

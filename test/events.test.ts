@@ -8,7 +8,7 @@ import { EVENT_LIMITS, PAGE, assertEventsListConformance, encodeCursor, resultPr
 import { accountServer } from "../src/host/mcp.js"
 import { type ExportHost, reader } from "../src/host/tools/export.js"
 import { defaultRules, EVENTS_ACTION, evaluate, PROBE_ACTION } from "../src/host/permissions.js"
-import { eventsMethod, eventsTool, owners, ownerOf, plaudProbe, probeMethod, RECORDINGS as RECORDINGS_SOURCE, SETTLE_MS, SOURCE, type Owners } from "../src/host/tools/events.js"
+import { eventsMethod, eventsTool, owners, ownerOf, plaudProbe, probeMethod, recordingsList, RECORDINGS as RECORDINGS_SOURCE, SETTLE_MS, SOURCE, type Owners } from "../src/host/tools/events.js"
 import { registerToolsRpc } from "../src/host/tools-rpc.js"
 
 /**
@@ -299,6 +299,44 @@ describe("the tools RPC's events_list", () => {
     expect(fake.asserted.map((request) => request.action)).toEqual([PROBE_ACTION, EVENTS_ACTION])
     expect(await probe({ account: "home", input: {} })).toMatchObject({ type: "failed", data: { code: "ACCOUNT_UNKNOWN" } })
     expect(await probe({ input: { source: "plaud" } })).toMatchObject({ type: "failed", data: { code: "SOURCE_UNKNOWN" } })
+  })
+})
+
+describe("plaud.recordings.list", () => {
+  it("screens the whole name before the cut, dedupes ids, and keeps the answer inside maxBytes", async () => {
+    const name = `${"x".repeat(199)} ghp_A1b2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8`
+    const read = async () =>
+      ({
+        type: "files",
+        data: [
+          { id: "rec-cut", name, start_at: "2026-11-01T09:00:00", duration: 60_000, created_at: "2026-11-01T09:00:00" },
+          { id: "rec-dup", name: "Kept once", start_at: "2026-11-02T09:00:00", duration: 60_000, created_at: "2026-11-02T09:00:00" },
+          { id: "rec-dup", name: "Kept once", start_at: "2026-11-02T09:00:00", duration: 60_000, created_at: "2026-11-02T09:00:00" },
+        ],
+        page: 1,
+        page_size: 20,
+      } as unknown)
+    const list = await recordingsList(read, "default", NOW, { source: RECORDINGS_SOURCE, list: "recordings" })
+    expect(list.data.items).toEqual([{ id: "rec-dup", text: "Kept once" }])
+    expect(new TextEncoder().encode(JSON.stringify(list)).length).toBeLessThanOrEqual(262_144)
+  })
+})
+
+describe("plaud.recordings.list sorting", () => {
+  it("sorts newest first before the cap, independent of the list_files order", async () => {
+    const read = async () =>
+      ({
+        type: "files",
+        data: [
+          { id: "rec-old", name: "Old", start_at: "2026-10-01T09:00:00", duration: 60_000, created_at: "2026-10-01T09:00:00" },
+          { id: "rec-new", name: "New", start_at: "2026-11-01T09:00:00", duration: 60_000, created_at: "2026-11-01T09:00:00" },
+          { id: "rec-mid", name: "Mid", start_at: "2026-10-15T09:00:00", duration: 60_000, created_at: "2026-10-15T09:00:00" },
+        ],
+        page: 1,
+        page_size: 20,
+      } as unknown)
+    const list = await recordingsList(read, "default", NOW, { source: RECORDINGS_SOURCE, list: "recordings" })
+    expect(list.data.items.map((item) => item.id)).toEqual(["rec-new", "rec-mid", "rec-old"])
   })
 })
 

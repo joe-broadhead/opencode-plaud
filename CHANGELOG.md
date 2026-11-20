@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.8] - 2026-11-20
+
+### Added
+
+- **List snapshot** `plaud.recordings.list` (`output: "list"`). An app can bind it and render recordings without
+  knowing Plaud. It is the tools RPC method `events_list` with `{ "source": "recordings", "list": "recordings" }`; the
+  model tool's schema has no `list`, so an agent sees no list. It calls the existing `list_files` read, not a second
+  client, over the last 40 days and returns at most 50 recordings, newest first, each an id and a title; a title is
+  screened whole and then cut to 200 characters, control characters are stripped, an id appears once, and the answer
+  stops short of 256 KiB. `plaud.recordings` stays the events source and is not renamed, and no write is declared. Like
+  it, the snapshot is a `named` source and declares `accounts.server` as `plaud-{account}`, so a consumer's session
+  rules allow the server the account's reads actually call.
+
+### Changed
+
+- **Other accounts through the source contract.** `plaud.recordings` and `plaud.recordings.list` both declare
+  `accounts.server` as `plaud-{account}`. A consumer's fenced session rules allow `plaud_list_files` and
+  `plaud_get_current_user` for the default account, and `plaud-<alias>_list_files` and
+  `plaud-<alias>_get_current_user` for any other, which is what the plugin calls. A consumer still on source-contract
+  v0.1.x refuses the `accounts.server` key and will not load this descriptor. Scripts and the model are unaffected.
+- Source contract `@we-the-rebel-alliance/source-contract` v0.3.0 (was v0.2.0), a devDependency bundled into `dist/`
+  (no runtime dependency). The declaration and the probe answer are unchanged: the plugin sends none of v0.3.0's new
+  keys (`facts`, `hints`, `routines`, an actor's `kind`, `sections` or `parts`), which a consumer still on v0.2.0
+  refuses. The conformance test names the seven v0.3 checks the source carries nothing for, each with its reason.
+- The docs now match the default rules: at `ask-changes` a Plaud tool added later asks, and a script cannot export,
+  because `plaud_export` is not a tools RPC method.
+- Jelly re-asks consent: `package.json`'s `sources` gains `plaud.recordings.list`, and `plaud.recordings` gains
+  `accounts.server`.
+
 ## [0.0.7] - 2026-11-18
 
 ### Changed

@@ -99,7 +99,7 @@ export type RecentResult = z.output<typeof RecentOutput>
  * package's parser, and its result. The domain imports nothing outside it, so the limits are written out here;
  * test/events.test.ts keeps them equal to the package's.
  */
-export function eventsInput(accounts: readonly [string, ...string[]]) {
+export function eventsInput(accounts: readonly [string, ...string[]], options: { readonly list?: boolean } = {}) {
   return z.strictObject({
     since: z
       .string()
@@ -113,6 +113,14 @@ export function eventsInput(accounts: readonly [string, ...string[]]) {
       .enum(["recordings", "plaud"])
       .optional()
       .describe("recordings: the source contract's plaud.recordings, whose owner the account's probe names; plaud (the default): the listing scripts read before it"),
+    ...(options.list === true
+      ? {
+          list: z
+            .enum(["recordings"])
+            .optional()
+            .describe("A list snapshot for an app, instead of events: up to 50 recording titles from the last 40 days, as data.items. Pass source recordings and the account."),
+        }
+      : {}),
   })
 }
 
@@ -151,6 +159,18 @@ export const EventsListOutput = z.strictObject({
     .strictObject({ reason: z.literal("expired"), since: z.string().describe("UTC ISO") })
     .optional()
     .describe("On a recordings page: a recording reached Plaud more than 14 days after it started, so recordings from since may be missing; list again from since"),
+  trust: z.literal("untrusted"),
+})
+
+/** A list snapshot's answer, as the tools RPC method declares it: the registry's `output: "list"` envelope. */
+export const EventsListAnswer = z.strictObject({
+  source: z.enum(["recordings", "plaud"]),
+  account: z.string(),
+  data: z.strictObject({
+    items: z.array(z.strictObject({ id: z.string().min(1).max(128), text: z.string().max(200) })).max(50).describe("Newest first"),
+    editable: z.literal(false),
+  }),
+  asOf: z.string().describe("When the list was read, UTC ISO"),
   trust: z.literal("untrusted"),
 })
 

@@ -40,20 +40,18 @@ Every call resolves the method's permission action against the agent's rules and
 order; the last matching rule wins. Only `allow` runs:
 
 - An `ask` is refused with `PERMISSION_DENIED` before the tool runs, because no one can answer a prompt, and no prompt
-  is left waiting. At the `access` option's `"ask-changes"`, this is the rule for `plaud_export`, so a script exports
-  only with a prior `allow`.
+  is left waiting. `plaud_export` is not a method, so a script never exports, even with a prior `allow`.
 - A `deny` is refused too, and its next step names the rule to change.
 - A saved "Always allow" from an earlier prompt does **not** authorize an ad-hoc script: it is not part of the agent's
   and session's rules, and a script's grant must be reviewable in config or in a job's approval. This is the one
   deliberate break from the earlier reads-only RPC.
 
-The plugin's default rules allow every method, at the default `access: "all"`, so a script runs a read, `recent` or
-an export unless the `access` option or the session's rules restrict it. A script gets the same default as the model,
-and it is restricted the same way: `"ask-changes"` makes an export ask, and an ask is refused here; `"read-only"`
-denies it, so an export needs a prior `allow` in the agent's or the session's rules.
+The plugin's default rules allow every method, at the default `access: "all"`, so a script runs a read, `recent`,
+`events_list` or `probe` unless the `access` option or the session's rules restrict it. An `ask` is refused here.
+`plaud_export` is not among the methods: a script never runs it, whatever the rules say.
 
-An export folder is outside the project, so OpenCode also checks `external_directory` on the folder, as well as
-`plaud_export`, before anything is written. A script that exports outside the project therefore needs both rules:
+The model's export writes a file outside the project, so OpenCode also checks `external_directory` on the folder, as well as
+`plaud_export`, before anything is written. That check is not a script method. The rule a person adds for the model is:
 
 ```json
 { "permissions": [
@@ -68,13 +66,13 @@ default rules; at `"ask-changes"` or `"read-only"`, `/plaud-status` names it and
 
 ## Accounts
 
-The default account's reads run on the `plaud` server. To read or export another account, add `account` with its alias
-from the plugin's `accounts` option: `"account": "work"` runs `plaud-work_list_files` and so on, and `recent` and
-`export` use that account. `"account": "default"` is the default account, the same as leaving `account` out. An account
+The default account's reads run on the `plaud` server. To read another account, add `account` with its alias
+from the plugin's `accounts` option: `"account": "work"` runs `plaud-work_list_files` and so on, and `recent`,
+`events_list` and `probe` use that account. `"account": "default"` is the default account, the same as leaving `account` out. An account
 that is not in the options is refused with `ACCOUNT_UNKNOWN`. If your OpenCode config defines its own server under an
-account's name, such as `plaud-work`, the call uses it, as the model and `plaud_export` do.
+account's name, such as `plaud-work`, the call uses it, as the model does. A script still cannot export.
 
-`describe` shows the default account's tools, `recent` and `export`. Every account's server has the same five reads.
+`describe` shows the default account's five reads, `recent`, `events_list` and `probe`. It does not show `export`. Every account's server has the same five reads.
 
 ## Signed links
 
@@ -131,12 +129,6 @@ opencode api post /api/rpc/plaud.recordings.tools/get_note \
   "account":"work",
   "input":{"file_id":"…"}
 }}'
-
-opencode api post /api/rpc/plaud.recordings.tools/export \
-  -H "x-opencode-directory:$PWD" -d '{"input":{
-  "sessionID":"ses_…",
-  "input":{"recordingId":"…","kind":"transcript","block":"outline"}
-}}'
 ```
 
 ## The location
@@ -164,7 +156,7 @@ opencode api post /api/rpc/plaud.recordings.tools/describe \
 ```
 
 `describe` with a session gives each method's resolved `permission` (`allow`, `ask` or `deny`), which is how a script
-self-checks before it exports.
+self-checks before it calls a method. It does not offer `export`.
 
 A result comes back as `{ output?, text }`: the tool's structured content when it has any, and its text parts joined
 by newlines. Over HTTP the body is `{"output": {"output": …, "text": …}}`, as plain JSON. When the text itself is JSON, OpenCode also parses it into `output`. Plaud wraps most results
@@ -191,7 +183,7 @@ A refusal or failure is the RPC error `failed`, with a message `CODE: what happe
 | `SESSION_UNKNOWN` | OpenCode says the session does not exist in this location. Any other failure to look the session up is OpenCode's own error. |
 | `SESSION_AGENT_REQUIRED` | The session names no agent, or an agent that does not exist. |
 | `ACCOUNT_UNKNOWN` | `account` is neither `default` nor an alias from the plugin's `accounts` option. |
-| `PERMISSION_DENIED` | The rules resolve to `ask` (a script cannot answer) or to `deny`. The message names the action, which may be an inner one: for `recent`, `plaud_recent` or the account's `list_files`; for `export`, `plaud_export` or a read it makes. The next step names the rule to add or remove. |
+| `PERMISSION_DENIED` | The rules resolve to `ask` (a script cannot answer) or to `deny`. The message names the action, which may be an inner one: for `recent`, `plaud_recent` or the account's `list_files`. `export` is not a method, so this code is not how a script is told that. The next step names the rule to add or remove. |
 | `AUTH_REQUIRED`, `CONNECTING`, `CONNECTION_FAILED`, `DISABLED`, `NOT_REGISTERED` | The account's server needs a sign-in, is still connecting (or reconnected during the call: call again), could not connect, is disabled, or is missing. `/plaud-status` gives the next step for each account. For `recent`, `AUTH_REQUIRED` covers all of these: OpenCode lists no `list_files` for the account. |
 | `TOOL_UNAVAILABLE` | The account's server is connected, but OpenCode does not list the tool. |
 | `UPSTREAM_ERROR` | Plaud answered with an error, such as a recording that does not exist. The message holds the first line of Plaud's text, at most 300 characters, with tokens and URL query strings removed. |

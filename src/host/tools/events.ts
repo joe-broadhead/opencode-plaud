@@ -18,10 +18,11 @@ import {
   parseProbeInput,
   probeResult,
   screenEvents,
+  secretKinds,
   startTime,
 } from "@we-the-rebel-alliance/source-contract/events"
 import { DEFAULT_ACCOUNT } from "../../domain/config.js"
-import { EventsListOutput, ProbeInput, ProbeOutput, eventsInput } from "../../domain/contract/index.js"
+import { EventsListAnswer, EventsListOutput, ProbeInput, ProbeOutput, eventsInput } from "../../domain/contract/index.js"
 import { fail } from "../../domain/errors.js"
 import { PLAUD_TOOLS, recordingList, type RecordingMeta } from "../../domain/normalize.js"
 import type { ToolContext } from "../context.js"
@@ -458,11 +459,59 @@ function accountOf(input: unknown, accounts: readonly [string, ...string[]]): { 
   return { account: requested ?? accounts[0], named: requested !== undefined }
 }
 
+/** The list registry holds 50 items. A list read asks Plaud for the recent window and returns no more. */
+const LIST_CAP = 50
+const LIST_WINDOW_MS = 40 * DAY_MS
+/** C0 and C1 control characters: JSON escapes each to six bytes, so a name holding many would blow `maxBytes`. */
+const CONTROL = /[\u0000-\u001F\u007F-\u009F]/g
+
+/** Recordings as the contract's `list` output: id and title. Not editable. A title that holds a secret is left out. */
+export interface RecordingsList {
+  readonly source: string
+  readonly account: string
+  readonly data: { readonly items: readonly { readonly id: string; readonly text: string }[]; readonly editable: false }
+  readonly asOf: string
+  readonly trust: "untrusted"
+}
+
+/**
+ * The recordings list snapshot. It reads through the same `list_files` executor as `events_list`, not a second client,
+ * over the last 40 days, and returns titles only.
+ */
+export async function recordingsList(read: Read, account: string, now: number, input: unknown): Promise<RecordingsList> {
+  const found: RecordingMeta[] = []
+  for (let page = 1; page <= MAX_PAGES && found.length < LIST_CAP; page++) {
+    const recordings = recordingList(await read(PLAUD_TOOLS.list, { date_from: utcDay(now - LIST_WINDOW_MS), date_to: utcDay(now), page, page_size: PAGE_SIZE }))
+    found.push(...recordings)
+    if (recordings.length < PAGE_SIZE) break
+  }
+  // Newest first, independent of the order list_files answers in; a recording with no start keeps its relative place,
+  // as the sort is stable.
+  const ordered = [...found].sort((a, b) => (Date.parse(b.startedAt ?? "") || 0) - (Date.parse(a.startedAt ?? "") || 0))
+  const items: { id: string; text: string }[] = []
+  const seen = new Set<string>()
+  for (const recording of ordered) {
+    if (items.length >= LIST_CAP) break
+    const id = recording.id.slice(0, 128)
+    // The whole name is screened before the cut, so a secret that straddles 200 characters is still refused.
+    const whole = recording.name.replace(/\s+/g, " ").replace(CONTROL, "").trim()
+    if (id === "" || seen.has(id) || secretKinds(whole).length > 0) continue
+    seen.add(id)
+    items.push({ id, text: (whole === "" ? "Untitled recording" : whole).slice(0, 200) })
+  }
+  const source = record(input) && typeof input["source"] === "string" ? input["source"] : "recordings"
+  const answer: RecordingsList = { source, account, data: { items, editable: false }, asOf: new Date(now).toISOString(), trust: "untrusted" }
+  // `maxBytes` holds with 50 maximal items: drop items from the end, the oldest, until the answer fits.
+  while (items.length > 0 && new TextEncoder().encode(JSON.stringify(answer)).length > PAGE_MAX_BYTES) items.pop()
+  return answer
+}
+
 /**
  * plaud_events_list's spec. For the tools RPC (`passRefusals`), a read the session's rules refuse reaches the module
- * as the host's refusal, so the script reads PERMISSION_DENIED and the read's name.
+ * as the host's refusal, so the script reads PERMISSION_DENIED and the read's name. `list: "recordings"` is the list
+ * snapshot, on the tools RPC method's schema only (`allowList`).
  */
-export function eventsTool(host: Pick<ExportHost, "tool" | "permission">, accounts: readonly [string, ...string[]], kept: Owners, passRefusals = false, now: () => number = Date.now) {
+export function eventsTool(host: Pick<ExportHost, "tool" | "permission">, accounts: readonly [string, ...string[]], kept: Owners, passRefusals = false, now: () => number = Date.now, allowList = false) {
   return {
     name: "events_list",
     description: DESCRIPTION,
@@ -482,6 +531,9 @@ export function eventsTool(host: Pick<ExportHost, "tool" | "permission">, accoun
         source: { type: "tool", messageID: context.messageID, id: context.id },
       })
       const read = reader(await host.tool.list(), account, context, passRefusals)
+      if (allowList && record(input) && input["list"] === "recordings") {
+        return { output: (await recordingsList(read, account, now(), input)) as unknown as EventsOutput }
+      }
       // The shared result type names any source and kind; the host checks this one against EventsListOutput.
       return { output: (await listEvents(read, input, account, now(), kept, named)) as EventsOutput }
     },
@@ -505,15 +557,15 @@ function withAccount(input: unknown, envelope: string | undefined): unknown {
  * naming different accounts is refused. It runs the tool's own spec, so its assertion and the account's read rules apply.
  */
 export function eventsMethod(host: Pick<ExportHost, "tool" | "permission">, accounts: readonly [string, ...string[]], kept: Owners, now?: () => number): OwnedMethod {
-  const tool = eventsTool(host, accounts, kept, true, now)
+  const tool = eventsTool(host, accounts, kept, true, now, true)
   return {
     kind: "plugin",
     class: "read",
     name: EVENTS_METHOD,
     action: EVENTS_ACTION,
     description: `${DESCRIPTION} The account is the envelope's, or the input's account.`,
-    input: schema(eventsInput(accounts), "input"),
-    output: schema(EventsListOutput, "output"),
+    input: schema(eventsInput(accounts, { list: true }), "input"),
+    output: { anyOf: [schema(EventsListOutput, "output"), schema(EventsListAnswer, "output")] },
     async run(input, call) {
       return (await tool.execute(withAccount(input, call.account), call as unknown as ToolContext)).output
     },

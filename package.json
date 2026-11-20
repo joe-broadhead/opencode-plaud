@@ -113,7 +113,8 @@
         },
         "output": "list",
         "accounts": {
-          "named": true
+          "named": true,
+          "server": "plaud-{account}"
         },
         "permission": {
           "tool": "plaud_events_list",

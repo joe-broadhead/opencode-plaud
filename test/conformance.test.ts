@@ -125,6 +125,10 @@ describe("the source contract's conformance kit", () => {
       ["plaud.recordings", "events", RECORDINGS],
       ["plaud.recordings.list", "snapshot", RECORDINGS],
     ])
+    expect(sources.items.map((item) => [item.id, item.accounts?.server])).toEqual([
+      ["plaud.recordings", "plaud-{account}"],
+      ["plaud.recordings.list", "plaud-{account}"],
+    ])
     expect(sources.items.find((item) => item.id === "plaud.recordings.list")).toMatchObject({ output: "list", tool: "events_list" })
   })
 
@@ -208,17 +212,18 @@ describe("the source contract's conformance kit", () => {
     expect(report.incomplete).toBe(false)
   })
 
-  it("a consumer's fenced session allows the server the account's reads actually call", () => {
-    // accounts.server is plaud-{account}: the default account keeps plaud_<operation>, and a named account's grant
-    // allows plaud-<alias>_<operation>, which is what reader() calls. The other server stays denied.
-    const source = sources.items[0]!
-    const fenced = (account: string) => {
-      const rules = sessionRules(source as never, { source: source.id, account })
-      if (!rules.ok) throw new Error(rules.problems.join("; "))
-      return rules.value
+  it("a consumer's fenced session allows the server the account's reads actually call, on both sources", () => {
+    // accounts.server is plaud-{account} on both sources: the default account keeps plaud_<operation>, and a named
+    // account's grant allows plaud-<alias>_<operation>, which is what reader() calls. The other server stays denied.
+    for (const source of sources.items) {
+      const fenced = (account: string) => {
+        const rules = sessionRules(source as never, { source: source.id, account })
+        if (!rules.ok) throw new Error(`${source.id}: ${rules.problems.join("; ")}`)
+        return rules.value
+      }
+      expect([source.id, ["plaud_events_list", "plaud_get_current_user", "plaud_list_files"].map((action) => evaluate(fenced("default"), action))]).toEqual([source.id, ["allow", "allow", "allow"]])
+      expect([source.id, ["plaud_events_list", "plaud-work_get_current_user", "plaud-work_list_files"].map((action) => evaluate(fenced("work"), action))]).toEqual([source.id, ["allow", "allow", "allow"]])
+      expect([source.id, ["plaud_list_files", "plaud-home_list_files"].map((action) => evaluate(fenced("work"), action))]).toEqual([source.id, ["deny", "deny"]])
     }
-    expect(["plaud_events_list", "plaud_get_current_user", "plaud_list_files"].map((action) => evaluate(fenced("default"), action))).toEqual(["allow", "allow", "allow"])
-    expect(["plaud_events_list", "plaud-work_get_current_user", "plaud-work_list_files"].map((action) => evaluate(fenced("work"), action))).toEqual(["allow", "allow", "allow"])
-    expect(["plaud_list_files", "plaud-home_list_files"].map((action) => evaluate(fenced("work"), action))).toEqual(["deny", "deny"])
   })
 })

@@ -169,6 +169,21 @@ describe("the tools RPC in OpenCode", () => {
     expect(await host.pending(sessions.build!)).toBe(0)
   })
 
+  it("returns the recordings list through the tools RPC, for the default account and an alias, reading only list_files", async () => {
+    const from = host.fake.calls.length
+    const defaults = await call("build", "events_list", { input: { source: "recordings", list: "recordings" } })
+    expect(defaults.value).toMatchObject({
+      source: "recordings",
+      account: "default",
+      data: { editable: false, items: [{ id: "rec-1", text: "Weekly sync" }] },
+      trust: "untrusted",
+      asOf: expect.any(String),
+    })
+    const alias = await call("build", "events_list", { account: "team", input: { source: "recordings", list: "recordings" } })
+    expect(alias.value).toMatchObject({ source: "recordings", account: "team", data: { editable: false } })
+    expect(toolCalls(from).every((tool) => tool === "list_files")).toBe(true)
+  })
+
   it("never lets a signed link reach a script", async () => {
     for (const [method, account] of [["get_file", undefined], ["get_file", "team"], ["get_note", undefined]] as const) {
       const result = await call("build", method, { ...(account ? { account } : {}), input: { file_id: "rec-1" } })

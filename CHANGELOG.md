@@ -7,11 +7,13 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - **List snapshot** `plaud.recordings.list` (`output: "list"`). An app can bind it and render recordings without
-  knowing Plaud. It calls the existing `events_list` read (`list_files`), not a second client: `{ "source":
-  "recordings", "list": "recordings" }` reads the last 40 days and returns at most 50 recordings, each an id and a
-  title, and a title that holds a secret is left out. `plaud.recordings` stays the events source and is not renamed,
-  and no write is declared. Like it, the snapshot is a `named` source and declares `accounts.server` as
-  `plaud-{account}`, so a consumer's session rules allow the server the account's reads actually call.
+  knowing Plaud. It is the tools RPC method `events_list` with `{ "source": "recordings", "list": "recordings" }`; the
+  model tool's schema has no `list`, so an agent sees no list. It calls the existing `list_files` read, not a second
+  client, over the last 40 days and returns at most 50 recordings, newest first, each an id and a title; a title is
+  screened whole and then cut to 200 characters, control characters are stripped, an id appears once, and the answer
+  stops short of 256 KiB. `plaud.recordings` stays the events source and is not renamed, and no write is declared. Like
+  it, the snapshot is a `named` source and declares `accounts.server` as `plaud-{account}`, so a consumer's session
+  rules allow the server the account's reads actually call.
 
 ### Changed
 

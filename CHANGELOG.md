@@ -28,6 +28,8 @@ All notable changes to this project are documented here. The format follows [Kee
   refuses. The conformance test names the seven v0.3 checks the source carries nothing for, each with its reason.
 - The docs now match the default rules: at `ask-changes` a Plaud tool added later asks, and a script cannot export,
   because `plaud_export` is not a tools RPC method.
+- Jelly re-asks consent: `package.json`'s `sources` gains `plaud.recordings.list`, and `plaud.recordings` gains
+  `accounts.server`.
 
 ## [0.0.7] - 2026-11-18
 

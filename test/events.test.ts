@@ -322,6 +322,24 @@ describe("plaud.recordings.list", () => {
   })
 })
 
+describe("plaud.recordings.list sorting", () => {
+  it("sorts newest first before the cap, independent of the list_files order", async () => {
+    const read = async () =>
+      ({
+        type: "files",
+        data: [
+          { id: "rec-old", name: "Old", start_at: "2026-10-01T09:00:00", duration: 60_000, created_at: "2026-10-01T09:00:00" },
+          { id: "rec-new", name: "New", start_at: "2026-11-01T09:00:00", duration: 60_000, created_at: "2026-11-01T09:00:00" },
+          { id: "rec-mid", name: "Mid", start_at: "2026-10-15T09:00:00", duration: 60_000, created_at: "2026-10-15T09:00:00" },
+        ],
+        page: 1,
+        page_size: 20,
+      } as unknown)
+    const list = await recordingsList(read, "default", NOW, { source: RECORDINGS_SOURCE, list: "recordings" })
+    expect(list.data.items.map((item) => item.id)).toEqual(["rec-new", "rec-mid", "rec-old"])
+  })
+})
+
 describe("the recordings source, plaud.recordings", () => {
   /** A lister and a probe over one fake and one record of owners, as one plugin instance has them. */
   function instance(fake = plaud(), now = NOW) {

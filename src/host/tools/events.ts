@@ -485,9 +485,12 @@ export async function recordingsList(read: Read, account: string, now: number, i
     found.push(...recordings)
     if (recordings.length < PAGE_SIZE) break
   }
+  // Newest first, independent of the order list_files answers in; a recording with no start keeps its relative place,
+  // as the sort is stable.
+  const ordered = [...found].sort((a, b) => (Date.parse(b.startedAt ?? "") || 0) - (Date.parse(a.startedAt ?? "") || 0))
   const items: { id: string; text: string }[] = []
   const seen = new Set<string>()
-  for (const recording of found) {
+  for (const recording of ordered) {
     if (items.length >= LIST_CAP) break
     const id = recording.id.slice(0, 128)
     // The whole name is screened before the cut, so a secret that straddles 200 characters is still refused.

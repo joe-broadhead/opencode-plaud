@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **List snapshot** `plaud.recordings.list` (`output: "list"`). An app can bind it and render recordings without knowing Plaud. It calls the existing `events_list` read (`list_files`), not a second client. `plaud.recordings` stays the events source and is not renamed. No write is declared. The source-contract pin stays v0.2.0: `list` is already in that pin, and this change sends none of v0.3.0's new fields.
+
 ## [0.0.7] - 2026-11-18
 
 ### Changed

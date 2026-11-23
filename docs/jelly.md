@@ -95,4 +95,4 @@ and bound against the options parser.
 Jelly's curated catalogue pins an exact version. Publish each release under a new version, so
 that a review in Jelly can tell the two apart.
 
-The declaration test runs the shared kit, `test/support/jelly-kit.ts`, which checks the declaration and this page against Jelly's plugin authors' standard. `scripts/check-copies.mjs` holds the kit equal to the copy every plugin carries. The tools RPC and the events list come from the source contract package, `@we-the-rebel-alliance/source-contract` `v0.1.0`, pinned in `package-lock.json` and bundled; its `probe` is a tools RPC method, not a tool, so the declaration does not list it.
+The declaration test runs the shared kit, `test/support/jelly-kit.ts`, which checks the declaration and this page against Jelly's plugin authors' standard. `scripts/check-copies.mjs` holds the kit equal to the copy every plugin carries. The tools RPC and the events list come from the source contract package, `@we-the-rebel-alliance/source-contract` `v0.3.0`, pinned in `package-lock.json` and bundled; its `probe` is a tools RPC method, not a tool, so the declaration does not list it.

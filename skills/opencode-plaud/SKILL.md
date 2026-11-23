@@ -88,12 +88,12 @@ return page.data.map((r) => ({ id: r.id, name: r.name, start: r.start_at + "Z", 
 ## Scripts
 
 For a job without a model, such as a cron job: `opencode api post /api/rpc/plaud.recordings.tools/<method>`, where the
-methods are the five reads, `recent`, `export` and `describe`. The body is
+methods are the five reads, `recent`, `events_list`, `probe` and `describe`. The body is
 `{"input":{"sessionID":"<session>","account":"work","input":<the tool's input>}}`, with `account` optional. The
 script runs as the session's agent, under its rules, and an ask is refused. So a script, or a test of one, uses a
 session created for it: `opencode api post /api/session -d '{"title":"<job>","agent":"build"}'`, keeping `data.id`.
 Never borrow a session found through history or a list, which would run as its agent. A script gets the five reads,
-`recent` and `export`, and no signed link.
+`recent` and `events_list`, plus the method `probe`; `plaud_export` is not a method, and a script never gets a signed link.
 
 ## Sign-in and errors
 

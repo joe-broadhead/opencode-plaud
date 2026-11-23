@@ -296,8 +296,8 @@ label the probe gave. So:
   last page was read, makes the page answer `gap: { reason: "expired", since }`, once per read: list again from
   `since` to find it. Plaud documents `created_at` only as the creation time; the plugin reads it as when the recording
   reached Plaud. A recording that started before those 7 days is not seen at all;
-- a recording deleted before a listing reaches it is not listed: it no longer exists, so nothing is lost. Once Memory
-  and Jelly read source-contract `v0.2.0`, a recording deleted after it was listed will be announced in `removals[]`.
+- a recording deleted before a listing reaches it is not listed: it no longer exists, so nothing is lost. A recording
+  deleted after it was listed is not announced: the source does not send `removals[]`.
 
 ### The `plaud` source
 

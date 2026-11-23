@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.9] - 2026-11-23
+
+### Changed
+
+- The docs no longer promise source-contract features the plugin does not declare: `plaud.recordings` sends no `removals[]`, so a recording deleted after it was listed is not announced, and it does not declare `permission.readsIdentity`, so a page does not read who is signed in itself. The README and `docs/configuration.md` say so.
+- `docs/jelly.md` names the pinned source contract, v0.3.0.
+- The `opencode-plaud` skill lists the tools RPC methods correctly: the five reads, `recent`, `events_list`, `probe` and `describe`. `plaud_export` is not a method, so a script cannot export, and a script never gets a signed link.
+
+No runtime change: the plugin's behaviour and its source declaration are unchanged.
+
 ## [0.0.8] - 2026-11-20
 
 ### Added

@@ -72,7 +72,7 @@ call unchanged.
 | `PLAUD_UNREADABLE` | Plaud sent something the plugin cannot read. Report it. |
 | `CONTENT_UNAVAILABLE` | No audio yet, or no such transcript block. Offer another block or the note. |
 | `EXPORT_OUTSIDE_ROOTS` | Omit `destination`, or pick a file inside an export root. |
-| `EXPORT_PATH_NOT_PERMITTED` | The export folder is outside the project, so the user's `external_directory` rule decides. Give the rule from the message and let the user add it; don't retry. |
+| `EXPORT_PATH_NOT_PERMITTED` | The export folder is outside the project, and the plugin's `external_directory` assertion for it was refused. Give the rule from the message and let the user add it; don't retry. |
 | `EXPORT_BAD_DESTINATION` | Pass a file path, not a folder or a root, or omit `destination`. |
 | `EXPORT_EXISTS` | Ask the user whether to replace the file or choose another path. |
 | `EXPORT_TOO_LARGE` | Report the size and the limit (`maxAudioBytes`, or 25 MiB for text). Don't split or retry. |

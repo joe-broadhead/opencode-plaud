@@ -62,7 +62,7 @@ function plaudTools(servers = ["plaud", "plaud-work"]): Record<string, Executor>
   )
 }
 
-function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request: unknown) => Promise<void>; settings?: Partial<ToolOptions>; listError?: Error } = {}) {
+function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request: unknown) => Promise<void>; settings?: Partial<ToolOptions>; location?: ToolsHost["location"] } = {}) {
   const executors = options.tools ?? plaudTools()
   const calls: { id: string; args: Record<string, unknown>; signal: AbortSignal }[] = []
   const assert = vi.fn(options.assert ?? (async () => undefined))
@@ -75,9 +75,8 @@ function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request
         callback({ namespace: (value: unknown) => namespaces.push(value), add: (tool: unknown) => added.push(tool) } as never)
         return { dispose: async () => void disposed.push("tools") }
       },
-      list: async () => {
-        if (options.listError) throw options.listError
-        return Object.entries(executors).map(([id, execute]) => ({
+      list: async () =>
+        Object.entries(executors).map(([id, execute]) => ({
           id,
           name: id,
           description: "",
@@ -86,10 +85,10 @@ function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request
             calls.push({ id, args, signal: context.signal })
             return execute(args)
           },
-        })) as never
-      },
+        })) as never,
     },
     permission: { assert },
+    location: options.location ?? { directory: dir, project: { directory: dir } },
   }
   const settings: ToolOptions = {
     accounts: ["work"],
@@ -147,9 +146,32 @@ describe("registration", () => {
 })
 
 describe("one-step export", () => {
+  it("asserts external_directory for a folder outside the project before plaud_export", async () => {
+    const project = join(dir, "project")
+    const requests: Record<string, unknown>[] = []
+    const { run } = await exporter({
+      location: { directory: project, project: { directory: project } },
+      assert: async (request) => void requests.push(request as Record<string, unknown>),
+    })
+    await run({ recordingId: "rec-1", kind: "note" })
+    expect(requests.map((request) => request["action"])).toEqual(["external_directory", "plaud_export"])
+    expect(requests[0]).toMatchObject({
+      action: "external_directory",
+      resources: [join(roots[0]!, "note", "*")],
+      save: [],
+      metadata: { input: { paths: [join(roots[0]!, "note")] } },
+    })
+  })
+
   it("turns an external_directory refusal into EXPORT_PATH_NOT_PERMITTED with the rule as the next step", async () => {
-    const { run } = await exporter({ listError: new Error("permission.rejected: external_directory") })
-    await expect(run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^EXPORT_PATH_NOT_PERMITTED: .*external_directory/)
+    const project = join(dir, "project")
+    const { run } = await exporter({
+      location: { directory: project, project: { directory: project } },
+      assert: async (request) => {
+        if ((request as { action?: string }).action === "external_directory") throw new Error("Permission denied: external_directory")
+      },
+    })
+    await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(/^EXPORT_PATH_NOT_PERMITTED: .*external_directory/)
   })
 
   it("exports audio after one permission assertion, into folders it creates", async () => {

@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto"
 import { link, lstat, mkdir, open, realpath, rename, unlink } from "node:fs/promises"
-import { basename, dirname, join, relative, resolve, sep } from "node:path"
+import { basename, dirname, join, parse, relative, resolve, sep } from "node:path"
 import { signInStep } from "../../domain/auth.js"
 import { onThisMachine, secureUrl } from "../../domain/config.js"
 import { ExportOutput, exportInput, type ExportRequest, type ExportResult } from "../../domain/contract/index.js"
@@ -29,9 +29,18 @@ const MAX_TRANSCRIPT_PAGES = 1_000
 /** Filesystems without hard links; publication then checks and renames. */
 const NO_HARD_LINKS = new Set(["EPERM", "ENOTSUP", "EOPNOTSUPP", "ENOSYS"])
 
+export type ExportLocation = { readonly directory: string; readonly project: { readonly directory: string } }
+
 export interface ExportHost {
   readonly tool: Pick<PluginContext["tool"], "list">
   readonly permission: Pick<PluginContext["permission"], "assert">
+  readonly location: ExportLocation
+}
+
+/** True when a folder is outside the session's directory and the project's directory. */
+function outsideProject(location: ExportLocation, path: string): boolean {
+  const project = location.project.directory
+  return !underRoot(path, location.directory) && (project === parse(project).root || !underRoot(path, project))
 }
 
 type Read = (tool: string, args: Record<string, unknown>) => Promise<unknown>
@@ -64,6 +73,32 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
       const root = roots[0]
       const destination = request.destination === undefined ? undefined : resolve(request.destination)
       if (destination !== undefined) containingRoot(destination, roots)
+
+      // The host does not check a plugin's own writes: the export asks for `external_directory` itself when the
+      // target folder is outside the session and the project, as `@opencode/plugin-browser` does before a transfer.
+      const target = destination === undefined ? join(root, kind) : dirname(destination)
+      if (outsideProject(host.location, target)) {
+        try {
+          await host.permission.assert({
+            sessionID: context.sessionID,
+            agent: context.agent,
+            source: { type: "tool", messageID: context.messageID, id: context.id },
+            metadata: { input: { paths: [target] } },
+            action: "external_directory",
+            resources: [join(target, "*").replaceAll("\\", "/")],
+            save: [],
+          })
+        } catch (error) {
+          if (error instanceof Error && /external_directory/i.test(error.message)) {
+            fail(
+              "EXPORT_PATH_NOT_PERMITTED",
+              `The export folder is outside the project, so the plugin asked for the external_directory rule and it was refused: ${target}. A rule denied it, or the person rejected the prompt.`,
+              `Allow it with { "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" } in your permissions, or set exportRoots inside the project.`,
+            )
+          }
+          throw error
+        }
+      }
 
       // Rethrown untouched: the host turns a decline into the end of the step.
       const resource = `${account}:${kind}`
@@ -109,13 +144,6 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
         if (bytes.byteLength > MAX_TEXT_BYTES) fail("EXPORT_TOO_LARGE", `The ${kind} is ${bytes.byteLength} bytes, over the 25 MiB limit for a text export.`, "Export the outline block or the note instead, which are shorter.")
         return { output: await publish(path, overwrite, (write) => write(bytes)) }
       } catch (error) {
-        if (error instanceof Error && /external_directory/i.test(error.message)) {
-          fail(
-            "EXPORT_PATH_NOT_PERMITTED",
-            `OpenCode refused the export folder outside the project (${roots.join(", ")}). A rule refused it, or the person rejected the prompt.`,
-            `Allow it with { "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" } in your permissions, or set exportRoots inside the project.`,
-          )
-        }
         if (timeout.aborted) fail("EXPORT_TIMEOUT", `The export did not finish within exportTimeoutMs (${settings.exportTimeoutMs} ms).`, "Ask the user to raise the exportTimeoutMs plugin option, or retry on a faster connection.")
         if (error instanceof PlaudError || context.signal.aborted || !isSystemError(error)) throw error
         fail("EXPORT_FAILED", `Writing the export failed (${error.code}).`, "Check the free disk space and the export folder's permissions, then retry.")

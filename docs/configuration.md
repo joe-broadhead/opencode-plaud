@@ -122,7 +122,7 @@ So, in each case:
 - `plaud_export` asks at `"ask-changes"` and is denied at `"read-only"`;
 - any other tool on a Plaud server follows the same rule, so `"all"` runs a tool Plaud adds later, and `"read-only"` denies it.
 
-All values still leave the host's own path rules in place: an export writes outside the project, so OpenCode also checks `external_directory` on the export folder, as well as the export's own action. A refusal that names `external_directory` costs nothing, since nothing was read or written; allow it with `{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }`, or move the folder inside the project with `exportRoots`.
+An export writes outside the project, so the plugin asserts `external_directory` for the target folder before it writes, as well as asserting `plaud_export`. A refusal costs nothing, since nothing was read or written; allow it with `{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }`, or move the folder inside the project with `exportRoots`.
 
 OpenCode uses the last rule that matches. Everything after the base allow comes later and wins over these rules:
 
@@ -178,7 +178,7 @@ When a prompt offers "Always allow", OpenCode saves the approval for the whole p
 
 ### Runs that cannot ask
 
-`opencode run` and other unattended runs cannot answer a prompt. There, a tool whose rule asks, or the export folder's `external_directory` rule, fails with `Permission … needs approval` unless a rule allows it. At the default `"all"` nothing in the plugin asks.
+`opencode run` and other unattended runs cannot answer a prompt. There, a tool whose rule asks, or the plugin's `external_directory` assertion for an export folder outside the project, fails with `Permission … needs approval` unless a rule allows it. At the default `"all"` nothing in the plugin asks.
 
 ### Agents defined in your config
 
@@ -220,7 +220,7 @@ Do not add the default rules to the top-level `permissions`. Top-level rules com
 
 `plaud_events_list` (`tools.plaud.events_list` in Code Mode, and the tools RPC method `events_list`) is Plaud's side of
 the source contract, [`@we-the-rebel-alliance/source-contract`](https://github.com/we-the-rebel-alliance/source-contract)
-`v0.3.0`. It lists one account's recordings since a cursor, as normalised events, oldest first. It only reads, never
+pinned to the commit in `package-lock.json` (the old `v0.3.0` tag no longer resolves after the transfer). It lists one account's recordings since a cursor, as normalised events, oldest first. It only reads, never
 asks and calls no model, so a consumer can run it unattended. It serves the declared source `plaud.recordings`
 (package.json's `sources`), and no other.
 
@@ -323,7 +323,7 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | `PLAUD_UNREADABLE` | export, recent, events list | Plaud returned something the plugin cannot use, such as an audio link that is not a valid https URL, an audio download that redirects to one or more than 5 times, a transcript that never ends, or a recording list that is not a list. |
 | `CONTENT_UNAVAILABLE` | export | The recording has no audio yet, or no such transcript block. |
 | `EXPORT_OUTSIDE_ROOTS` | export | The destination is outside the export roots. |
-| `EXPORT_PATH_NOT_PERMITTED` | export | The export folder is outside the project and the `external_directory` rule refused the write. |
+| `EXPORT_PATH_NOT_PERMITTED` | export | The export folder is outside the project and the plugin's `external_directory` assertion for it was refused. |
 | `EXPORT_BAD_DESTINATION` | export | The destination is a folder or a root, or the recording id cannot be a file name. |
 | `EXPORT_EXISTS` | export | A file exists and `overwrite` is not true. |
 | `EXPORT_TOO_LARGE` | export | The audio is over `maxAudioBytes`, or a transcript or note is over 25 MiB. |

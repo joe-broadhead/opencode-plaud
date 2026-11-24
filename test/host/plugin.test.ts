@@ -21,6 +21,8 @@ import { PLUGIN_ID, REPO, startHost, type Harness, type Rule } from "./harness.j
 /** The block for the three servers at this suite's access value, broad first: the last matching rule wins. */
 const BLOCK: Rule[] = defaultRules(["plaud", "plaud-work", "plaud-team"], "ask-changes")
 const USER_RULES: Rule[] = [
+  // The export asks for this rule itself when its folder is outside the project; the suite allows it by default.
+  { action: "external_directory", resource: "*", effect: "allow" },
   { action: "plaud_export", resource: "default:transcript", effect: "allow" },
   { action: "plaud_export", resource: "work:audio", effect: "deny" },
 ]
@@ -281,7 +283,7 @@ describe("tools on the host", () => {
     await host.opencode.permission.reply({ sessionID, requestID: (await host.asked(sessionID)).id, decision: "once" })
     const path = join(host.exportRoot, "audio", "rec-1.mp3")
     expect(await approved).toEqual({ ok: true, result: { output: { path, bytes: AUDIO_BYTES, sha256: sha256(path) } } })
-    expect(files(host.exportRoot)).toEqual([path])
+    expect(files(host.exportRoot)).toContain(path)
     expect([mode(path), mode(join(host.exportRoot, "audio"))]).toEqual([0o600, 0o700])
     expect(host.fake.downloads).toHaveLength(before + 1)
     // "once" is not remembered.
@@ -311,6 +313,46 @@ describe("tools on the host", () => {
 
     const second = await host.call(await host.session(), "plaud_export", { account: "team", recordingId: "rec-1", kind: "note", overwrite: true })
     expect(second).toMatchObject({ ok: true })
+  })
+
+  it("refuses an export whose external_directory rule denies the folder, writing nothing", async () => {
+    const sessionID = (
+      await host.opencode.sessions.create({
+        agent: "build",
+        location: host.location,
+        permissions: [
+          { action: "external_directory", resource: join(host.exportRoot, "audio", "*"), effect: "deny" },
+          { action: "plaud_export", resource: "*", effect: "allow" },
+        ],
+      })
+    ).id
+    const before = files(host.exportRoot)
+    const result = await host.call(sessionID, "plaud_export", { recordingId: "rec-1", kind: "audio" })
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("EXPORT_PATH_NOT_PERMITTED") })
+    expect(files(host.exportRoot)).toEqual(before)
+    expect(await host.pending(sessionID)).toBe(0)
+  })
+
+  it("asks external_directory first, with the folder glob and no save, then exports once", async () => {
+    const sessionID = (
+      await host.opencode.sessions.create({
+        agent: "build",
+        location: host.location,
+        permissions: [
+          { action: "external_directory", resource: join(host.exportRoot, "audio", "*"), effect: "ask" },
+          { action: "plaud_export", resource: "*", effect: "allow" },
+        ],
+      })
+    ).id
+    const running = host.call(sessionID, "plaud_export", { recordingId: "rec-1", kind: "audio", overwrite: true })
+    const asked = await host.asked(sessionID)
+    expect(asked.action).toBe("external_directory")
+    expect(asked.resources).toEqual([join(host.exportRoot, "audio", "*")])
+    expect(asked.save ?? []).toEqual([])
+    await host.opencode.permission.reply({ sessionID, requestID: asked.id, decision: "once" })
+    const path = join(host.exportRoot, "audio", "rec-1.mp3")
+    expect(await running).toEqual({ ok: true, result: { output: { path, bytes: AUDIO_BYTES, sha256: sha256(path) } } })
+    expect(files(host.exportRoot)).toContain(path)
   })
 
   it("is blocked without a prompt by the user's deny", async () => {

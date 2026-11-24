@@ -81,7 +81,7 @@ OpenCode creates agents defined only in the user's config after plugins run, so 
 ## Events list
 
 `plaud_events_list` (`src/host/tools/events.ts`) is Plaud's side of the source contract,
-`@we-the-rebel-alliance/source-contract` `v0.3.0`, pinned as a dev dependency and bundled into `dist/index.js`: its
+`@we-the-rebel-alliance/source-contract`, pinned to the commit in `package-lock.json` (the old `v0.3.0` tag no longer resolves after the transfer) as a dev dependency and bundled into `dist/index.js`: its
 `events` module builds the page and the events and screens them for secrets, and its `cursor` module encodes the
 cursors. `package.json`'s `sources` declares `plaud.recordings` (input `source: "recordings"`) and the list snapshot `plaud.recordings.list`. The events source asserts
 `plaud_events_list` with the account as resource and save, then reads through the host's executors for the account's

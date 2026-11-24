@@ -2,7 +2,7 @@ import { DEFAULT_ACCOUNT } from "../../domain/config.js"
 import type { PluginConfig } from "../../domain/types.js"
 import type { PluginContext, Registration } from "../context.js"
 import { eventsTool, type Owners } from "./events.js"
-import { exportTool } from "./export.js"
+import { exportTool, type ExportLocation } from "./export.js"
 import { recentTool } from "./recent.js"
 
 /**
@@ -24,6 +24,7 @@ export type ToolOptions = Pick<
 export type ToolsHost = {
   readonly tool: Pick<PluginContext["tool"], "transform" | "list">
   readonly permission: Pick<PluginContext["permission"], "assert">
+  readonly location: ExportLocation
 }
 
 /** `kept` is the plugin's record of each account's owner, which probe sets and the recordings source's pages name. */

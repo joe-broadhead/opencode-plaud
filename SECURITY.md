@@ -48,7 +48,7 @@ export folder, without asking. It can also run a tool Plaud adds later. Nothing 
 recording, because Plaud's server offers no such tool; the plugin's own tools are reads and the export.
 
 The export is the one tool that writes to disk, and it writes only inside `exportRoots` (`~/Plaud` by default). Those
-folders are outside the project, so OpenCode also checks `external_directory` on the folder, as well as `plaud_export`,
+folders are outside the project, so the plugin asserts `external_directory` for the target folder, as well as `plaud_export`,
 before anything is written. A rule for one does not cover the other, and an agent whose base rule allows everything is not asked:
 
 ```json

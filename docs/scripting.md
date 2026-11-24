@@ -50,7 +50,7 @@ The plugin's default rules allow every method, at the default `access: "all"`, s
 `events_list` or `probe` unless the `access` option or the session's rules restrict it. An `ask` is refused here.
 `plaud_export` is not among the methods: a script never runs it, whatever the rules say.
 
-The model's export writes a file outside the project, so the plugin asserts `external_directory` for the target folder, as well as
+When the model's export target is outside the project, the plugin asserts `external_directory` for the folder, as well as
 `plaud_export`, before anything is written. That check is not a script method. The rule a person adds for the model is:
 
 ```json

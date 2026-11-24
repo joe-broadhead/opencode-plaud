@@ -194,7 +194,7 @@ The block for each value, for the default account's `plaud` server, generated fr
 
 "Always allow" on an export remembers only that account and kind, such as `default:transcript`. Your own `permissions` rules win over the defaults.
 
-An export writes into an export folder outside the project, so before it writes the plugin asserts `external_directory` for the target folder, as well as `plaud_export`. A rule for `plaud_export` alone does not cover an unattended run:
+When an export folder is outside the project, the plugin asserts `external_directory` for the target folder before it writes, as well as `plaud_export`. A rule for `plaud_export` alone does not cover an unattended run:
 
 ```json
 { "permissions": [{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }] }

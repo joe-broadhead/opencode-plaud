@@ -122,7 +122,7 @@ So, in each case:
 - `plaud_export` asks at `"ask-changes"` and is denied at `"read-only"`;
 - any other tool on a Plaud server follows the same rule, so `"all"` runs a tool Plaud adds later, and `"read-only"` denies it.
 
-An export writes outside the project, so the plugin asserts `external_directory` for the target folder before it writes, as well as asserting `plaud_export`. A refusal costs nothing, since nothing was read or written; allow it with `{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }`, or move the folder inside the project with `exportRoots`.
+When an export folder is outside the project, the plugin asserts `external_directory` for the target folder before it writes, as well as asserting `plaud_export`. A refusal costs nothing, since nothing was read or written; allow it with `{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }`, or move the folder inside the project with `exportRoots`.
 
 OpenCode uses the last rule that matches. Everything after the base allow comes later and wins over these rules:
 

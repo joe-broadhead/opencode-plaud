@@ -5,7 +5,7 @@ import { startHost, type Harness } from "./harness.js"
 /**
  * What a model receives from a direct Plaud tool call. The user's own `plaud`
  * server turns Code Mode off, so its tools are the model's own tools, and a
- * scripted model on the loopback fake (an LM Studio-compatible API) calls them
+ * scripted model on the loopback fake (a local chat-completions API) calls them
  * in a real session turn. Each chat request is what a provider would receive.
  */
 
@@ -15,7 +15,7 @@ beforeAll(async () => {
   host = await startHost({
     config: (fake) => ({
       mcp: { servers: { plaud: { type: "remote", url: fake.url, codemode: false } } },
-      // No model leaves the machine: LM Studio's local API is the fake; the other local providers are off.
+      // No model leaves the machine: a local chat-completions API is the fake; the other local providers are off.
       providers: { lmstudio: { settings: { baseURL: `${fake.origin}/v1` } }, ollama: { settings: { baseURL: "" } }, vllm: { settings: { baseURL: "" } } },
     }),
   })

@@ -355,6 +355,32 @@ describe("tools on the host", () => {
     expect(files(host.exportRoot)).toContain(path)
   })
 
+  it.each(["all", "read-only"] as const)("proves the export at access %s on the real host", async (access) => {
+    const target = await startHost({
+      options: { access },
+      config: { permissions: [{ action: "external_directory", resource: "*", effect: "allow" }] },
+    })
+    try {
+      await target.until("the Plaud tools", async () => {
+        const ids = (await target.tools()).map((tool) => tool.id)
+        return ids.includes("plaud_get_note") ? ids : undefined
+      })
+      const sessionID = await target.session()
+      const path = join(target.exportRoot, "note", "rec-1.md")
+      const result = await target.call(sessionID, "plaud_export", { recordingId: "rec-1", kind: "note" })
+      if (access === "all") {
+        expect(result).toMatchObject({ ok: true, result: { output: { path } } })
+        expect(existsSync(path)).toBe(true)
+      } else {
+        expect(result).toMatchObject({ ok: false, error: expect.stringContaining("Permission denied: plaud_export") })
+        expect(existsSync(path)).toBe(false)
+      }
+      expect(await target.pending(sessionID)).toBe(0)
+    } finally {
+      await target.close()
+    }
+  })
+
   it("is blocked without a prompt by the user's deny", async () => {
     const sessionID = await host.session()
     expect(await host.call(sessionID, "plaud_export", { account: "work", recordingId: "rec-1", kind: "audio" })).toEqual({

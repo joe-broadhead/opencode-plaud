@@ -1,6 +1,6 @@
 # Architecture
 
-The plugin is a thin layer over Plaud's hosted MCP server. OpenCode hosts the server, signs in and runs Plaud's read tools. The plugin adds the server definitions, default permission rules, an export tool, a read of the newest recordings, a hook that withholds the signed links, a status view, and a tools RPC for scripts.
+The plugin is a thin layer over Plaud's hosted MCP server. OpenCode hosts the server, signs in and runs Plaud's read tools. The plugin adds the server definitions, default permission rules, an export tool, a read of the newest recordings, the source contract's events listing and probe, a status view, and a tools RPC for scripts.
 
 ```text
 OpenCode 2.4.1 server
@@ -10,8 +10,7 @@ OpenCode 2.4.1 server
  │                         and marked "Sign in required" while its account needs a new sign-in
  ├─ Plaud's tools          plaud_list_files, plaud_get_file, plaud_get_note, plaud_get_transcript, plaud_get_current_user (and plaud-<alias>_*)
  ├─ ctx.agent.transform    default rules right after each agent's base allow
- ├─ ctx.tool.transform     plaud_export and plaud_recent, in the Code Mode namespace "plaud", whose description steers reads and export
- ├─ ctx.tool.hook          "execute.after": withholds presigned_url and data_link in plaud*_* results
+ ├─ ctx.tool.transform     plaud_export, plaud_recent and plaud_events_list, in the Code Mode namespace "plaud", whose description steers reads and export
  ├─ ctx.command.transform  /plaud-status
  ├─ ctx.skill.transform    opencode-plaud, opencode-plaud-export, opencode-plaud-digest
  ├─ ctx.rpc.register       RPC "plaud.recordings": status
@@ -42,7 +41,7 @@ The skills are read from the package's `skills/` folder at setup. OpenCode provi
 2. Check the OpenCode version against `>=2.4.1 <2.5.0` (`src/version.ts`). Outside it, setup stops with `HOST_UNTESTED`, unless `allowUntestedHost` is set. A release inside it that is not in `TESTED_HOSTS` (the one list of tested releases, which the tests and CI read) starts with a warning.
 3. Register one MCP server per account (`src/host/mcp.ts`), and name each one's `/connect` entry (`src/host/integration.ts`).
 4. Insert the default permission rules (`src/host/permissions.ts`).
-5. Add `plaud_export`, `plaud_recent` and the signed-link hook (`src/host/tools/`).
+5. Add `plaud_export`, `plaud_recent` and `plaud_events_list` (`src/host/tools/`).
 6. Add `/plaud-status` (`src/host/commands.ts`), the skills (`src/host/skills.ts`) and the status RPC (`src/host/rpc.ts`).
 7. Add the tools RPC for scripts (`src/host/tools-rpc.ts`).
 
@@ -115,13 +114,11 @@ once.
 
 ## Signed links
 
-Plaud's results carry signed links: `presigned_url` (the audio, valid for about 24 hours) in `get_file`, and `data_link` (a transcript or note) in each item of `get_file`'s `source_list` and `note_list` and in each `get_note` tab. An `execute.after` hook rewrites every result of a tool whose name matches `plaud*_*`, always:
+Plaud's results carry signed links: `presigned_url` (the audio, valid for about 24 hours) in `get_file`, and `data_link` (a transcript or note) in each item of `get_file`'s `source_list` and `note_list` and in each `get_note` tab.
 
-- in structured output, every `presigned_url` field with a value, at any depth, becomes `withheld: use plaud_export to download the audio`, and every `data_link` becomes `withheld: use plaud_export to save the transcript or note`;
-- in text, including text `output`, which Code Mode programs receive, JSON is rewritten field by field, also inside Plaud's untrusted-data envelope, which stays in place; other text that names either field loses every URL;
-- in the error text of a failed call, every URL is withheld. The hook rebuilds the error with its own class, cause and metadata, and leaves an error with no URL as it is, so a declined prompt still reaches OpenCode unchanged.
+The plugin has no tool hook. Plaud's own read tools, which the model calls directly or in Code Mode, pass Plaud's results through unchanged, links included; treat those links as credentials and prefer `plaud_export` for audio. The plugin's own tools (`plaud_recent`, `plaud_events_list`, `plaud_export`) return no link at all. The tools RPC for scripts withholds every one in a script's result with `withholdSignedLinksInOutput` and `withholdSignedLinksInText` in `src/domain/redact.ts`, in `shapeResult`.
 
-The hook runs on OpenCode's own tool path, for direct and Code Mode calls. Raw executors from `ctx.tool.list()`, such as the export's own reads and the tools RPC's calls, skip host hooks. The tools RPC therefore withholds the links itself, with the same functions (`withholdSignedLinksInOutput` and `withholdSignedLinksInText` in `src/domain/redact.ts`).
+The export reads Plaud's results itself through raw executors from `ctx.tool.list()`, fetches the audio link plugin-side, writes the file, and never returns or logs a link.
 
 ## Scripts
 

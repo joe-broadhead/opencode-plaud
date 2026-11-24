@@ -14,16 +14,18 @@ The plugin is plain JavaScript. It bundles no Node runtime or Plaud software, do
 
 ## Install
 
+Install from a release:
+
 ```sh
-opencode plugin add github:we-the-rebel-alliance/plaud-plugin#master
+opencode plugin add github:we-the-rebel-alliance/plaud-plugin#v<version>
 ```
 
-Run `opencode reload`, or restart OpenCode. Then run `/plaud-status`: it shows `sign-in required` until you sign in.
+The first release on plugin-contract is `v0.0.0` (phase 4b). Run `opencode reload`, or restart OpenCode. Then run `/plaud-status`: it shows `sign-in required` until you sign in.
 
 Or add the plugin to `opencode.json` instead, with the same spec:
 
 ```json
-{ "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#master" }] }
+{ "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v<version>" }] }
 ```
 
 A Git install does not update by itself; add the tag of a later release to move to it.
@@ -54,7 +56,7 @@ Ask about your recordings, for example "what did I record this week?" or "save t
 | `plaud_get_file` | `tools.plaud.get_file` | One recording in full: 150 to 320 KB, mostly the raw transcript and the notes again. The skill and Code Mode's description steer the model away from it, to the notes, the transcript, or `plaud_export` for audio | runs |
 | `plaud_get_current_user` | `tools.plaud.get_current_user` | The signed-in account | runs |
 | `plaud_recent` | `tools.plaud.recent` | The newest recordings, one line each: title, start time and length | runs |
-| `plaud_events_list` | `tools.plaud.events_list` | For Memory and other consumers of the source contract, and scripts: one account's recordings since a cursor, as normalised events, oldest first | runs |
+| `plaud_events_list` | `tools.plaud.events_list` | For a collector and other consumers of the source contract, and scripts: one account's recordings since a cursor, as normalised events, oldest first | runs |
 | `plaud_export` | `tools.plaud.export` | Save audio, a transcript or a note as a file | runs, unless `access` asks |
 
 Plaud maintains the read tools and their arguments. Plaud has no write API: nothing here can create, rename, delete, upload, share or send a recording. Any other tool on a Plaud server runs too; set `access` to `"ask-changes"` or `"read-only"` to hold it back.
@@ -79,7 +81,7 @@ With `access` at `"ask-changes"`, `plaud_export` asks each time, and shows the a
 ### Privacy
 
 - OpenCode connects to Plaud's server and sends it your tool calls. What the model reads, such as transcripts and notes, goes to your model provider like any other tool result.
-- Plaud's results carry signed links: `presigned_url` to a recording's audio, and `data_link` to each transcript and note. The plugin replaces every one in every Plaud tool result with a notice that points to `plaud_export`, always. `plaud_export` reads the results itself, fetches the audio link plugin-side, and never returns or logs a link.
+- Plaud's own read results carry signed links: `presigned_url` to a recording's audio, and `data_link` to each transcript and note. They are credentials, so treat them as sensitive and prefer `plaud_export` for audio. The plugin's own tools (`plaud_recent`, `plaud_events_list`, `plaud_export`) never return a signed link; `plaud_export` reads Plaud's link itself, fetches the audio plugin-side, and never returns or logs a link. The tools RPC for scripts withholds every link.
 - The plugin's only own network request is an export's audio download, from the signed link Plaud returns straight to your export folder.
 - The plugin stores nothing and collects no telemetry.
 - Recordings are untrusted data. Plaud's server returns each result inside untrusted-data tags, and the model sees the tags. The skills tell it to treat such text as content, never as instructions.
@@ -88,7 +90,7 @@ See [SECURITY.md](https://github.com/we-the-rebel-alliance/plaud-plugin/blob/mas
 
 ### Scripts
 
-A script or an OpenCode automation can call Plaud's five read tools, `plaud_recent` and `plaud_events_list` with no model, through `opencode api`. It runs as a session and its agent, under that agent's permission rules and the session's own. Every tool is allowed by default, so a script runs a read, `recent` or `events_list` unless you restrict the plugin: an `ask` is refused when nobody can answer it, and a saved "Always allow" is not enough. Add `"account": "<alias>"` to read another account. A consumer of the source contract, such as Memory, reads the declared source `plaud.recordings` through `events_list` and the method `probe` ([Events list](https://github.com/we-the-rebel-alliance/plaud-plugin/blob/master/docs/configuration.md#events-list)). Exports and every other Plaud tool are never available to scripts, and a script never gets a signed link:
+A script or an OpenCode automation can call Plaud's five read tools, `plaud_recent` and `plaud_events_list` with no model, through `opencode api`. It runs as a session and its agent, under that agent's permission rules and the session's own. Every tool is allowed by default, so a script runs a read, `recent` or `events_list` unless you restrict the plugin: an `ask` is refused when nobody can answer it, and a saved "Always allow" is not enough. Add `"account": "<alias>"` to read another account. A consumer of the source contract, such as a collector, reads the declared source `plaud.recordings` through `events_list` and the method `probe` ([Events list](https://github.com/we-the-rebel-alliance/plaud-plugin/blob/master/docs/configuration.md#events-list)). Exports and every other Plaud tool are never available to scripts, and a script never gets a signed link:
 
 ```sh
 opencode api post /api/rpc/plaud.recordings.tools/list_files -H "x-opencode-directory:$PWD" \
@@ -110,7 +112,7 @@ See [Scripting](https://github.com/we-the-rebel-alliance/plaud-plugin/blob/maste
    | `"read-only"` | the reads and `plaud_recent` | nothing: exports and new tools are **denied** |
 
    ```json
-   { "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#master", "options": { "access": "read-only" } }] }
+   { "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v<version>", "options": { "access": "read-only" } }] }
    ```
 
 2. **An agent that is read-only or asks**, with rules of its own, later than the plugin's:
@@ -205,7 +207,7 @@ An export writes into an export folder, which is outside the project, so OpenCod
 `accounts` adds another Plaud account under an alias. Each account has its own server, `plaud-<alias>`, and signs in on its own:
 
 ```json
-{ "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#master", "options": { "accounts": ["work"] } }] }
+{ "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v<version>", "options": { "accounts": ["work"] } }] }
 ```
 
 Sign in to `plaud-work` from `/connect` as **Plaud (work)**, or run `opencode mcp auth plaud-work`. Pass `"account": "work"` to a tool to use it.
@@ -218,7 +220,7 @@ To move an export to another folder:
 
 ```json
 {
-  "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#master", "options": { "exportRoots": ["~/Documents/Plaud"] } }]
+  "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v<version>", "options": { "exportRoots": ["~/Documents/Plaud"] } }]
 }
 ```
 
@@ -268,7 +270,15 @@ Errors from the plugin read `CODE: what happened. Next step: What to do.` Every 
 - If an export is refused with `EXPORT_PATH_NOT_PERMITTED`, allow the `external_directory` rule above, or move the export folder inside the project.
 - To start over with one account, run `opencode mcp logout plaud`, then `/connect` and choose Plaud.
 
-To remove the plugin, run `opencode plugin remove github:we-the-rebel-alliance/plaud-plugin#master`, then `opencode reload`.
+## Uninstall
+
+Sign out while the plugin is still installed: once it is removed, OpenCode no longer knows the `plaud` and `plaud-<alias>` servers, so it cannot remove their sign-ins, and `opencode auth list` stops showing them.
+
+1. Sign out of each account: `opencode mcp logout plaud`, and `opencode mcp logout plaud-<alias>` for each account in `accounts`. If one answers `MCP server not found` while the plugin is still installed, OpenCode is still loading the plugin for that folder: wait a few seconds and run it again.
+2. Check: `opencode auth list` lists no **Plaud** entry.
+3. Remove the plugin: `opencode plugin remove github:we-the-rebel-alliance/plaud-plugin#v<version>`, then `opencode reload`.
+4. Your exports stay in your export roots (`~/Plaud` by default); delete them if you no longer want them. The plugin keeps no other data.
+5. Remove any Plaud rules you copied into your agents' own `permissions`.
 
 ## Docs
 

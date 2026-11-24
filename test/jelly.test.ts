@@ -7,13 +7,12 @@ import { type Declaration, type DeclaredTool, declarationProblems, readPackage }
 import { ACCESS_CHOICES, type PluginSetting, settingChoices, settingsProblems, settingValueIssue } from "./support/jelly-settings.js"
 
 /**
- * The `jelly` section of package.json, which Jelly reads without loading the
- * plugin: it must say what the plugin does. Jelly writes each declared "ask"
- * as that tool's default on its agents (its agents have no base allow rule,
- * so the plugin's default rules never reach them), and offers a feed only a
- * declared read-only tool. The shared kit checks the declaration against
- * Jelly's plugin authors' standard; the tests below add what only Plaud
- * declares.
+ * The `jelly` section of package.json, which the engine reads without loading
+ * the plugin: it must say what the plugin does. The engine writes each declared
+ * "ask" as that tool's default on its agents (its agents have no base allow
+ * rule, so the plugin's default rules never reach them), and offers a feed only
+ * a declared read-only tool. The shared kit checks the declaration against the
+ * plugin authors' standard; the tests below add what only Plaud declares.
  */
 
 const ROOT = new URL("../", import.meta.url)
@@ -30,7 +29,7 @@ describe("the jelly declaration", () => {
   const setting = (key: string) => settings.find((item) => item.key === key)!
   const refused = (options: Record<string, unknown>) => () => loadConfig(options)
 
-  it("declares access with Jelly's three choices and the two export limits as bounded numbers, each default the parser's", () => {
+  it("declares access with the declaration's three choices and the two export limits as bounded numbers, each default the parser's", () => {
     expect(settings).toEqual([
       {
         key: "access",
@@ -65,7 +64,7 @@ describe("the jelly declaration", () => {
     for (const item of settings) expect([item.key, item.default]).toEqual([item.key, defaults[item.key as keyof typeof defaults]])
   })
 
-  it("passes Jelly's setting contract", () => {
+  it("passes the declaration's setting contract", () => {
     expect(settingsProblems(settings)).toEqual([])
   })
 
@@ -127,7 +126,7 @@ describe("the jelly declaration", () => {
 
 describe("the declared accounts", () => {
   const [signIn] = (jelly as unknown as { signIns: { id: string; server: string; account?: { option: string; required: boolean; reserved: string[]; placeholder: string } }[] }).signIns
-  it("name the accounts option, which an account Jelly adds there parses as, and keep the default account's name", () => {
+  it("name the accounts option, which an account the engine adds there parses as, and keep the default account's name", () => {
     expect(signIn?.server).toBe("plaud*")
     expect(signIn?.account).toMatchObject({ option: "accounts", required: false, reserved: [DEFAULT_ACCOUNT] })
     const placeholder = signIn?.account?.placeholder ?? ""
@@ -136,7 +135,7 @@ describe("the declared accounts", () => {
   })
 
   /**
-   * Another account's server is `plaud-<alias>`, so the engine names its tools `plaud-<alias>_<tool>`. Jelly matches a
+   * Another account's server is `plaud-<alias>`, so the engine names its tools `plaud-<alias>_<tool>`. The engine matches a
    * declared name with one `*` (a non-empty run of `[A-Za-z0-9._-]`) against the engine's form of the name, inside the
    * plugin's namespaces (the `plaud*` sign-in puts every account there), and writes the tool's access rules and
    * read-only fence at that form too (D205). So each read is declared once more as `plaud-*.<read>`, with the default

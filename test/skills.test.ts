@@ -18,7 +18,7 @@ const IDS = ["opencode-plaud", "opencode-plaud-digest", "opencode-plaud-export"]
 /**
  * Every code plaud_export can fail with; typed, so a new code must be added here and to the skill. INPUT_INVALID is
  * the tools RPC's recent method's only: a tool's input is checked by OpenCode. The EVENTS_ codes and the source contract's
- * (CURSOR_INVALID, ACCOUNT_MISMATCH, SOURCE_UNKNOWN, UNAVAILABLE) are plaud_events_list's and probe's, which Memory's
+ * (CURSOR_INVALID, ACCOUNT_MISMATCH, SOURCE_UNKNOWN, UNAVAILABLE) are plaud_events_list's and probe's, which a
  * collector and other consumers run, not the model, so no skill teaches them.
  */
 const CODES: Record<Exclude<ErrorCode, "INPUT_INVALID" | "EVENTS_OWNER_UNKNOWN" | "CURSOR_INVALID" | "ACCOUNT_MISMATCH" | "SOURCE_UNKNOWN" | "UNAVAILABLE">, true> = {
@@ -131,14 +131,14 @@ describe("skill files", () => {
     const config = JSON.parse(/~~~json\n\s*(\{.*\})\n\s*~~~/.exec(skill)![1]!) as { plugins: { package: string; options: Record<string, unknown> }[] }
     const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { name: string; version: string }
     // A Git install is named by its tag spec: github:<owner>/<name>#v<version>.
-    expect(config.plugins[0]!.package).toBe(`github:${pkg.name.replace(/^@/, "")}#v${pkg.version}`)
+    expect(config.plugins[0]!.package).toBe(`github:${pkg.name.replace(/^@/, "")}#v<version>`)
     expect(loadConfig(config.plugins[0]!.options).exportRoots).toHaveLength(2)
   })
 
   it("contain no internal wording, links or credentials", () => {
     for (const id of IDS) {
       const raw = text(id)
-      // A release tag after "#" (the install spec's #v0.0.0) is public, not an internal label such as V1.
+      // A release tag after "#" (the install spec's #v<version>) is public, not an internal label such as V1.
       expect(raw, id).not.toMatch(/\bWS-[A-Z]\b|\bMode [RF]\b|(?<!#)\bV\d{1,2}\b|\bfake\b|\bmanifest\b|\bplan(?:s|Id)?\b|\bcommit\b|\bharness\b|\bpending\b|\bTODO\b/i)
       expect(raw, id).not.toMatch(/plaud_auth|plaud_recordings|plaud_status|plaud-login|export_commit/)
       expect(raw, id).not.toMatch(/https?:\/\/|\bBearer\s|\beyJ[A-Za-z0-9_-]{8,}|(?:access|refresh)_token|presigned/i)

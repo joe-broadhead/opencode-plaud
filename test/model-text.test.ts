@@ -14,7 +14,7 @@ const read = (path: string) => readFileSync(`${ROOT}${path}`, "utf8")
 const host = { tool: { list: async () => [] }, permission: { assert: async () => undefined } } as never
 const settings = { exportRoots: ["/tmp/plaud"], maxAudioBytes: 1_000_000, exportTimeoutMs: 1_000 }
 
-/** Every sentence the model is given: the namespace, the plugin's own tool descriptions, the skills, the Jelly line. */
+/** Every sentence the model is given: the namespace, the plugin's own tool descriptions, the skills, the declaration line. */
 export function modelTexts(): [string, string][] {
   const jelly = JSON.parse(read("package.json")) as { jelly: { summary: string } }
   return [

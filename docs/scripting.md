@@ -77,9 +77,9 @@ account's name, such as `plaud-work`, the call uses it, as the model does. A scr
 ## Signed links
 
 Plaud's results carry signed links: `presigned_url` to a recording's audio, and `data_link` to each source and note
-item. Anyone who has one can download what it points to until it expires. A script never gets one: the plugin replaces
-each, in the structured output and in the text, with the same notice the model sees. `export` saves audio, a
-transcript or a note without returning a link.
+item. Anyone who has one can download what it points to until it expires. A script never gets one: `shapeResult` replaces
+each, in the structured output and in the text, with a notice. `export` saves audio, a transcript or a note without
+returning a link. Plaud's own reads in a model turn pass the links through; treat them as credentials.
 
 ## A script runs as a session
 
@@ -214,4 +214,4 @@ OpenCode itself answers `rpc.method_not_found` for a method that does not exist,
 - Answer an approval prompt, or use a tool that asks.
 - Use a token: the plugin has none to give.
 
-A script's calls write nothing to the session, and OpenCode's `execute.before` and `execute.after` tool hooks, from any plugin, do not run for them. The plugin applies its own hook's work itself: it withholds the signed links with the same functions.
+A script's calls write nothing to the session, and OpenCode's `execute.before` and `execute.after` tool hooks, from any plugin, do not run for them. The tools RPC's `shapeResult` withholds the signed links itself.

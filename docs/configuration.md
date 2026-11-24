@@ -15,7 +15,7 @@ Give options with the object form of the plugin entry:
 {
   "plugins": [
     {
-      "package": "github:we-the-rebel-alliance/plaud-plugin#v0.0.0",
+      "package": "github:we-the-rebel-alliance/plaud-plugin#v<version>",
       "options": {
         "accounts": ["work"],
         "exportRoots": ["~/Plaud"],
@@ -28,6 +28,8 @@ Give options with the object form of the plugin entry:
   ]
 }
 ```
+
+The package installs from a release: `github:we-the-rebel-alliance/plaud-plugin#v<version>`. The first release on plugin-contract is `v0.0.0` (phase 4b).
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -87,7 +89,7 @@ If your config already defines an MCP server with one of these names in `mcp.ser
 | `"read-only"` | the reads | nothing: exports and new tools are **denied** |
 
 ```json
-{ "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v0.0.0", "options": { "access": "ask-changes" } }] }
+{ "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v<version>", "options": { "access": "ask-changes" } }] }
 ```
 
 `/plaud-status` shows the value and the block it inserts. The default block, for the default account's `plaud` server, generated from `defaultRules(servers, access)` in `src/host/permissions.ts`:

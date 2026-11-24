@@ -33,15 +33,15 @@ It returns `{ path, bytes, sha256 }`, never the content.
    start time and length, and ask which one. Export only after the user answers: if you can't ask, end your answer
    with the question, and never export a guess or every match instead.
 2. **Pick the kind.** Asked to save or download the audio: `kind: "audio"`, at once. The export reads `get_file`
-   itself, so don't call `get_file` first. Asked only for a link: say Plaud's links are withheld and offer to save
-   the audio, and export when they agree. Summary or action items: `kind: "note"`. A transcript: omit `block` for the raw one,
+   itself, so don't call `get_file` first. Asked only for a link: say Plaud's own result can carry a signed link, which is
+   sensitive, and offer to save the audio; export when they agree. Summary or action items: `kind: "note"`. A transcript: omit `block` for the raw one,
    pass `transaction_polish` for "cleaned up", `outline` for "the outline" or topics, `mark_memo` for flagged moments.
 3. **Leave out `destination`** unless the user named a file. `plaud_export`'s description lists the export roots
    (`~/Plaud` by default). For a folder outside them, such as Documents, never copy, move or write the file there
    with another tool, because the roots are the user's limit. Offer the default file, or tell the user how to add
    the folder: in the plugin's entry in `opencode.json`, then `opencode reload`.
    ~~~json
-   { "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v0.0.0", "options": { "exportRoots": ["~/Plaud", "~/Documents"] } }] }
+   { "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v<version>", "options": { "exportRoots": ["~/Plaud", "~/Documents"] } }] }
    ~~~
 4. **Pass `overwrite: true`** only when the user asked to replace that file. The export itself refuses an existing
    file with `EXPORT_EXISTS`, so don't list the folder first.

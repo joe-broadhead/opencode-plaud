@@ -62,15 +62,14 @@ export const PLUGIN_ID = PLAUD_ID
  */
 export const METHODS: readonly MethodSpec[] = PLAUD_READS.map((name): MethodSpec => ({ kind: "mcp", name, class: "read" }))
 
-/** What the model path's `execute.before` hooks do to an MCP call's arguments, which the executor skips. Plaud has none. */
+/** The MCP call's arguments are passed as they are: the plugin adds nothing. */
 export function shapeInput(_method: string, input: unknown, _call: ShapeCall): unknown {
   return input
 }
 
 /**
- * What the model path's `execute.after` hook does to a result, which the executor skips: every signed link
- * (`presigned_url`, `data_link`) is withheld, with the hook's own functions. The plugin's own methods return no link at
- * all: they answer titles, ids, times and owners.
+ * Every signed link (`presigned_url`, `data_link`) is withheld from a script's result, which never gets one. The
+ * plugin's own methods return no link at all: they answer titles, ids, times and owners.
  */
 export function shapeResult(_method: string, result: McpResult, _call: ShapeCall): McpResult {
   const text = withholdSignedLinksInText(result.text)

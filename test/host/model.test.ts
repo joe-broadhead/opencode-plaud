@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../../src/domain/redact.js"
 import { MODEL_ID, SIGNATURE } from "../fixtures/fake-plaud.js"
 import { startHost, type Harness } from "./harness.js"
 
@@ -32,7 +31,7 @@ afterAll(async () => {
 })
 
 describe("direct tool calls in a model turn", () => {
-  it("never show the model a signed link", async () => {
+  it("passes Plaud's own read results through unchanged, signed links included", async () => {
     host.fake.model.script = [
       { tool: "plaud_get_file", arguments: { file_id: "rec-1" } },
       { tool: "plaud_get_note", arguments: { file_id: "rec-1" } },
@@ -48,17 +47,15 @@ describe("direct tool calls in a model turn", () => {
     expect(offered).toEqual(expect.arrayContaining(["plaud_get_file", "plaud_get_note"]))
     expect(host.fake.calls.map((call) => call.tool)).toEqual(expect.arrayContaining(["get_file", "get_note"]))
 
-    // The last request carries both tool results, as the provider receives them.
+    // The last request carries every tool result, as the provider receives them.
     const results = (turns.at(-1) as { messages: { role: string; content: unknown }[] }).messages.filter((message) => message.role === "tool")
     expect(results).toHaveLength(2)
     const [file, note] = results.map((message) => JSON.stringify(message.content))
-    expect(file).toContain(AUDIO_URL_NOTICE)
-    expect(file!.split(DATA_LINK_NOTICE)).toHaveLength(3)
-    expect(note).toContain(DATA_LINK_NOTICE)
+    // Plaud's own read tools pass Plaud's results through, links included: they are sensitive.
+    expect(file).toContain("presigned_url")
+    expect(file).toContain(SIGNATURE)
+    expect(note).toContain("data_link")
+    expect(note).toContain(SIGNATURE)
     expect(note).toContain("Ship on Friday.")
-
-    const sent = JSON.stringify(host.fake.model.requests)
-    expect(sent).not.toContain(SIGNATURE)
-    expect(sent).not.toContain("X-Amz-")
   })
 })

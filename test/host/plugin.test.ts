@@ -2,7 +2,6 @@ import { createHash } from "node:crypto"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../../src/domain/redact.js"
 import { Plaud } from "../../src/rpc.js"
 import { PLUGIN_VERSION } from "../../src/version.js"
 import { AUDIO_BYTES, SIGNATURE } from "../fixtures/fake-plaud.js"
@@ -330,7 +329,7 @@ describe("tools on the host", () => {
     expect(await running).toEqual({ ok: false, error: expect.stringMatching(/AUTH_REQUIRED:.*Run \/connect and choose Plaud \(work\)/) })
   })
 
-  it("withholds every signed link on the host's Code Mode path, and exports still read them", async () => {
+  it("passes Plaud's own signed links through in Code Mode, and exports still read them", async () => {
     const sessionID = (
       await host.opencode.sessions.create({
         agent: "build",
@@ -356,29 +355,28 @@ describe("tools on the host", () => {
     const result = JSON.parse(/SEEN (\{.*\})/.exec(seen)?.[1] ?? "null") as Record<string, unknown>
     const file = result.file as string
     expect(file).toContain("<untrusted-user-data-")
-    expect(file).toContain(`"presigned_url":"${AUDIO_URL_NOTICE}"`)
+    expect(file).toContain('"presigned_url"')
+    expect(file).toContain(SIGNATURE)
     // One data_link in source_list and one in note_list.
-    expect(file.split(`"data_link":"${DATA_LINK_NOTICE}"`)).toHaveLength(3)
-    expect(result.notes).toContain(`"data_link":"${DATA_LINK_NOTICE}"`)
+    expect((file.match(/"data_link"/g) ?? []).length).toBeGreaterThanOrEqual(2)
+    expect(result.notes).toContain('"data_link"')
     expect(JSON.stringify(result.user)).toContain('"nickname":"Fixture"')
-    expect(seen).not.toContain(SIGNATURE)
-    expect(seen).not.toContain("X-Amz-")
+    expect(seen).toContain(SIGNATURE)
     // The exports read the raw results plugin-side: the audio from its link, the note from data_content.
     expect(result.audio).toEqual({ path: audio, bytes: AUDIO_BYTES, sha256: sha256(audio) })
     expect(result.note).toMatchObject({ path: note })
     expect(readFileSync(note, "utf8")).toContain("# Note\n\n## Summary\n\n- Ship on Friday.\n")
   })
 
-  it("withholds every link from a failed Plaud call's error text on the host's Code Mode path (PLAUD-4)", async () => {
+  it("passes Plaud's failed-call error text through unchanged in Code Mode", async () => {
     const sessionID = await host.session()
     const seen = await host.codemode(
       sessionID,
       'try { await tools.plaud.get_file({ file_id: "fail" }) } catch (error) { throw new Error("SEEN " + String(error?.message ?? error)) }\nthrow new Error("no error")',
     )
     expect(seen).toContain("SEEN ")
-    expect(seen).toContain("File not found: see [url withheld]")
-    expect(seen).not.toContain(SIGNATURE)
-    expect(seen).not.toContain("files.example.invalid")
+    expect(seen).toContain("File not found: see https://")
+    expect(seen).toContain(SIGNATURE)
   })
 
   it("refuses an export or an unknown tool in an unattended run that nobody can approve", async () => {

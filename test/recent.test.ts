@@ -56,7 +56,6 @@ async function recent(list: (args: Record<string, unknown>) => unknown, accounts
         callback({ namespace: () => undefined, add: (tool: unknown) => added.push(tool as Tool) } as never)
         return { dispose: async () => undefined }
       },
-      hook: (async () => ({ dispose: async () => undefined })) as ToolsHost["tool"]["hook"],
       list: async () => [executor("plaud_list_files"), ...accounts.map((account) => executor(`plaud-${account}_list_files`))] as never,
     },
     permission: { assert },

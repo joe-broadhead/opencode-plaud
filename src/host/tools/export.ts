@@ -109,6 +109,13 @@ export function exportTool(host: ExportHost, settings: ExportSettings, accounts:
         if (bytes.byteLength > MAX_TEXT_BYTES) fail("EXPORT_TOO_LARGE", `The ${kind} is ${bytes.byteLength} bytes, over the 25 MiB limit for a text export.`, "Export the outline block or the note instead, which are shorter.")
         return { output: await publish(path, overwrite, (write) => write(bytes)) }
       } catch (error) {
+        if (error instanceof Error && /external_directory/i.test(error.message)) {
+          fail(
+            "EXPORT_PATH_NOT_PERMITTED",
+            `OpenCode refused the export folder outside the project (${roots.join(", ")}). A rule refused it, or the person rejected the prompt.`,
+            `Allow it with { "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" } in your permissions, or set exportRoots inside the project.`,
+          )
+        }
         if (timeout.aborted) fail("EXPORT_TIMEOUT", `The export did not finish within exportTimeoutMs (${settings.exportTimeoutMs} ms).`, "Ask the user to raise the exportTimeoutMs plugin option, or retry on a faster connection.")
         if (error instanceof PlaudError || context.signal.aborted || !isSystemError(error)) throw error
         fail("EXPORT_FAILED", `Writing the export failed (${error.code}).`, "Check the free disk space and the export folder's permissions, then retry.")

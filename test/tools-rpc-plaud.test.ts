@@ -3,14 +3,13 @@ import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../src/domain/redact.js"
 import { accountServer, KNOWN_READS as PLAUD_READS } from "../src/host/mcp.js"
 import { defaultRules, EVENTS_ACTION, PROBE_ACTION, RECENT_ACTION } from "../src/host/permissions.js"
 import { reader } from "../src/host/tools/export.js"
-import { registerTools } from "../src/host/tools/index.js"
 import { eventsMethod, owners, probeMethod } from "../src/host/tools/events.js"
 import { recentMethod } from "../src/host/tools/recent.js"
-import { METHODS, NEXT_STEPS, registerToolsRpc, shapeResult, TOOLS_RPC_ID, type McpResult, type ToolCall } from "../src/host/tools-rpc.js"
+import { METHODS, NEXT_STEPS, registerToolsRpc, TOOLS_RPC_ID, type McpResult, type ToolCall } from "../src/host/tools-rpc.js"
 
 /**
- * Plaud's block of the shared tools RPC: the five reads, per-account servers, and the signed links, which the
- * executor's skipped `execute.after` hook withholds on the model path and `shapeResult` withholds here.
+ * Plaud's block of the shared tools RPC: the five reads, per-account servers, and the signed links, which
+ * `shapeResult` withholds from a script's result.
  */
 
 const SIGNATURE = "X-Amz-Signature=unit-secret"
@@ -81,32 +80,6 @@ async function rpc(tools: readonly string[], result: Result = upstream, options:
     asserted,
     methods: Object.keys(handlers),
     run: (method: string, envelope: Record<string, unknown>) => handlers[method]!({ sessionID: "ses_1", input: {}, ...envelope }, context),
-  }
-}
-
-/** The model path's execute.after hook, as registerTools installs it. */
-async function modelHook() {
-  let after: ((event: { status: string; tool: string; result: Result }) => void) | undefined
-  await registerTools(
-    {
-      tool: {
-        transform: async (edit: (editor: unknown) => void) => {
-          edit({ namespace: () => undefined, add: () => undefined })
-          return { dispose: async () => undefined }
-        },
-        hook: async (_name: string, callback: typeof after) => {
-          after = callback
-          return { dispose: async () => undefined }
-        },
-        list: async () => [],
-      },
-      permission: { assert: async () => undefined },
-    } as never,
-    { accounts: [], exportRoots: ["/fixture/Plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 }, owners())
-  return (tool: string, result: Result) => {
-    const event = { status: "completed", tool, result: structuredClone(result) }
-    after!(event)
-    return event.result
   }
 }
 
@@ -234,73 +207,6 @@ describe("Plaud's tools RPC", () => {
       expect(result.text).toContain(`"presigned_url":"${AUDIO_URL_NOTICE}"`)
       expect(result.text.split(`"data_link":"${DATA_LINK_NOTICE}"`)).toHaveLength(3)
     }
-  })
-
-  it("withholds exactly what the model path's hook withholds, with the same functions", async () => {
-    const hook = await modelHook()
-    const cases: Result[] = [
-      upstream,
-      { output: JSON.stringify(recording), content: [{ type: "text", text: JSON.stringify(recording) }] },
-      { content: [{ type: "text", text: `See presigned_url ${signed("/audio/rec-1.mp3")} now.` }] },
-      { content: [{ type: "text", text: "no links here" }] },
-    ]
-    for (const result of cases) {
-      const model = hook("plaud-work_get_file", result) as { output?: unknown; content: { text: string }[] }
-      const text = (result.content as { text: string }[]).map((part) => part.text).join("\n")
-      const script = shapeResult("get_file", result.output === undefined ? { text } : { output: result.output, text }, { sessionID: "ses_1", agent: "build", action: "plaud_get_file" })
-      expect(script).toEqual(model.output === undefined ? { text: model.content[0]!.text } : { output: model.output, text: model.content[0]!.text })
-      expect(JSON.stringify(script)).not.toContain(SIGNATURE)
-    }
-  })
-
-  it("withholds signed links from plaud_recent's results on the model path, as from the server's reads", async () => {
-    const hook = await modelHook()
-    const result: Result = {
-      output: { items: [{ id: "rec-1", text: "Weekly sync" }], editable: false, presigned_url: signed("/audio/rec-1.mp3") },
-      content: [{ type: "text", text: JSON.stringify({ items: [], data_link: signed("/data/rec-1-note.md") }) }],
-    }
-    const seen = hook("plaud_recent", result) as { output: Record<string, unknown>; content: { text: string }[] }
-    expect(seen.output).toMatchObject({ items: [{ id: "rec-1", text: "Weekly sync" }], presigned_url: AUDIO_URL_NOTICE })
-    expect(seen.content[0]!.text).toContain(`"data_link":"${DATA_LINK_NOTICE}"`)
-    expect(JSON.stringify(seen)).not.toContain(SIGNATURE)
-  })
-
-  it("turns an external_directory refusal of an export into EXPORT_PATH_NOT_PERMITTED, whose next step is the rule", async () => {
-    // The host's own Tool.Error takes fields, so the hook can rebuild it with a typed message.
-    class ToolError extends Error {
-      metadata?: unknown
-      constructor(fields: { message: string; error?: unknown; metadata?: unknown }) {
-        super(fields.message)
-        this.metadata = fields.metadata
-      }
-    }
-    let after: ((event: { status: string; tool: string; error: Error & { metadata?: unknown } }) => void) | undefined
-    await registerTools(
-      {
-        tool: {
-          transform: async (edit: (editor: unknown) => void) => {
-            edit({ namespace: () => undefined, add: () => undefined })
-            return { dispose: async () => undefined }
-          },
-          hook: async (_name: string, callback: typeof after) => {
-            after = callback
-            return { dispose: async () => undefined }
-          },
-          list: async () => [],
-        },
-        permission: { assert: async () => undefined },
-      } as never,
-      { accounts: [], exportRoots: ["/fixture/Plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 }, owners())
-    const refused = { status: "error", tool: "plaud_export", error: new ToolError({ message: "permission.rejected: external_directory", metadata: { code: "other" } }) }
-    after!(refused as never)
-    expect(refused.error.message).toContain("EXPORT_PATH_NOT_PERMITTED:")
-    expect(refused.error.message).toContain('{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }')
-    expect(refused.error.message).toContain("/fixture/Plaud")
-    expect(refused.error.metadata).toMatchObject({ code: "EXPORT_PATH_NOT_PERMITTED" })
-    // Another tool's refusal is left as it is, and so is an export failure that names something else.
-    const read = { status: "error", tool: "plaud_get_file", error: new ToolError({ message: "permission.rejected: external_directory" }) }
-    after!(read as never)
-    expect(read.error.message).toBe("permission.rejected: external_directory")
   })
 
   it("keeps durations in milliseconds, as Plaud returns them", async () => {

@@ -62,13 +62,12 @@ function plaudTools(servers = ["plaud", "plaud-work"]): Record<string, Executor>
   )
 }
 
-function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request: unknown) => Promise<void>; settings?: Partial<ToolOptions> } = {}) {
+function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request: unknown) => Promise<void>; settings?: Partial<ToolOptions>; listError?: Error } = {}) {
   const executors = options.tools ?? plaudTools()
   const calls: { id: string; args: Record<string, unknown>; signal: AbortSignal }[] = []
   const assert = vi.fn(options.assert ?? (async () => undefined))
   const added: unknown[] = []
   const namespaces: unknown[] = []
-  const hooks: string[] = []
   const disposed: string[] = []
   const ctx: ToolsHost = {
     tool: {
@@ -76,12 +75,9 @@ function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request
         callback({ namespace: (value: unknown) => namespaces.push(value), add: (tool: unknown) => added.push(tool) } as never)
         return { dispose: async () => void disposed.push("tools") }
       },
-      hook: (async (name: string) => {
-        hooks.push(name)
-        return { dispose: async () => void disposed.push("hook") }
-      }) as ToolsHost["tool"]["hook"],
-      list: async () =>
-        Object.entries(executors).map(([id, execute]) => ({
+      list: async () => {
+        if (options.listError) throw options.listError
+        return Object.entries(executors).map(([id, execute]) => ({
           id,
           name: id,
           description: "",
@@ -90,7 +86,8 @@ function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request
             calls.push({ id, args, signal: context.signal })
             return execute(args)
           },
-        })) as never,
+        })) as never
+      },
     },
     permission: { assert },
   }
@@ -101,7 +98,7 @@ function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request
     exportTimeoutMs: 30 * 60 * 1000,
     ...options.settings,
   }
-  return { ctx, settings, calls, assert, added, namespaces, hooks, disposed }
+  return { ctx, settings, calls, assert, added, namespaces, disposed }
 }
 
 async function exporter(options: Parameters<typeof fakeHost>[0] = {}) {
@@ -134,8 +131,8 @@ async function tree(root = dir): Promise<string[]> {
 }
 
 describe("registration", () => {
-  it("registers unpinned export, recent and events_list tools in the plaud namespace, plus the signed-link hook", async () => {
-    const { added, namespaces, hooks, registration, disposed } = await exporter()
+  it("registers unpinned export, recent and events_list tools in the plaud namespace, without a hook", async () => {
+    const { added, namespaces, registration, disposed } = await exporter()
     expect(added).toHaveLength(3)
     expect(added[0]).toMatchObject({ name: "export", options: { namespace: "plaud" } })
     expect((added[0] as { options: Record<string, unknown> }).options).not.toHaveProperty("pinned")
@@ -144,13 +141,17 @@ describe("registration", () => {
     for (const tool of added.slice(1)) expect((tool as { options: Record<string, unknown> }).options).not.toHaveProperty("pinned")
     expect((added[0] as { description: string }).description).toContain(roots.join(", "))
     expect(namespaces).toEqual([NAMESPACE])
-    expect(hooks).toEqual(["execute.after"])
     await registration.dispose()
-    expect(disposed).toEqual(["hook", "tools"])
+    expect(disposed).toEqual(["tools"])
   })
 })
 
 describe("one-step export", () => {
+  it("turns an external_directory refusal into EXPORT_PATH_NOT_PERMITTED with the rule as the next step", async () => {
+    const { run } = await exporter({ listError: new Error("permission.rejected: external_directory") })
+    await expect(run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^EXPORT_PATH_NOT_PERMITTED: .*external_directory/)
+  })
+
   it("exports audio after one permission assertion, into folders it creates", async () => {
     const audio = new Uint8Array(300_000).map((_, index) => index % 251)
     const fetch = audioResponse(audio, { "content-type": "audio/mpeg", "content-length": String(audio.byteLength) })

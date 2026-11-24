@@ -6,11 +6,11 @@ import plugin from "../src/index.js"
 type Config = Parameters<McpEditor["set"]>[1]
 
 /**
- * Setup names the /connect entries, registers plaud_export and its result hook through ctx.tool, then /plaud-status,
- * the skills, the status RPC and the tools RPC with its permission hook.
+ * Setup names the /connect entries, registers the plugin's tools through ctx.tool, then /plaud-status, the skills,
+ * the status RPC and the tools RPC with its permission hook.
  */
 const registered = async () => ({ dispose: async () => undefined })
-const tool = { transform: registered, hook: registered, list: async () => [] } as unknown as Plugin.Context["tool"]
+const tool = { transform: registered, list: async () => [] } as unknown as Plugin.Context["tool"]
 const command = { transform: registered } as unknown as Plugin.Context["command"]
 const skill = { transform: registered } as unknown as Plugin.Context["skill"]
 const integration = { transform: registered, get: async () => ({ data: { name: "Plaud" } }) } as unknown as Plugin.Context["integration"]

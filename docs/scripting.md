@@ -1,6 +1,6 @@
 # Scripting
 
-A script can call Plaud with no model: a cron job, a shell script, or any program that can reach the OpenCode server.
+A script can call Plaud with no model: an OpenCode automation, a shell script, or any program that can reach the OpenCode server.
 It uses the tools RPC, `plaud.recordings.tools`, through `opencode api` or an OpenCode client.
 
 | Method | Class | The tool |
@@ -26,9 +26,9 @@ account is the envelope's `account`, never part of the input. It returns
 `{ "items": [{ "id", "text" }], "editable": false }`: one line per recording, with its title, start time (UTC) and
 length, and no link or content.
 
-`events_list` runs the plugin's own `plaud_events_list`, as the model does: it asserts `plaud_events_list` for the account, then reads through that account's `list_files` (and, for the default source `plaud`, its `get_current_user`). Its input is the source contract's `{ since?, cursor?, limit?, account?, source? }`; the account is the envelope's `account` or the input's, and the two may not differ. `source: "recordings"` is the declared source `plaud.recordings`; leaving it out, or `"plaud"`, is the listing scripts read before it, unchanged.
+`events_list` runs the plugin's own `plaud_events_list`, as the model does: it asserts `plaud_events_list` for the account, then reads through that account's `list_files`. Its input is the source contract's `{ since?, cursor?, limit?, account?, source? }`; the account is the envelope's `account` or the input's, and the two may not differ. `source: "recordings"` is the declared source `plaud.recordings`, and leaving it out means the same source.
 
-`probe` is the source contract's: `{ source?, account? }` → `{ source: "recordings", account, owner, trust }`. It asserts `plaud_probe` for the account and reads only its `get_current_user`. Every `recordings` listing of an account needs a probe of it since OpenCode started, cursor or not: a page's owner is only ever the one a probe read ([configuration](configuration.md#the-recordings-source-and-probe)).
+`probe` is the source contract's: `{ source?, account? }` → `{ source: "recordings", account, owner, trust }`. It asserts `plaud_probe` for the account and reads only its `get_current_user`. Every listing of an account needs a probe of it since OpenCode started, cursor or not: a page's owner is only ever the one a probe read ([configuration](configuration.md#probe)).
 
 `plaud_export` writes a file, so it is not a method: it stays a direct tool under the `access` option, and a script never runs it.
 
@@ -188,11 +188,11 @@ A refusal or failure is the RPC error `failed`, with a message `CODE: what happe
 | `TOOL_UNAVAILABLE` | The account's server is connected, but OpenCode does not list the tool. |
 | `UPSTREAM_ERROR` | Plaud answered with an error, such as a recording that does not exist. The message holds the first line of Plaud's text, at most 300 characters, with tokens and URL query strings removed. |
 | `CANCELLED` | The request was cancelled. |
-| `INPUT_INVALID` | `recent`, `events_list` and `probe` only: `recent`'s input is not `{}` or `{ "limit": 1 to 20 }`, for example because it holds `account`, which belongs in the envelope; `events_list`'s or `probe`'s input breaks the contract, or names an account other than the envelope's; a `recordings` listing with a cursor names no account. |
+| `INPUT_INVALID` | `recent`, `events_list` and `probe` only: `recent`'s input is not `{}` or `{ "limit": 1 to 20 }`, for example because it holds `account`, which belongs in the envelope; `events_list`'s or `probe`'s input breaks the contract, or names an account other than the envelope's; a listing with a cursor names no account. |
 | `PLAUD_READ_FAILED`, `PLAUD_UNREADABLE` | `recent`, `events_list` and `probe` only: the account's `list_files` or `get_current_user` failed, or did not return what it should. |
-| `EVENTS_CURSOR_INVALID`, `EVENTS_OWNER_UNKNOWN` | `events_list` and `probe` only: a `plaud` cursor is not one it issued for this account and user, or Plaud named no user. |
-| `SOURCE_UNKNOWN`, `ACCOUNT_MISMATCH` | `events_list` and `probe` only: the call names a source the plugin does not have; or a `recordings` listing or a probe names an account it does not have in its input, or passes another account's cursor. |
-| `CURSOR_INVALID`, `UNAVAILABLE` | `events_list` only: a `recordings` cursor is not one it issued for this account, or the account's last probe named another user; or a `recordings` listing came before any probe of the account since OpenCode started. |
+| `EVENTS_OWNER_UNKNOWN` | `events_list` and `probe` only: Plaud named no user. |
+| `SOURCE_UNKNOWN`, `ACCOUNT_MISMATCH` | `events_list` and `probe` only: the call names a source the plugin does not have; or a listing or a probe names an account it does not have in its input, or passes another account's cursor. |
+| `CURSOR_INVALID`, `UNAVAILABLE` | `events_list` only: a cursor is not one it issued for this account, or the account's last probe named another user; or a listing came before any probe of the account since OpenCode started. |
 
 OpenCode itself answers `rpc.method_not_found` for a method that does not exist, such as a tool Plaud added later, and
 `rpc.invalid_input` for a body that is not the envelope above, with one issue per problem:

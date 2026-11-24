@@ -110,9 +110,9 @@ export function eventsInput(accounts: readonly [string, ...string[]], options: {
     limit: z.number().int().min(1).max(500).optional().describe("Most events to return, 1 to 500; 100 by default"),
     account: z.enum(accounts).optional().describe(`Account to list; defaults to "${accounts[0]}". A listing with a cursor of the recordings source names it`),
     source: z
-      .enum(["recordings", "plaud"])
+      .literal("recordings")
       .optional()
-      .describe("recordings: the source contract's plaud.recordings, whose owner the account's probe names; plaud (the default): the listing scripts read before it"),
+      .describe("recordings: the source contract's plaud.recordings, whose owner the account's probe names; the default"),
     ...(options.list === true
       ? {
           list: z
@@ -127,7 +127,7 @@ export function eventsInput(accounts: readonly [string, ...string[]], options: {
 const EventActor = z.strictObject({ role: z.string(), id: z.string(), name: z.string().optional() })
 
 const SourceEvent = z.strictObject({
-  source: z.enum(["recordings", "plaud"]),
+  source: z.literal("recordings"),
   account: z.string().describe("The account"),
   external_id: z.string().describe("The recording's id: file_id for get_note and get_transcript"),
   kind: z.literal("meeting"),
@@ -144,7 +144,7 @@ const SourceEvent = z.strictObject({
 const Owner = z.strictObject({ id: z.string().describe("mailto: and the email, or plaud: and the user id"), label: z.string() })
 
 export const EventsListOutput = z.strictObject({
-  source: z.enum(["recordings", "plaud"]),
+  source: z.literal("recordings"),
   account: z.string(),
   owner: Owner.describe("The signed-in Plaud user"),
   events: z.array(SourceEvent).describe("Oldest first"),
@@ -164,7 +164,7 @@ export const EventsListOutput = z.strictObject({
 
 /** A list snapshot's answer, as the tools RPC method declares it: the registry's `output: "list"` envelope. */
 export const EventsListAnswer = z.strictObject({
-  source: z.enum(["recordings", "plaud"]),
+  source: z.literal("recordings"),
   account: z.string(),
   data: z.strictObject({
     items: z.array(z.strictObject({ id: z.string().min(1).max(128), text: z.string().max(200) })).max(50).describe("Newest first"),

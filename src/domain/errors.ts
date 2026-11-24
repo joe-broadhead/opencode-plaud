@@ -57,10 +57,6 @@ export const ERRORS = {
     meaning: "Writing the file failed.",
     next: "Check the folder is writable and there is space, then retry.",
   },
-  EVENTS_CURSOR_INVALID: {
-    meaning: "The cursor was not issued by `events_list` for this account and its signed-in user.",
-    next: "Pass a cursor from a previous result of the same account, or start again with `since`.",
-  },
   CURSOR_INVALID: {
     meaning: "The cursor was not issued by `events_list` for the recordings of this account, or the account is signed in as another user since.",
     next: "Start again: call `events_list` for the account with `since`, without a cursor.",

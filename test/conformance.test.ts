@@ -8,7 +8,7 @@ import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterAll, describe, expect, it } from "vitest"
 import { declarationProblems, sourceConformance, type ConformanceReport, type PageCase, type SessionContext } from "@we-the-rebel-alliance/source-contract/conformance"
-import { encodeBoundCursor, encodeCursor } from "@we-the-rebel-alliance/source-contract/cursor"
+import { encodeBoundCursor } from "@we-the-rebel-alliance/source-contract/cursor"
 import { readInstalledDescriptor } from "@we-the-rebel-alliance/source-contract/descriptor"
 import { evaluate, sessionRules } from "@we-the-rebel-alliance/source-contract/permission"
 import { SOURCES_SCHEMA, type Sources } from "@we-the-rebel-alliance/source-contract/schema"
@@ -170,7 +170,6 @@ describe("the source contract's conformance kit", () => {
       { name: "a cursor without the account it reads", input: { source: RECORDINGS, cursor: first.cursor }, expect: { refuses: "INPUT_INVALID" } },
       { name: "a cursor passed for another account", input: { source: RECORDINGS, account: "work", cursor: first.cursor }, expect: { refuses: "ACCOUNT_MISMATCH" } },
       { name: "an account the plugin does not have", input: { source: RECORDINGS, account: "home", since: SINCE }, expect: { refuses: "ACCOUNT_MISMATCH" } },
-      { name: "contract 1's cursor of the same account", input: { source: RECORDINGS, account: ACCOUNT, cursor: encodeCursor("plaud", { a: ACCOUNT, o: "0123456789abcdef", t: 0, i: "" }) }, expect: { refuses: "CURSOR_INVALID" } },
       {
         name: "a cursor bound to another plugin",
         input: { source: RECORDINGS, account: ACCOUNT, cursor: encodeBoundCursor({ plugin: "granola", source: RECORDINGS, account: ACCOUNT }, { a: ACCOUNT, o: "mailto:sam.rivera@example.com", l: "Sam Rivera", t: 0, i: "" }) },

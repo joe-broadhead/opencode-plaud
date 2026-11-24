@@ -15,7 +15,7 @@ Give options with the object form of the plugin entry:
 {
   "plugins": [
     {
-      "package": "github:joe-broadhead/opencode-plaud#v0.0.9",
+      "package": "github:we-the-rebel-alliance/plaud-plugin#v0.0.0",
       "options": {
         "accounts": ["work"],
         "exportRoots": ["~/Plaud"],
@@ -46,7 +46,7 @@ Rules for the values:
 - **`exportRoots`**: at least one folder. Each is an absolute path, `~`, or a path that starts with `~/`. The plugin expands `~` to your home folder, normalizes the paths and drops duplicates. A folder is created (mode 0700) the first time an export needs it.
 - **`maxAudioBytes`**: a whole number from 1 to 64 GiB.
 - **`exportTimeoutMs`**: a whole number from 1000 (1 second) to 86400000 (24 hours). The time starts after you approve the export, so time spent on the prompt does not count. It is separate from OpenCode's own tool time limits.
-- **`allowUntestedHost`**: the plugin supports OpenCode `>=2.2.3 <2.4.0` and is tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 and 2.3.2. Inside the range it always starts; on a release there that is not tested, it prints a warning and `/plaud-status` calls it untested. Outside the range, which includes prereleases and development builds, it does not start, unless this option is set: then it starts, prints a warning, and `/plaud-status` calls the release untested.
+- **`allowUntestedHost`**: the plugin supports OpenCode `>=2.4.1 <2.5.0` and is tested on 2.4.1. Inside the range it always starts; on a release there that is not tested, it prints a warning and `/plaud-status` calls it untested. Outside the range, which includes prereleases and development builds, it does not start, unless this option is set: then it starts, prints a warning, and `/plaud-status` calls the release untested.
 - **`access`**: one of the three values above, and nothing else. It changes only the rules the plugin inserts; your own rules still come later and win.
 
 An unknown key or a wrong value stops the plugin from starting. The error names every problem at once:
@@ -87,7 +87,7 @@ If your config already defines an MCP server with one of these names in `mcp.ser
 | `"read-only"` | the reads | nothing: exports and new tools are **denied** |
 
 ```json
-{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.9", "options": { "access": "ask-changes" } }] }
+{ "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v0.0.0", "options": { "access": "ask-changes" } }] }
 ```
 
 `/plaud-status` shows the value and the block it inserts. The default block, for the default account's `plaud` server, generated from `defaultRules(servers, access)` in `src/host/permissions.ts`:
@@ -111,7 +111,7 @@ If your config already defines an MCP server with one of these names in `mcp.ser
 
 <!-- /generated:rules-all -->
 
-Each account in `accounts` adds the same five allow rules for its own server, such as `plaud-work_list_files` to `plaud-work_get_current_user`, before the export's rule. The [README](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/README.md#permissions) prints the block for all three values.
+Each account in `accounts` adds the same five allow rules for its own server, such as `plaud-work_list_files` to `plaud-work_get_current_user`, before the export's rule. The [README](https://github.com/we-the-rebel-alliance/plaud-plugin/blob/master/README.md#permissions) prints the block for all three values.
 
 So, in each case:
 
@@ -218,33 +218,31 @@ Do not add the default rules to the top-level `permissions`. Top-level rules com
 
 `plaud_events_list` (`tools.plaud.events_list` in Code Mode, and the tools RPC method `events_list`) is Plaud's side of
 the source contract, [`@we-the-rebel-alliance/source-contract`](https://github.com/we-the-rebel-alliance/source-contract)
-`v0.3.0` (it sends no v0.3-only key, so a consumer on v0.2.0 reads it too). It lists one account's recordings since a cursor, as normalised events,
-oldest first. It only reads, never asks and calls no model, so a consumer can run it unattended. It serves two sources:
+`v0.3.0`. It lists one account's recordings since a cursor, as normalised events, oldest first. It only reads, never
+asks and calls no model, so a consumer can run it unattended. It serves the declared source `plaud.recordings`
+(package.json's `sources`), and no other.
 
-- `recordings`, the declared source `plaud.recordings` (package.json's `sources`), for consumers of the source
-  contract. `plaud.recordings.list` is the same `list_files` read as the contract's `list` output (`events_list` with
-  `{ "source": "recordings", "list": "recordings" }`), so an app can render titles without knowing Plaud. The `list`
-  input is on the tools RPC method only: the model tool's schema has no `list`. A list holds at most 50 titles, newest
-  first; a title is screened whole and then cut to 200 characters, control characters are stripped, an id appears
-  once, and the answer stops short of 262,144 bytes. It is not a rename of `plaud.recordings`, and it declares no write.
-- `plaud`, the default, the listing scripts and Memory's collector read before the source contract, with the same
-  answers as before.
+`plaud.recordings.list` is the same `list_files` read as the contract's `list` output (`events_list` with
+`{ "source": "recordings", "list": "recordings" }`), so an app can render titles without knowing Plaud. The `list`
+input is on the tools RPC method only: the model tool's schema has no `list`. A list holds at most 50 titles, newest
+first; a title is screened whole and then cut to 200 characters, control characters are stripped, an id appears
+once, and the answer stops short of 262,144 bytes. It is not a rename of `plaud.recordings`, and it declares no write.
 
 ```
 events_list({ since?, cursor?, limit?, account?, source? })
-  → { source, account, owner: { id, label }, events, cursor, more, plugin?, refused?, gap?, trust: "untrusted" }
+  → { source: "recordings", account, owner: { id, label }, events, cursor, more, plugin?, refused?, gap?, trust: "untrusted" }
 ```
 
 | Input | Meaning |
 | --- | --- |
 | `since` | Where to start without a cursor: an ISO date (a UTC day) or date-time with `Z` or an offset. Default: 24 hours ago. |
 | `cursor` | The previous result's cursor, for the same account and source. It wins over `since`. |
-| `limit` | Most events, 1 to 500; 100 by default. A `recordings` page also stops before 262,144 bytes of JSON, and a `plaud` page before 900,000. |
-| `account` | `default` or an alias from `accounts`; `default` when left out. Through the tools RPC, the envelope's `account` names it too. A `recordings` listing with a cursor must name it. |
-| `source` | `recordings`, or `plaud` (the default). |
+| `limit` | Most events, 1 to 500; 100 by default. A page also stops before 262,144 bytes of JSON. |
+| `account` | `default` or an alias from `accounts`; `default` when left out. Through the tools RPC, the envelope's `account` names it too. A listing with a cursor must name it. |
+| `source` | `recordings`; the default, and the only source. |
 
 It asserts `plaud_events_list` with the account as the resource, then reads through that account's server, so the rules
-of its `list_files` (and, for `plaud`, its `get_current_user`) apply too. `list_files` lists one week at a time, every
+of its `list_files` apply too. `list_files` lists one week at a time, every
 page of it (`page_size` 20; a shorter page is the last, since Plaud says nothing about more). Plaud's docs say it
 ignores `page` under a date filter. A page that is not empty and repeats the one before, whatever its length, may or
 may not hold every recording of those days, so it is never taken as complete: the week is listed again one UTC day at
@@ -257,12 +255,11 @@ that started within the week, by `start_at` (UTC without a `Z`, which the plugin
 Each event is one recording: kind `meeting`, the recording's id (`file_id` for `get_note` and `get_transcript`),
 its start, its name as the title, and its length as the text. Its notes and transcript are not read: that would take a
 call per recording. A recording is listed once it started 6 hours ago, because a device can upload it hours after it
-ends. On a `recordings` page, one uploaded later than that, after the cursor has passed its start, is listed too, if
-it started within the 14 days before the cursor (below); with `plaud`, it is not listed. The cursor's position is the
-(start, id) of the last recording listed: calling again with it lists what follows, and an older cursor lists the same
-recordings again.
+ends. One uploaded later than that, after the cursor has passed its start, is listed too, if it started within the
+14 days before the cursor (below). The cursor's position is the (start, id) of the last recording listed: calling
+again with it lists what follows, and an older cursor lists the same recordings again.
 
-### The `recordings` source and `probe`
+### `probe`
 
 `probe` is a tools RPC method, not a tool: `probe({ source?, account? })` answers
 `{ source: "recordings", account, owner: { id, label }, trust: "untrusted" }`, whose sign-in an account is, and reads no
@@ -281,8 +278,8 @@ label the probe gave. So:
 - the cursor is the source contract's version 2, bound to (`plaud`, `recordings`, the account), and holds the owner's
   id, so a listing reads only `list_files`;
 - a listing with a cursor names its account (`INPUT_INVALID` otherwise), another account's cursor is
-  `ACCOUNT_MISMATCH`, and a cursor of another source, of another plugin, or from before this release (contract 1's) is
-  `CURSOR_INVALID`, all before any read: start again with `since`;
+  `ACCOUNT_MISMATCH`, and a cursor of another source or of another plugin is `CURSOR_INVALID`, all before any read:
+  start again with `since`;
 - a cursor whose owner is not the one the account's last probe named is `CURSOR_INVALID`: the account was signed in to
   another Plaud user since;
 - a recording whose title holds a secret, such as a password or a key, is left out for good: it is listed in `refused`
@@ -299,12 +296,6 @@ label the probe gave. So:
 - a recording deleted before a listing reaches it is not listed: it no longer exists, so nothing is lost. A recording
   deleted after it was listed is not announced: the source does not send `removals[]`.
 
-### The `plaud` source
-
-`plaud`, the default, answers as before the source contract: it reads `get_current_user` itself for the owner, its
-cursor holds the account and a digest of the owner (another account's, or one from before a sign-in to another Plaud
-user, is `EVENTS_CURSOR_INVALID`), and its page has no `plugin` or `refused`.
-
 ## Code Mode
 
 OpenCode puts MCP tools in Code Mode by default. The model then calls the read tools as `tools.plaud.list_files(input)`, and an extra account's tools as `tools["plaud-work"].list_files(input)`. `plaud_export` is `tools.plaud.export(input)` and `plaud_recent` is `tools.plaud.recent(input)`. Neither is pinned; Code Mode search finds their signatures. The permission rules are the same in Code Mode.
@@ -316,15 +307,14 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | Code | Where | Meaning |
 | --- | --- | --- |
 | `OPTIONS_INVALID` | setup | An option is unknown or has a wrong value. |
-| `HOST_UNTESTED` | setup | OpenCode is outside `>=2.2.3 <2.4.0` and `allowUntestedHost` is not set. |
+| `HOST_UNTESTED` | setup | OpenCode is outside `>=2.4.1 <2.5.0` and `allowUntestedHost` is not set. |
 | `SKILLS_INVALID` | setup | The package's `skills/` folder is missing or a skill file is malformed. Reinstall the plugin. |
 | `STATUS_UNAVAILABLE` | status views | The status could not be read. |
-| `INPUT_INVALID` | the tools RPC's `recent`, events list, probe | `recent`'s input is not `{}` or `{ "limit": 1 to 20 }`; the account goes in the envelope. An events list's or probe's input breaks the contract, or names a different account from the envelope's; a `plaud` listing names an account the plugin does not have; a `recordings` listing with a cursor names no account. |
-| `SOURCE_UNKNOWN` | events list, probe | The call names a source the plugin does not have: an events list takes `recordings` or `plaud`, and probe `recordings`. |
-| `ACCOUNT_MISMATCH` | events list, probe | A `recordings` listing or a probe names an account the plugin does not have, or a `recordings` listing passes another account's cursor. |
-| `CURSOR_INVALID` | events list | A `recordings` cursor is not one it issued for this account, or the account's last probe named another user. Start again with `since`, without a cursor. |
-| `UNAVAILABLE` | events list | A `recordings` listing came before any probe of the account since OpenCode started. Call `probe` for it, then list again. |
-| `EVENTS_CURSOR_INVALID` | events list | A `plaud` cursor was not issued by `events_list` for this account and its signed-in user. Pass a cursor from a previous result of the same account, or start again with `since`. |
+| `INPUT_INVALID` | the tools RPC's `recent`, events list, probe | `recent`'s input is not `{}` or `{ "limit": 1 to 20 }`; the account goes in the envelope. An events list's or probe's input breaks the contract, or names a different account from the envelope's; a listing with a cursor names no account. |
+| `SOURCE_UNKNOWN` | events list, probe | The call names a source the plugin does not have: both take `recordings`. |
+| `ACCOUNT_MISMATCH` | events list, probe | A listing or a probe names an account the plugin does not have, or a listing passes another account's cursor. |
+| `CURSOR_INVALID` | events list | A cursor is not one it issued for this account, or the account's last probe named another user. Start again with `since`, without a cursor. |
+| `UNAVAILABLE` | events list | A listing came before any probe of the account since OpenCode started. Call `probe` for it, then list again. |
 | `EVENTS_OWNER_UNKNOWN` | events list, probe | Plaud's `get_current_user` named no email or id for the account. |
 | `AUTH_REQUIRED` | export, recent, events list, probe | The account's server is not connected or not signed in. |
 | `PLAUD_READ_FAILED` | export, recent, events list | A Plaud read failed or was denied, or one week held more recordings than an events list reads. |

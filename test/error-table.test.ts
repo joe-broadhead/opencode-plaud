@@ -68,7 +68,6 @@ describe("documented errors", () => {
       "AUTH_REQUIRED",
       "PLAUD_READ_FAILED",
       "PLAUD_UNREADABLE",
-      "EVENTS_CURSOR_INVALID",
       "EVENTS_OWNER_UNKNOWN",
       "CURSOR_INVALID",
       "ACCOUNT_MISMATCH",

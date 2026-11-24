@@ -15,12 +15,11 @@ import { network, WORKER_ROOT } from "./setup.js"
  * built package, with its `url` option on a loopback fake Plaud.
  *
  * No real model is configured. Tools run through their host executors with
- * a real session context (the probe plugin), through Code Mode in a schedule
- * check, which runs the host's own tool path and hooks, or in a session turn
- * of the fake's scripted loopback model (`model.test.ts`).
+ * a real session context (the probe plugin), through Code Mode as an
+ * automation's code action, which runs the host's own tool path and hooks,
+ * or in a session turn of the fake's scripted loopback model (`model.test.ts`).
  *
- * The SDK is the root dev dependency `@opencode/sdk` (2.4.1), or the one
- * installed under `HOST_SDK_DIR` to test another release.
+ * The SDK is the root dev dependency `@opencode/sdk` 2.4.1 in node_modules.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -92,10 +91,9 @@ export interface Harness {
   close(): Promise<void>
 }
 
-/** The SDK under test, its version, and its folder. */
+/** The locked SDK, its version, and its folder. */
 async function loadSdk(): Promise<{ sdk: Sdk; version: string; root: string }> {
-  const base = process.env.HOST_SDK_DIR ? resolve(process.env.HOST_SDK_DIR) : REPO
-  const root = join(base, "node_modules", "@opencode", "sdk")
+  const root = join(REPO, "node_modules", "@opencode", "sdk")
   const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version: string; exports: { ".": { import: string } } }
   const sdk = (await import(pathToFileURL(join(root, manifest.exports["."].import)).href)) as Sdk
   return { sdk, version: manifest.version, root }

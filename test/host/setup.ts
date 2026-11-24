@@ -10,7 +10,6 @@ import { installNetworkGuard } from "./network.js"
 // variable is removed, not just the OPENCODE ones, so no provider key, proxy
 // or credential path leaks in. The root is under /tmp, with no OpenCode
 // config above it for the host's upward search to find.
-const sdkDir = process.env.HOST_SDK_DIR
 export const WORKER_ROOT = tempDir("plugin-host-worker-")
 const root = WORKER_ROOT
 for (const key of Object.keys(process.env)) delete process.env[key]
@@ -29,7 +28,6 @@ Object.assign(process.env, {
   // Not UTC, so a Plaud time read as local time, not UTC, shows in the results.
   TZ: "Asia/Tokyo",
   NODE_ENV: "test",
-  ...(sdkDir ? { HOST_SDK_DIR: sdkDir } : {}),
 })
 for (const name of ["home", "config", "data", "state", "cache", "tmp"]) mkdirSync(join(root, name))
 // The host also opens a location at the working directory; keep it out of the repository.

@@ -21,7 +21,7 @@ async function listener(reply: (response: ServerResponse) => void) {
 it("scrubs inherited environment before host modules load", () => {
   expect(Object.keys(process.env).filter((key) => ![
     "PATH", "HOME", "OPENCODE_TEST_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME",
-    "TMPDIR", "TMP", "TEMP", "LANG", "TZ", "NODE_ENV", "HOST_SDK_DIR",
+    "TMPDIR", "TMP", "TEMP", "LANG", "TZ", "NODE_ENV",
   ].includes(key))).toEqual([])
 })
 

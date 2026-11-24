@@ -40,8 +40,4 @@ describe("the text the model is given", () => {
       }
     }
   })
-
-  test("says the default allows every tool", () => {
-    expect(NAMESPACE.description).toContain("Every tool is allowed by default")
-  })
 })

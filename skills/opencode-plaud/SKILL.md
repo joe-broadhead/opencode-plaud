@@ -1,9 +1,9 @@
 ---
 name: opencode-plaud
-description: Plaud voice recordings in OpenCode, to list, search and read recordings made with a Plaud device or app, with their transcripts, notes and highlights. Use when the user mentions Plaud, a voice recording or voice note, or something they recorded, such as "what did I record this week?" or "the action items from my last recording".
+description: Plaud voice recordings: list, search and read recordings, transcripts, notes and highlights. Use when the user mentions Plaud, a voice note or something they recorded.
 ---
 
-If Plaud's tools are absent, run `/connect` and choose Plaud (or Plaud (<alias>) for another account), or on Jelly call jelly_connection_request.
+If Plaud's tools are absent, run `/connect` and choose Plaud (or Plaud (<alias>) for another account).
 
 # Plaud recordings
 
@@ -87,7 +87,7 @@ return page.data.map((r) => ({ id: r.id, name: r.name, start: r.start_at + "Z", 
 
 ## Scripts
 
-For a job without a model, such as a cron job: `opencode api post /api/rpc/plaud.recordings.tools/<method>`, where the
+For a job without a model, such as an OpenCode automation: `opencode api post /api/rpc/plaud.recordings.tools/<method>`, where the
 methods are the five reads, `recent`, `events_list`, `probe` and `describe`. The body is
 `{"input":{"sessionID":"<session>","account":"work","input":<the tool's input>}}`, with `account` optional. The
 script runs as the session's agent, under its rules, and an ask is refused. So a script, or a test of one, uses a

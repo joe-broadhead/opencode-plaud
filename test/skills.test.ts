@@ -21,7 +21,7 @@ const IDS = ["opencode-plaud", "opencode-plaud-digest", "opencode-plaud-export"]
  * (CURSOR_INVALID, ACCOUNT_MISMATCH, SOURCE_UNKNOWN, UNAVAILABLE) are plaud_events_list's and probe's, which Memory's
  * collector and other consumers run, not the model, so no skill teaches them.
  */
-const CODES: Record<Exclude<ErrorCode, "INPUT_INVALID" | "EVENTS_CURSOR_INVALID" | "EVENTS_OWNER_UNKNOWN" | "CURSOR_INVALID" | "ACCOUNT_MISMATCH" | "SOURCE_UNKNOWN" | "UNAVAILABLE">, true> = {
+const CODES: Record<Exclude<ErrorCode, "INPUT_INVALID" | "EVENTS_OWNER_UNKNOWN" | "CURSOR_INVALID" | "ACCOUNT_MISMATCH" | "SOURCE_UNKNOWN" | "UNAVAILABLE">, true> = {
   AUTH_REQUIRED: true,
   PLAUD_READ_FAILED: true,
   PLAUD_UNREADABLE: true,
@@ -168,7 +168,7 @@ describe("skill loading", () => {
       expect(skill.name).toBe(id)
       expect(skill.path).toBe(join(SKILLS.pathname, id, "SKILL.md"))
       expect(skill.description).toMatch(/Use when/)
-      expect(skill.content).toMatch(/^If Plaud's tools are absent, run `\/connect` and choose Plaud .*jelly_connection_request\.\n\n# /)
+      expect(skill.content).toMatch(/^If Plaud's tools are absent, run `\/connect` and choose Plaud .*\n\n# /)
       expect(skill.content).not.toMatch(/^---$/m)
     }
   })
@@ -223,10 +223,10 @@ describe("steering away from get_file", () => {
     }
   })
 
-  it("the Code Mode namespace names every read, steers away from get_file, and sends audio to export", () => {
-    for (const tool of KNOWN_READS) expect(NAMESPACE.description).toContain(tool)
-    expect(NAMESPACE.description).toContain("Don't call get_file")
-    expect(NAMESPACE.description).toMatch(/for audio, even a download link, call export/)
+  it("the Code Mode namespace names the reads it steers to, steers away from get_file, and sends audio to export", () => {
+    for (const tool of ["get_note", "get_transcript", "get_file", "export"]) expect(NAMESPACE.description).toContain(tool)
+    expect(NAMESPACE.description).toContain("Avoid get_file")
+    expect(NAMESPACE.description).toContain("export audio or text to a file")
   })
 
   it("the skills say the same: no get_file, and audio is an export", () => {

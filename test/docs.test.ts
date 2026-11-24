@@ -119,8 +119,8 @@ describe("the tested releases", () => {
   // The newest CHANGELOG section: [Unreleased] while a release is being prepared, otherwise the newest release's notes.
   const newest = () => {
     const text = read("CHANGELOG.md")
-    const unreleased = text.split(/^## \[/m).find(section => section.startsWith("[Unreleased]"))
-    if (unreleased !== undefined) return { name: "CHANGELOG.md (Unreleased)", text: unreleased }
+    const unreleased = text.split(/^## /m).slice(1).find(section => section.startsWith("0.0.0 (unreleased)") || section.startsWith("[Unreleased]"))
+    if (unreleased !== undefined) return { name: "CHANGELOG.md (unreleased)", text: unreleased }
     return { name: "CHANGELOG.md (newest release)", text: /## \[[^\]]+\][^\n]*\n([\s\S]*?)(?=\n## \[|$)/.exec(text)?.[1] ?? "" }
   }
 
@@ -138,11 +138,11 @@ describe("the tested releases", () => {
       const said = match[1]!.replace(/[.,\s]+$/u, "").split(/,\s*|\s+and\s+/).map(part => part.trim()).filter(Boolean)
       expect({ file: changelog.name, said }).toEqual({ file: changelog.name, said: TESTED_HOSTS })
     }
-    expect(TESTED_HOSTS).toContain("2.3.0")
+    expect(TESTED_HOSTS).toEqual(["2.4.1"])
   })
 
   test("the newest section states no tested release it has not run on", () => {
-    expect(newest().text).not.toMatch(/2\.2\.[0-7]\b(?!.*2\.3\.0)/)
+    expect(newest().text).not.toMatch(/\b2\.[0-3]\.\d/)
   })
 })
 

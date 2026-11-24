@@ -3,7 +3,7 @@ name: opencode-plaud-export
 description: Save a Plaud recording's audio, transcript, outline or notes as a local file with plaud_export. Use when the user asks to download, export, save or keep a Plaud recording or its audio, asks for a download link to it, or wants to know how such an export works.
 ---
 
-If Plaud's tools are absent, run `/connect` and choose Plaud (or Plaud (<alias>) for another account), or on Jelly call jelly_connection_request.
+If Plaud's tools are absent, run `/connect` and choose Plaud (or Plaud (<alias>) for another account).
 
 # Export a Plaud recording
 
@@ -41,7 +41,7 @@ It returns `{ path, bytes, sha256 }`, never the content.
    with another tool, because the roots are the user's limit. Offer the default file, or tell the user how to add
    the folder: in the plugin's entry in `opencode.json`, then `opencode reload`.
    ~~~json
-   { "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.9", "options": { "exportRoots": ["~/Plaud", "~/Documents"] } }] }
+   { "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v0.0.0", "options": { "exportRoots": ["~/Plaud", "~/Documents"] } }] }
    ~~~
 4. **Pass `overwrite: true`** only when the user asked to replace that file. The export itself refuses an existing
    file with `EXPORT_EXISTS`, so don't list the folder first.

@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest version gets security fixes. It supports OpenCode `>=2.2.3 <2.4.0` and is tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 and 2.3.2.
+Only the latest version gets security fixes. It supports OpenCode `>=2.4.1 <2.5.0` and is tested on 2.4.1.
 
 ## Reporting a vulnerability
 
@@ -60,17 +60,17 @@ any tool the plugin does not know, while the reads still run. Per-tool rules wor
 See [Configuration](docs/configuration.md#permissions).
 
 - **A saved "Always allow" applies to the whole project and to every agent in it, Plan included.** OpenCode saves the approval for the project, not for the agent or the session. A `deny` rule in your config still wins over it.
-- **OpenCode decides which folders form one project.** On OpenCode 2.2.3, a folder with no git commit, such as a new git repository, can belong to OpenCode's shared `global` project. An approval saved there then applies in every other folder of that project. Do not count on a saved approval staying in one folder. For exports you want unattended, prefer an `allow` rule in that project's `opencode.json`, narrowed to the account and kind.
+- **OpenCode decides which folders form one project.** A folder with no git commit, such as a new git repository, can belong to OpenCode's shared `global` project. An approval saved there then applies in every other folder of that project. Do not count on a saved approval staying in one folder. For exports you want unattended, prefer an `allow` rule in that project's `opencode.json`, narrowed to the account and kind.
 - Agents that you define only in your config do not get the default rules, so at `"ask-changes"` or `"read-only"` an export or a new tool can run there without asking. At the default `"all"` nothing is held back, and `/plaud-status` names no agent.
 - The rule pattern `plaud*_*`, and the signed-link hook, also match the tools of any other MCP server whose name starts with `plaud`.
 
 ## Scripts
 
-The tools RPC (`plaud.recordings.tools`, see [docs/scripting.md](https://github.com/joe-broadhead/opencode-plaud/blob/HEAD/docs/scripting.md)) runs Plaud's five read tools, the plugin's own `plaud_recent` and `plaud_events_list`, and the source contract's `probe`, for a script, with no model. It adds no authority:
+The tools RPC (`plaud.recordings.tools`, see [docs/scripting.md](https://github.com/we-the-rebel-alliance/plaud-plugin/blob/master/docs/scripting.md)) runs Plaud's five read tools, the plugin's own `plaud_recent` and `plaud_events_list`, and the source contract's `probe`, for a script, with no model. It adds no authority:
 
 - A script names a session that names an agent, and runs as them. A tool that the agent's or the session's rules hide from the model is refused. OpenCode's own executor then checks the call against the agent's rules, the session's rules and saved approvals, as it does for the model.
 - An ask on a script's call is denied, not prompted: no one is there to answer it. The plugin's permission hook changes only an ask on one of its own script calls in flight, only to a deny, and leaves every other call alone.
-- Only the five known reads, `plaud_recent` (method `recent`), `plaud_events_list` (method `events_list`) and `probe` are methods. `events_list` asserts `plaud_events_list` and reads through the account's own `list_files` (and, for its default source `plaud`, `get_current_user`); it returns each recording's id, name, start and length, with the signed-in user as the owner, and never a link or content. `probe` asserts `plaud_probe` and reads only the account's `get_current_user`, to name that user; the plugin keeps that name per account, in memory only, for the `recordings` source's pages. Memory and other consumers of the source contract call them to copy these events to your private memory space, after you turn Plaud on as a source; a recording whose title holds a secret is left out of the `recordings` source. `recent` asserts `plaud_recent` and reads through the account's own `list_files`, as for the model. `plaud_export` and any other Plaud tool, including one Plaud adds later, never are, even with an allow rule. A script writes no file.
+- Only the five known reads, `plaud_recent` (method `recent`), `plaud_events_list` (method `events_list`) and `probe` are methods. `events_list` asserts `plaud_events_list` and reads through the account's own `list_files`; it returns each recording's id, name, start and length, with the signed-in user as the owner, and never a link or content. `probe` asserts `plaud_probe` and reads only the account's `get_current_user`, to name that user; the plugin keeps that name per account, in memory only, for the source's pages. Memory and other consumers of the source contract call them to copy these events to your private memory space, after you turn Plaud on as a source; a recording whose title holds a secret is left out of the `recordings` source. `recent` asserts `plaud_recent` and reads through the account's own `list_files`, as for the model. `plaud_export` and any other Plaud tool, including one Plaud adds later, never are, even with an allow rule. A script writes no file.
 - A script never gets a signed link: the plugin withholds every `presigned_url` and `data_link` in the result, as the hook does for the model.
 - `account` picks an account from the plugin's `accounts` option; any other value is refused. A server your config defines under an account's name is used, as for the model.
 - The call goes through OpenCode's own MCP connection and sign-in. The plugin never sees the token, and returns none.

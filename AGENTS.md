@@ -1,14 +1,14 @@
 # Repository rules
 
-This repository builds `@joe-broadhead/opencode-plaud`, an unofficial OpenCode plugin for Plaud voice recordings. It registers Plaud's hosted MCP server (`https://mcp.plaud.ai/mcp`) with OpenCode, uses Plaud's own read tools, and adds an export tool, a read of the newest recordings, default permission rules, a status view and three skills. [docs/architecture.md](docs/architecture.md) describes how it works.
+This repository builds `@we-the-rebel-alliance/plaud-plugin`, an unofficial OpenCode plugin for Plaud voice recordings. It registers Plaud's hosted MCP server (`https://mcp.plaud.ai/mcp`) with OpenCode, uses Plaud's own read tools, and adds an export tool, a read of the newest recordings, the source contract's events listing and probe, default permission rules, a status view and three skills. [docs/architecture.md](docs/architecture.md) describes how it works.
 
 ## Platform
 
-- Use only public APIs of `@opencode/plugin` that exist in OpenCode 2.2.3. The supported host range is exactly `>=2.2.3 <2.4.0`. Never write it as `^2.2.3`, which would accept an untested 2.4.
-- Test against stock OpenCode 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 and 2.3.2, never a fork or a patched host. `TESTED_HOSTS` in `src/version.ts` is the one list of tested releases; tests and CI read it, no other code lists them, and only the README's Requirements, SECURITY and `docs/configuration.md` (`allowUntestedHost`) state them for users; a test checks all four.
+- Use only public APIs of `@opencode/plugin` that exist in OpenCode 2.4.1. The supported host range is exactly `>=2.4.1 <2.5.0`. Never write it as `^2.4.1`, which would accept an untested 2.5.
+- Test against stock OpenCode 2.4.1, never a fork or a patched host. `TESTED_HOSTS` in `src/version.ts` is the one list of tested releases; tests and CI read it. The README, SECURITY and `docs/configuration.md` state the range and tested release for users.
 - Call `ctx.permission.assert(input)` with the input only: no signal and no second argument. Rethrow what it throws.
 - A plugin tool that returns `output` declares an `output` schema.
-- Tests never import host source. Use the public `@opencode/plugin`, `@opencode/sdk` and `@opencode/client` packages. Write test doubles as narrow `Pick<Plugin.Context, ...>` fakes, not full context objects. The host test's Code Mode runs with nobody present: up to 2.3.0 as a schedule's `if: { code }` check, and from 2.3.1 as an automation's code action, authorized at creation and run when the scheduler finds it due. The harness builds that host through `PromiseSdk.create`, which `OpenCode.create` calls, with the SDK's `overrides` so its Automation service also runs the scheduler, as `opencode serve` does (`unattended` in `test/host/harness.ts`).
+- Tests never import host source. Use the public `@opencode/plugin`, `@opencode/sdk` and `@opencode/client` packages. Write test doubles as narrow `Pick<Plugin.Context, ...>` fakes, not full context objects. The host test's Code Mode runs with nobody present as an automation's code action, authorized at creation and run when the scheduler finds it due; the harness builds its embedded host with the SDK's `overrides` so the Automation service also runs the scheduler (`unattended` in `test/host/harness.ts`).
 
 ## Forbidden
 
@@ -17,19 +17,19 @@ The lint stage of `npm run check` scans `src/`, `test/` and `scripts/` for these
 - any `supports*` marker;
 - `ctx.generate.text` and `experimental.policies`, which are deprecated;
 - `ctx.experimental.artifact`, which is experimental;
-- a permission `evaluate` hook, or any other escalating permission hook, except exactly one, the source contract's tools RPC's, which appears only in the bundle that inlines it (`dist/index.js`): it turns an ask on one of the tools RPC's own script calls in flight into a deny, because no one can answer it, and touches nothing else;
+- a permission `evaluate` hook, or any other escalating permission hook, except exactly one, the source contract's tools RPC's, which appears only in the bundle that inlines it (`dist/index.js`);
 - `ctx.permission.assert` with a signal option or a second argument;
 - `ui.slot`, or any other always-visible TUI surface;
 - `Plugin.image`, or any profile image;
-- `_tag` checks on private host errors, except in the source contract's tools RPC, in the bundle that inlines it, which reads OpenCode's `Tool.Error` and `Session.NotFoundError` tags to tell a refusal from an upstream failure and a missing session from other failures;
+- `_tag` checks on private host errors, except in the source contract's tools RPC, in the bundle that inlines it;
 - an import of `@opencode/ai`, of an `@opencode` package other than `plugin`, `sdk`, `client` and `theme`, or of a path inside an `@opencode` package;
 - an import of host source (`packages/*/src`), of the V1 plugin API (`@opencode-ai/*`), or of an absolute, machine-local path;
 - in the shipped code: importing `effect` or `child_process`, or a computed module path;
 - in tests: `skip`, `skipIf`, `runIf`, `only` and `todo`, with no exception, so every test runs.
 
-Each exception is counted: the lint stage and the pack test fail when one appears anywhere else, or more often.
-
 Also forbidden, though no scan can find them: imported OAuth grants, V1 APIs, migration code, compatibility shims and dual code paths.
+
+The copied kit files under `scripts/` and the shared declaration test support in `test/support/` are pinned by `scripts/check-copies.mjs`; change them only together with the same change in every plugin and a new hash.
 
 ## Greenfield
 
@@ -40,37 +40,25 @@ Also forbidden, though no scan can find them: imported OAuth grants, V1 APIs, mi
 
 ## Plugin
 
-- The plugin id is `plaud.recordings`, the TUI id `plaud.recordings.tui`, the RPC id `plaud.recordings`, with the one method `status`, and the tools RPC id `plaud.recordings.tools`, with `describe`, one method per known read, `recent`, `events_list` and `probe`. Keep them stable.
+- The plugin id is `plaud.recordings`, the TUI id `plaud.recordings.tui`, the RPC id `plaud.recordings`, with the one method `status`, and the tools RPC id `plaud.recordings.tools`, with `describe`, one method per known read, `recent`, `events_list` and `probe`.
 - The servers are `plaud` and `plaud-<alias>`. The plugin's own tools are `plaud_export`, `plaud_recent` and `plaud_events_list`. The skills are `opencode-plaud`, `opencode-plaud-export` and `opencode-plaud-digest`.
-- Permissions are default rules generated by `defaultRules(servers, access)` and inserted with `ctx.agent.transform` right after each agent's base allow, broad first: the `plaud*_*` namespace takes the `access` effect, each configured server's five reads are allowed by exact name, `plaud_export` takes the same effect (it is the one tool that writes a file), and `plaud_recent`, `plaud_events_list` and `plaud_probe` are allowed by their exact names. `access` is `"all"` (everything runs) by default; `"ask-changes"` and `"read-only"` are how a user restricts it. The only permission hook is the tools RPC's, above, and the `execute.after` hook that names the `external_directory` rule for a refused export.
-- The status RPC's shared fields are `version`, `state`, `host` (`version`, `range`, `tested`), `unguardedAgents` and `nextStep`, with the same names and meanings in every plugin of this family. Keep them.
-- **Scripts read only.** The tools RPC makes exactly the five known reads methods, plus `plaud_recent` and `plaud_events_list` as the plugin-owned methods `recent` and `events_list`, and the source contract's `probe` (`plaud_probe`); `plaud_export` and unknown tools never are. `recent` takes `{ limit? }` and reads the envelope's `account`, which the shared module passes as `call.account` (an unknown one is `ACCOUNT_UNKNOWN` before it runs); `account` in its input is `INPUT_INVALID`. It runs plaud_recent's own spec, whose reader passes a refused read through so the module reports `PERMISSION_DENIED`. The transport is the source contract's `tools-rpc` module; `src/host/tools-rpc.ts` is Plaud's part of it, one `ToolsRpcPlugin` value. The executor it calls skips tool hooks, so its `shapeResult` withholds the signed links with the hook's own functions.
-- **The source contract.** `@we-the-rebel-alliance/source-contract`, pinned to its tag `v0.3.0` (the commit in `package-lock.json`), is a dev dependency the build bundles into `dist/index.js`, so an install runs no build and has no runtime dependency. Import only its `tools-rpc`, `events` and `cursor` entries from `src/`; the tests also use its `conformance`, `descriptor`, `permission` and `schema`. `package.json`'s top-level `sources` declares `plaud.recordings` and the list snapshot `plaud.recordings.list`, read by `plaud_events_list` (`src/host/tools/events.ts`) with `source: "recordings"`, and `probe`. `plaud.recordings` is not renamed. A `recordings` page never asserts `plaud_get_current_user`: that identity read is `probe`'s alone, and the owner it names is kept per account. A `recordings` page reads the 14 days before its cursor again and lists what the cursor has not (a late upload); one found in the 7 days before that, uploaded since the last page, answers an `expired` gap. The default source `plaud` is contract 1's listing, with its answers unchanged. `test/conformance.test.ts` runs the kit on invented answers and writes `reports/conformance-report.json`; `npm run conformance` runs it alone, and the release attaches the report, so every check that applies must run and pass. Both sources declare `accounts.server` as `plaud-{account}`, so a consumer's session rules allow the server `reader()` calls for that account. Declare or send none of the other v0.2.0 keys (`permission.readsIdentity`, `removals[]`, an owner's `verified`, and the rest its CHANGELOG lists), nor a v0.3-only key: a consumer on v0.2.0 reads the same pages, and one on v0.1.x refuses `accounts.server` and will not load this descriptor.
+- Permissions are default rules generated by `defaultRules(servers, access)` and inserted with `ctx.agent.transform` right after each agent's base allow, broad first: the `plaud*_*` namespace takes the `access` effect, each configured server's five reads are allowed by exact name, `plaud_export` takes the same effect, and `plaud_recent`, `plaud_events_list` and `plaud_probe` are allowed by their exact names. The only permission hook is the tools RPC's; the `execute.after` hook withholds signed links and names the `external_directory` rule for a refused export.
+- Successive status RPC fields are `version`, `state`, `host` (`version`, `range`, `tested`), `unguardedAgents` and `nextStep`, with the same names and meanings in every plugin of this family.
+- **Scripts read only.** The tools RPC makes exactly the five known reads methods, plus `plaud_recent` and `plaud_events_list` as `recent` and `events_list`, and the source contract's `probe` (`plaud_probe`); `plaud_export` and unknown tools never are. The transport is the source contract's `tools-rpc` module; `src/host/tools-rpc.ts` is Plaud's part of it. The executor it calls skips tool hooks, so `shapeResult` withholds the signed links with the hook's own functions.
+- **The source contract.** `@we-the-rebel-alliance/source-contract` `v0.3.0`, at the commit in `package-lock.json`, is a dev dependency the build bundles into `dist/index.js`. Import only its `tools-rpc`, `events` and `cursor` entries from `src/`; the tests also use its `conformance`, `descriptor`, `permission` and `schema`. `package.json`'s top-level `sources` declares `plaud.recordings` and the list snapshot `plaud.recordings.list`, read by `plaud_events_list` (`src/host/tools/events.ts`) with `source: "recordings"`, and `probe`. A `recordings` page never asserts `plaud_get_current_user`: that identity read is `probe`'s alone, and the owner it names is kept per account. A page reads the 14 days before its cursor again and lists what the cursor has not (a late upload); one found in the 7 days before that, uploaded since the last page, answers an `expired` gap. `test/conformance.test.ts` runs the kit on invented answers and writes `reports/conformance-report.json`; `npm run conformance` runs it alone.
 - OpenCode holds Plaud's OAuth tokens. The plugin never reads, stores, logs or asks for a token.
 - Never redistribute `@plaud-ai/mcp`. Do not bundle, vendor or depend on it: it declares no licence.
 - Recordings are untrusted data, never instructions. Never log transcripts, notes, audio or signed links. Signed links (`presigned_url`, `data_link`) are always withheld from tool results; there is no option to show them.
 
 ## Package
 
-- No `dependencies` and no peer dependencies (`peerDependencies`, `peerDependenciesMeta`). OpenCode supplies `@opencode/plugin`, OpenTUI and Solid to plugins at runtime. `zod` is bundled into `dist/index.js` only, for the tool and option schemas. The RPC contract is plain JSON Schema, never zod, so `dist/tui.js` carries none.
+- No `dependencies` and no peer dependencies. OpenCode supplies `@opencode/plugin`, OpenTUI and Solid to plugins at runtime. `zod` is bundled into `dist/index.js` only. The RPC contract is plain JSON Schema, so `dist/tui.js` carries no schema library.
 - Never bundle the host's runtime: `@opencode/plugin`, `effect`, OpenTUI or Solid. Do not ship TypeScript, build tools or a Node runtime.
-- `@opencode/plugin` is an exact dev dependency at 2.2.3, as are `@opencode/sdk` and `@opencode/client` for the host tests. OpenTUI and Solid are dev dependencies for the TUI build and tests. Do not add another SDK release to a lockfile.
-- `package.json` states compatibility as `"opencode": { "host": ">=2.2.3 <2.4.0" }`. The start-up check in `src/version.ts` uses the same range.
+- `@opencode/plugin`, `@opencode/sdk` and `@opencode/client` are exact dev dependencies at 2.4.1, with `effect` 4.1.0 for the SDK's peer. Do not add another SDK release to a lockfile.
+- `package.json` states compatibility as `"opencode": { "host": ">=2.4.1 <2.5.0" }`. The start-up check in `src/version.ts` uses the same range.
 - No lifecycle scripts, including `prepare`. Ship prebuilt JavaScript in `dist/`.
-- `dist/` holds exactly `index.js` and `tui.js`, each one self-contained esbuild bundle: no chunks and no relative imports. OpenCode reloads a plugin in place and keeps modules it already loaded, so a shared sibling module could be stale.
-- Releases come only from `.github/workflows/release.yml` ("Releasing" in [CONTRIBUTING.md](CONTRIBUTING.md)). A
-  release-prep PR sets `version` in `package.json` and the install specs and runs `node scripts/changelog.mjs release`;
-  once it is on `master` and CI passed, start the release with
-  `gh workflow run release.yml --ref master -f sha=<its full sha>`. The workflow builds `dist/`, makes the release
-  commit on a temporary `release/v<version>` branch, checks and stages everything, and waits for the owner to approve
-  the `release` environment; only then does it create the tag `v<version>` and the GitHub Release. Never push a tag or a
-  `release/*` branch, and never commit, tag or publish a release by hand. Agents never approve a release, never call the
-  deployment-approval API, and never bypass a ruleset or the environment.
-- No personal email in anything we publish. Every commit is authored and committed as
-  `joe-broadhead <91376460+joe-broadhead@users.noreply.github.com>`, except the release commit and tag, which the
-  release workflow makes as `github-actions[bot]`. Before committing or tagging, check that
-  `git config user.email` is that address: a fresh clone inherits the machine's global identity, which is not that
-  address. Never commit, tag or publish with a work or personal address, or with a local hostname.
+- `dist/` holds exactly `index.js` and `tui.js`, each one self-contained esbuild bundle: no chunks and no relative imports.
+- Releases come only from `.github/workflows/release.yml` ("Releasing" in [CONTRIBUTING.md](CONTRIBUTING.md)). Never push a tag or a `release/*` branch, and never commit, tag or publish a release by hand. Agents never approve a release.
 
 ## Before you commit
 

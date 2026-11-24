@@ -5,7 +5,7 @@
 // actionlint is not a Node dependency: it is a Go binary. This script uses
 // $ACTIONLINT_BIN when set, otherwise `actionlint` on PATH. Without either it
 // prints a notice and exits 0, so a fresh clone still passes `npm run check`;
-// CI runs actionlint in its own job, where a problem fails the run.
+// CI installs actionlint before the check, where a problem fails the run.
 
 import { execFileSync, spawnSync } from "node:child_process"
 import { existsSync, readdirSync } from "node:fs"
@@ -26,7 +26,7 @@ const found = spawnSync(binary, ["--version"], { encoding: "utf8" })
 if (found.error || found.status !== 0) {
   console.log(
     `check-workflows: actionlint is not installed (${binary}), so the workflows were not linted. ` +
-      "Install it from https://github.com/rhysd/actionlint or set ACTIONLINT_BIN; CI runs it for every pull request.",
+      "Install it from https://github.com/rhysd/actionlint or set ACTIONLINT_BIN; CI installs it before the check.",
   )
   process.exit(0)
 }

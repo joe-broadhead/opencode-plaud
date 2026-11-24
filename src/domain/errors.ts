@@ -34,7 +34,7 @@ export const ERRORS = {
     next: "Write inside a root the plugin lists, or ask the user to add the folder to exportRoots.",
   },
   EXPORT_PATH_NOT_PERMITTED: {
-    meaning: "The export folder is outside the project, and the plugin's external_directory assertion for it was refused. A rule denied it, or the person rejected the prompt.",
+    meaning: "The export folder is outside the project, and the plugin's external_directory assertion for it was refused. A rule denied it.",
     next: "Allow it with { \"action\": \"external_directory\", \"resource\": \"<the export folder>/*\", \"effect\": \"allow\" } in your permissions, or set exportRoots inside the project.",
   },
   EXPORT_BAD_DESTINATION: {

@@ -54,7 +54,7 @@ The copied kit files under `scripts/` and the shared declaration test support in
 
 - No `dependencies` and no peer dependencies. OpenCode supplies `@opencode/plugin`, OpenTUI and Solid to plugins at runtime. `zod` is bundled into `dist/index.js` only. The RPC contract is plain JSON Schema, so `dist/tui.js` carries no schema library.
 - Never bundle the host's runtime: `@opencode/plugin`, `effect`, OpenTUI or Solid. Do not ship TypeScript, build tools or a Node runtime.
-- `@opencode/plugin`, `@opencode/sdk` and `@opencode/client` are exact dev dependencies at 2.4.1, with `effect` 4.1.0 for the SDK's peer. Do not add another SDK release to a lockfile.
+- `@opencode/plugin`, `@opencode/sdk` and `@opencode/client` are exact dev dependencies at 2.4.1. Do not add another SDK release to a lockfile. `effect` is not a dev dependency: the `@opencode` packages bring their own 4.1.0, and no source or test file imports it.
 - `package.json` states compatibility as `"opencode": { "host": ">=2.4.1 <2.5.0" }`. The start-up check in `src/version.ts` uses the same range.
 - No lifecycle scripts, including `prepare`. Ship prebuilt JavaScript in `dist/`.
 - `dist/` holds exactly `index.js` and `tui.js`, each one self-contained esbuild bundle: no chunks and no relative imports.

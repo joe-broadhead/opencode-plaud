@@ -399,6 +399,9 @@ describe("the recordings source, plaud.recordings", () => {
     // Forged: another binding's cursor that claims this account.
     const forged = encodeBoundCursor({ plugin: "granola", source: RECORDINGS_SOURCE, account: "default" }, { a: "default", o: "plaud:user-1", l: "Fixture", t: 0, i: "" })
     expect(await code(list({ account: "default", cursor: forged }))).toBe("CURSOR_INVALID")
+    // A cursor from before the lookback fields is refused, not accepted as a compatibility path.
+    const old = encodeBoundCursor({ plugin: "plaud", source: RECORDINGS_SOURCE, account: "default", scope: {} }, { a: "default", o: "plaud:user-1", l: "Fixture", t: 0, i: "" })
+    expect(await code(list({ account: "default", cursor: old }))).toBe("CURSOR_INVALID")
     expect(await code(list({ account: "home" }))).toBe("ACCOUNT_MISMATCH")
     expect(fake.calls.length).toBe(before)
   })

@@ -25,7 +25,7 @@ const env: Rule[] = [
   { action: "read", resource: "*.env.example", effect: "allow" },
 ]
 
-/** The built-in agents as 2.2.3 creates them, before any plugin transform. */
+/** The built-in agents as 2.4.1 creates them, before any plugin transform. */
 function builtIns(): Agent[] {
   return [
     { id: "build", permissions: [allow, ...env] },

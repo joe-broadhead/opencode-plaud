@@ -20,9 +20,9 @@ import { tempDir } from "./temp-dirs.js"
  *
  * PACK_TARBALL tests a tarball that is already packed, such as the one a
  * release publishes. Each release in TESTED_HOSTS (src/version.ts) is tested:
- * OPENCODE_BIN_2_2_3 to OPENCODE_BIN_2_3_0 name stock
- * binaries; otherwise each @opencode/cli release is installed with npm, once
- * per run, into the test's own folder under /tmp.
+ * OPENCODE_BIN_<version> may name a stock binary; otherwise the
+ * @opencode/cli release is installed with npm, once per run, into the test's
+ * own folder under /tmp.
  */
 
 const REPO = realpathSync(fileURLToPath(new URL("..", import.meta.url)))

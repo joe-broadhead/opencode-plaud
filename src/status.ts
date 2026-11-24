@@ -106,8 +106,8 @@ function shadowStep(skill: ListedSkill): string {
   return `Move or rename the skill at ${skill.path}, so that this plugin's ${skill.id} skill loads, then run opencode reload.`
 }
 
-/** The tested releases in words: "2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 or 2.3.2". */
-const TESTED_TEXT = `${TESTED_HOSTS.slice(0, -1).join(", ")} or ${TESTED_HOSTS.at(-1)}`
+/** The tested releases in words: "2.4.1". */
+const TESTED_TEXT = TESTED_HOSTS.join(", ")
 
 export function buildStatus(facts: StatusFacts): Status {
   const accounts = facts.servers.map((server): AccountStatus => {

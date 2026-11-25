@@ -95,7 +95,7 @@ const notices = [...bundled.keys()].sort().map((name) => {
   if (!file) throw new Error(`build: ${name} is bundled but ships no licence file`)
   return `## ${name} ${version} (${license}), in ${[...bundled.get(name)].sort().join(" and ")}\n\n${readFileSync(join(root, file), "utf8").trim()}\n`
 })
-const notice = `opencode-plaud bundles this third-party code into dist/.\n\n${notices.join("\n")}`
+const notice = `This package bundles this third-party code into dist/.\n\n${notices.join("\n")}`
 if (process.argv.includes("--notice")) writeFileSync(join(ROOT, "NOTICE"), notice)
 else if (readFileSync(join(ROOT, "NOTICE"), "utf8") !== notice) {
   console.error("build: NOTICE does not match the bundled packages. Run `node scripts/build.mjs --notice` to rewrite it.")

@@ -11,7 +11,7 @@ import type { AddressInfo } from "node:net"
  * - Signed links point at this server, with the seven query parameters of Plaud's live links:
  *   `presigned_url` in `get_file` (`/audio/<id>.mp3?…`), and `data_link` in each item of
  *   `get_file`'s `source_list` and `note_list` and of `get_note` (`/data/<id>?…`).
- * - `/v1/chat/completions` and `/api/v1/models` are an LM Studio-compatible model API for a scripted
+ * - `/v1/chat/completions` and `/api/v1/models` are a local chat-completions model API for a scripted
  *   model (`model.script`), so a test can see exactly what a model receives. Every chat request is
  *   kept in `model.requests`.
  *

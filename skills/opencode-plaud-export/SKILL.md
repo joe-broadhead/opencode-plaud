@@ -3,7 +3,7 @@ name: opencode-plaud-export
 description: Save a Plaud recording's audio, transcript, outline or notes as a local file with plaud_export. Use when the user asks to download, export, save or keep a Plaud recording or its audio, asks for a download link to it, or wants to know how such an export works.
 ---
 
-If Plaud's tools are absent, run `/connect` and choose Plaud (or Plaud (<alias>) for another account), or on Jelly call jelly_connection_request.
+If Plaud's tools are absent, run `/connect` and choose Plaud (or Plaud (<alias>) for another account).
 
 # Export a Plaud recording
 
@@ -33,15 +33,15 @@ It returns `{ path, bytes, sha256 }`, never the content.
    start time and length, and ask which one. Export only after the user answers: if you can't ask, end your answer
    with the question, and never export a guess or every match instead.
 2. **Pick the kind.** Asked to save or download the audio: `kind: "audio"`, at once. The export reads `get_file`
-   itself, so don't call `get_file` first. Asked only for a link: say Plaud's links are withheld and offer to save
-   the audio, and export when they agree. Summary or action items: `kind: "note"`. A transcript: omit `block` for the raw one,
+   itself, so don't call `get_file` first. Asked only for a link: say Plaud's own result can carry a signed link, which is
+   sensitive, and offer to save the audio; export when they agree. Summary or action items: `kind: "note"`. A transcript: omit `block` for the raw one,
    pass `transaction_polish` for "cleaned up", `outline` for "the outline" or topics, `mark_memo` for flagged moments.
 3. **Leave out `destination`** unless the user named a file. `plaud_export`'s description lists the export roots
    (`~/Plaud` by default). For a folder outside them, such as Documents, never copy, move or write the file there
    with another tool, because the roots are the user's limit. Offer the default file, or tell the user how to add
    the folder: in the plugin's entry in `opencode.json`, then `opencode reload`.
    ~~~json
-   { "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.9", "options": { "exportRoots": ["~/Plaud", "~/Documents"] } }] }
+   { "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v<version>", "options": { "exportRoots": ["~/Plaud", "~/Documents"] } }] }
    ~~~
 4. **Pass `overwrite: true`** only when the user asked to replace that file. The export itself refuses an existing
    file with `EXPORT_EXISTS`, so don't list the folder first.
@@ -72,12 +72,13 @@ call unchanged.
 | `PLAUD_UNREADABLE` | Plaud sent something the plugin cannot read. Report it. |
 | `CONTENT_UNAVAILABLE` | No audio yet, or no such transcript block. Offer another block or the note. |
 | `EXPORT_OUTSIDE_ROOTS` | Omit `destination`, or pick a file inside an export root. |
-| `EXPORT_PATH_NOT_PERMITTED` | The export folder is outside the project, so the user's `external_directory` rule decides. Give the rule from the message and let the user add it; don't retry. |
+| `EXPORT_PATH_NOT_PERMITTED` | The export folder is outside the project, and the `external_directory` rules do not allow it; an `ask` counts as a refusal. Give the rule from the message and let the user add it; don't retry. |
 | `EXPORT_BAD_DESTINATION` | Pass a file path, not a folder or a root, or omit `destination`. |
 | `EXPORT_EXISTS` | Ask the user whether to replace the file or choose another path. |
 | `EXPORT_TOO_LARGE` | Report the size and the limit (`maxAudioBytes`, or 25 MiB for text). Don't split or retry. |
 | `EXPORT_TIMEOUT` | Report it; the user can raise `exportTimeoutMs`. |
 | `EXPORT_FAILED` | The download or the local write failed. Follow the next step. |
+| `WORKSPACE_UNSUPPORTED` | The session runs on a workspace, not this machine. Run the export in a session on this machine. |
 
 ~~~js
 return await tools.plaud.export({ recordingId: "RECORDING_ID", kind: "transcript", block: "transaction_polish" })

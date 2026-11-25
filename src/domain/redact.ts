@@ -4,9 +4,12 @@ import { AUDIO_URL_FIELD, DATA_LINK_FIELD, unwrap } from "./normalize.js"
  * Plaud's results carry signed links: `presigned_url` to a recording's audio
  * in `get_file`, and `data_link` to each source and note item in `get_file`
  * and `get_note`. Anyone who has one can download what it points to until it
- * expires, so each is a credential. Every one is replaced before the result
- * reaches the model, its session history or the model provider. Exports read
- * the results themselves and never return a link.
+ * expires, so each is a credential. The tools RPC for scripts never returns
+ * one: `shapeResult` replaces every link before the caller sees it. The
+ * plugin's own tools return no link at all, and the export reads the audio
+ * link itself and never returns it. Plaud's own read tools, called by the
+ * model, pass Plaud's results through unchanged, links included; treat them
+ * as sensitive and prefer `export` for audio.
  */
 
 export const AUDIO_URL_NOTICE = "withheld: use plaud_export to download the audio"
@@ -34,8 +37,7 @@ export function withholdSignedLinks(value: unknown): unknown {
 
 /**
  * The same for a tool result's structured output: text is rewritten as text,
- * anything else field by field. The model path's `execute.after` hook and the
- * tools RPC for scripts both use it.
+ * anything else field by field. The tools RPC for scripts uses it.
  */
 export function withholdSignedLinksInOutput(output: unknown): unknown {
   return typeof output === "string" ? withholdSignedLinksInText(output) : withholdSignedLinks(output)

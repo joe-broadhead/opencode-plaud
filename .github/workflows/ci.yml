@@ -1,6 +1,4 @@
-# Runs what a contributor runs locally: npm ci with scripts off, then npm run check. The host suite runs on each
-# tested OpenCode release (TESTED_HOSTS in src/version.ts: 2.2.3 to 2.3.2), installing each @opencode/sdk
-# other than the lockfile's itself, and the pack test installs each stock @opencode/cli release itself.
+# The one check: what a contributor runs locally, on Node 24, once.
 name: CI
 
 on:
@@ -18,37 +16,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  actionlint:
-    name: actionlint
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      # The workflows are tools too: a YAML file GitHub refuses fails the whole run, so this is its own job.
-      # actionlint parses the workflows as workflows, not as YAML: a `${{ }}` in a context that does not exist makes
-      # GitHub reject the file and run nothing at all.
-      - name: actionlint
-        run: |
-          set -euo pipefail
-          version=1.7.12
-          base="https://github.com/rhysd/actionlint/releases/download/v${version}"
-          curl -sSfLO "${base}/actionlint_${version}_linux_amd64.tar.gz"
-          curl -sSfLO "${base}/actionlint_${version}_checksums.txt"
-          grep " actionlint_${version}_linux_amd64.tar.gz$" "actionlint_${version}_checksums.txt" | sha256sum -c -
-          tar xzf "actionlint_${version}_linux_amd64.tar.gz" actionlint
-          ./actionlint -color
-  check:
-    name: check (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        # Public GitHub-hosted runners: Linux x64, Linux arm64, macOS arm64.
-        # A pull request runs the two Linux runners; a push to master, or a run by hand, runs three: macOS arm64 too. macOS
-        # runs on master and for releases only, and the release planner requires that push run with every runner.
-        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-24.04","ubuntu-24.04-arm"]' || '["ubuntu-24.04","ubuntu-24.04-arm","macos-26"]') }}
-    runs-on: ${{ matrix.os }}
+  ci:
+    name: ci
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (vars.CI_RUNNER_PUBLIC || 'ubuntu-24.04') || 'ubuntu-24.04' }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -56,7 +26,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24 # the embedded OpenCode host needs Node 24 or later
+          node-version: 24
           cache: npm
           # The host and pack stages install the releases src/version.ts lists, so it is part of the key.
           cache-dependency-path: |
@@ -64,7 +34,25 @@ jobs:
             src/version.ts
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.4 # the Bun inside stock OpenCode 2.2.3 to 2.3.2
+          bun-version: 1.4.5 # the TUI render and the pack stage's import test run under Bun
+          no-cache: true # a cache made under another runner's HOME points its binaries at that HOME
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          version=1.7.12
+          case "$(uname -m)" in
+            x86_64) arch=amd64 ;;
+            aarch64|arm64) arch=arm64 ;;
+            *) echo "::error::no actionlint build for $(uname -m)"; exit 1 ;;
+          esac
+          base="https://github.com/rhysd/actionlint/releases/download/v${version}"
+          curl -sSfLO "${base}/actionlint_${version}_linux_${arch}.tar.gz"
+          curl -sSfLO "${base}/actionlint_${version}_checksums.txt"
+          grep " actionlint_${version}_linux_${arch}.tar.gz$" "actionlint_${version}_checksums.txt" | sha256sum -c -
+          tar xzf "actionlint_${version}_linux_${arch}.tar.gz" actionlint
+          mkdir -p "$RUNNER_TEMP/bin"
+          install -m 0755 actionlint "$RUNNER_TEMP/bin/actionlint"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       # OpenCode installs plugins with scripts off, and no dev dependency needs its install script.
       - run: npm ci --ignore-scripts
       - run: npm run check

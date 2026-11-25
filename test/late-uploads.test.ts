@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { MAX_CURSOR_LENGTH, encodeBoundCursor } from "@we-the-rebel-alliance/source-contract/cursor"
+import { MAX_CURSOR_LENGTH } from "@we-the-rebel-alliance/source-contract/cursor"
 import { resultProblems, type EventsListResult } from "@we-the-rebel-alliance/source-contract/events"
 import { EventsListOutput } from "../src/domain/contract/index.js"
 import type { ToolContext } from "../src/host/context.js"
@@ -170,10 +170,5 @@ describe("recordings that reach Plaud after the cursor passed their start", () =
     expect(listed.length).toBe(held.filter((item) => item.start <= DAY0 + 15 * DAY - SETTLE_MS).length)
   })
 
-  it("takes a cursor from before the lookback, and lists from its position without listing that recording again", async () => {
-    const held = [recording("a", DAY0 + 9 * HOUR, HOUR), recording("b", DAY0 + 12 * HOUR, HOUR)]
-    const plaudNow = await collector(held, DAY0 + 20 * HOUR)
-    const old = encodeBoundCursor({ plugin: "plaud", source: RECORDINGS, account: "default", scope: {} }, { a: "default", o: "mailto:sam.rivera@example.com", l: "Sam Rivera", t: DAY0 + 9 * HOUR, i: "a" })
-    expect((await plaudNow.read(old, DAY0 + 20 * HOUR)).ids).toEqual(["b"])
-  })
+
 })

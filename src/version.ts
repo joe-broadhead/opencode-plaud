@@ -7,10 +7,10 @@ declare const __PLUGIN_VERSION__: string
 export const PLUGIN_VERSION: string = __PLUGIN_VERSION__
 
 /** The OpenCode releases this plugin supports. `package.json` `opencode.host` states the same range. */
-export const SUPPORTED_HOSTS = ">=2.2.3 <2.4.0"
+export const SUPPORTED_HOSTS = ">=2.4.1 <2.5.0"
 
 /** The releases every host, pack and stock check runs on: the one list the tests and CI read. */
-export const TESTED_HOSTS: readonly string[] = ["2.2.3", "2.2.4", "2.2.5", "2.2.6", "2.2.7", "2.3.0", "2.3.1", "2.3.2"]
+export const TESTED_HOSTS: readonly string[] = ["2.4.1"]
 
 /**
  * The host check: `range` is the supported range, `tested` is true only for a release in `TESTED_HOSTS`, and

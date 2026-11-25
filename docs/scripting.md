@@ -1,6 +1,6 @@
 # Scripting
 
-A script can call Plaud with no model: a cron job, a shell script, or any program that can reach the OpenCode server.
+A script can call Plaud with no model: an OpenCode automation, a shell script, or any program that can reach the OpenCode server.
 It uses the tools RPC, `plaud.recordings.tools`, through `opencode api` or an OpenCode client.
 
 | Method | Class | The tool |
@@ -26,9 +26,9 @@ account is the envelope's `account`, never part of the input. It returns
 `{ "items": [{ "id", "text" }], "editable": false }`: one line per recording, with its title, start time (UTC) and
 length, and no link or content.
 
-`events_list` runs the plugin's own `plaud_events_list`, as the model does: it asserts `plaud_events_list` for the account, then reads through that account's `list_files` (and, for the default source `plaud`, its `get_current_user`). Its input is the source contract's `{ since?, cursor?, limit?, account?, source? }`; the account is the envelope's `account` or the input's, and the two may not differ. `source: "recordings"` is the declared source `plaud.recordings`; leaving it out, or `"plaud"`, is the listing scripts read before it, unchanged.
+`events_list` runs the plugin's own `plaud_events_list`, as the model does: it asserts `plaud_events_list` for the account, then reads through that account's `list_files`. Its input is the source contract's `{ since?, cursor?, limit?, account?, source? }`; the account is the envelope's `account` or the input's, and the two may not differ. `source: "recordings"` is the declared source `plaud.recordings`, and leaving it out means the same source.
 
-`probe` is the source contract's: `{ source?, account? }` → `{ source: "recordings", account, owner, trust }`. It asserts `plaud_probe` for the account and reads only its `get_current_user`. Every `recordings` listing of an account needs a probe of it since OpenCode started, cursor or not: a page's owner is only ever the one a probe read ([configuration](configuration.md#the-recordings-source-and-probe)).
+`probe` is the source contract's: `{ source?, account? }` → `{ source: "recordings", account, owner, trust }`. It asserts `plaud_probe` for the account and reads only its `get_current_user`. Every listing of an account needs a probe of it since OpenCode started, cursor or not: a page's owner is only ever the one a probe read ([configuration](configuration.md#probe)).
 
 `plaud_export` writes a file, so it is not a method: it stays a direct tool under the `access` option, and a script never runs it.
 
@@ -50,8 +50,9 @@ The plugin's default rules allow every method, at the default `access: "all"`, s
 `events_list` or `probe` unless the `access` option or the session's rules restrict it. An `ask` is refused here.
 `plaud_export` is not among the methods: a script never runs it, whatever the rules say.
 
-The model's export writes a file outside the project, so OpenCode also checks `external_directory` on the folder, as well as
-`plaud_export`, before anything is written. That check is not a script method. The rule a person adds for the model is:
+When the model's export target is outside the project, the plugin evaluates the agent's and session's
+`external_directory` rules itself and fails closed: only an explicit allow writes, and an `ask` is a refusal. That check is
+not a script method. The rule a person adds for the model is:
 
 ```json
 { "permissions": [
@@ -60,7 +61,7 @@ The model's export writes a file outside the project, so OpenCode also checks `e
 ] }
 ```
 
-A refusal that names `external_directory` costs nothing: nothing was read and nothing was written. Move the folder
+A refusal costs nothing: nothing was read and nothing was written. Move the folder
 inside the project with the `exportRoots` option, or add the rule. An agent defined only in your config misses the
 default rules; at `"ask-changes"` or `"read-only"`, `/plaud-status` names it and gives the fix.
 
@@ -77,9 +78,9 @@ account's name, such as `plaud-work`, the call uses it, as the model does. A scr
 ## Signed links
 
 Plaud's results carry signed links: `presigned_url` to a recording's audio, and `data_link` to each source and note
-item. Anyone who has one can download what it points to until it expires. A script never gets one: the plugin replaces
-each, in the structured output and in the text, with the same notice the model sees. `export` saves audio, a
-transcript or a note without returning a link.
+item. Anyone who has one can download what it points to until it expires. A script never gets one: `shapeResult` replaces
+each, in the structured output and in the text, with a notice. `export` saves audio, a transcript or a note without
+returning a link. Plaud's own reads in a model turn pass the links through; treat them as credentials.
 
 ## A script runs as a session
 
@@ -188,11 +189,11 @@ A refusal or failure is the RPC error `failed`, with a message `CODE: what happe
 | `TOOL_UNAVAILABLE` | The account's server is connected, but OpenCode does not list the tool. |
 | `UPSTREAM_ERROR` | Plaud answered with an error, such as a recording that does not exist. The message holds the first line of Plaud's text, at most 300 characters, with tokens and URL query strings removed. |
 | `CANCELLED` | The request was cancelled. |
-| `INPUT_INVALID` | `recent`, `events_list` and `probe` only: `recent`'s input is not `{}` or `{ "limit": 1 to 20 }`, for example because it holds `account`, which belongs in the envelope; `events_list`'s or `probe`'s input breaks the contract, or names an account other than the envelope's; a `recordings` listing with a cursor names no account. |
+| `INPUT_INVALID` | `recent`, `events_list` and `probe` only: `recent`'s input is not `{}` or `{ "limit": 1 to 20 }`, for example because it holds `account`, which belongs in the envelope; `events_list`'s or `probe`'s input breaks the contract, or names an account other than the envelope's; a listing with a cursor names no account. |
 | `PLAUD_READ_FAILED`, `PLAUD_UNREADABLE` | `recent`, `events_list` and `probe` only: the account's `list_files` or `get_current_user` failed, or did not return what it should. |
-| `EVENTS_CURSOR_INVALID`, `EVENTS_OWNER_UNKNOWN` | `events_list` and `probe` only: a `plaud` cursor is not one it issued for this account and user, or Plaud named no user. |
-| `SOURCE_UNKNOWN`, `ACCOUNT_MISMATCH` | `events_list` and `probe` only: the call names a source the plugin does not have; or a `recordings` listing or a probe names an account it does not have in its input, or passes another account's cursor. |
-| `CURSOR_INVALID`, `UNAVAILABLE` | `events_list` only: a `recordings` cursor is not one it issued for this account, or the account's last probe named another user; or a `recordings` listing came before any probe of the account since OpenCode started. |
+| `EVENTS_OWNER_UNKNOWN` | `events_list` and `probe` only: Plaud named no user. |
+| `SOURCE_UNKNOWN`, `ACCOUNT_MISMATCH` | `events_list` and `probe` only: the call names a source the plugin does not have; or a listing or a probe names an account it does not have in its input, or passes another account's cursor. |
+| `CURSOR_INVALID`, `UNAVAILABLE` | `events_list` only: a cursor is not one it issued for this account, or the account's last probe named another user; or a listing came before any probe of the account since OpenCode started. |
 
 OpenCode itself answers `rpc.method_not_found` for a method that does not exist, such as a tool Plaud added later, and
 `rpc.invalid_input` for a body that is not the envelope above, with one issue per problem:
@@ -214,4 +215,4 @@ OpenCode itself answers `rpc.method_not_found` for a method that does not exist,
 - Answer an approval prompt, or use a tool that asks.
 - Use a token: the plugin has none to give.
 
-A script's calls write nothing to the session, and OpenCode's `execute.before` and `execute.after` tool hooks, from any plugin, do not run for them. The plugin applies its own hook's work itself: it withholds the signed links with the same functions.
+A script's calls write nothing to the session, and OpenCode's `execute.before` and `execute.after` tool hooks, from any plugin, do not run for them. The tools RPC's `shapeResult` withholds the signed links itself.

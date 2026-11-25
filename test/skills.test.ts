@@ -18,10 +18,10 @@ const IDS = ["opencode-plaud", "opencode-plaud-digest", "opencode-plaud-export"]
 /**
  * Every code plaud_export can fail with; typed, so a new code must be added here and to the skill. INPUT_INVALID is
  * the tools RPC's recent method's only: a tool's input is checked by OpenCode. The EVENTS_ codes and the source contract's
- * (CURSOR_INVALID, ACCOUNT_MISMATCH, SOURCE_UNKNOWN, UNAVAILABLE) are plaud_events_list's and probe's, which Memory's
+ * (CURSOR_INVALID, ACCOUNT_MISMATCH, SOURCE_UNKNOWN, UNAVAILABLE) are plaud_events_list's and probe's, which a
  * collector and other consumers run, not the model, so no skill teaches them.
  */
-const CODES: Record<Exclude<ErrorCode, "INPUT_INVALID" | "EVENTS_CURSOR_INVALID" | "EVENTS_OWNER_UNKNOWN" | "CURSOR_INVALID" | "ACCOUNT_MISMATCH" | "SOURCE_UNKNOWN" | "UNAVAILABLE">, true> = {
+const CODES: Record<Exclude<ErrorCode, "INPUT_INVALID" | "EVENTS_OWNER_UNKNOWN" | "CURSOR_INVALID" | "ACCOUNT_MISMATCH" | "SOURCE_UNKNOWN" | "UNAVAILABLE">, true> = {
   AUTH_REQUIRED: true,
   PLAUD_READ_FAILED: true,
   PLAUD_UNREADABLE: true,
@@ -33,6 +33,7 @@ const CODES: Record<Exclude<ErrorCode, "INPUT_INVALID" | "EVENTS_CURSOR_INVALID"
   EXPORT_TOO_LARGE: true,
   EXPORT_TIMEOUT: true,
   EXPORT_FAILED: true,
+  WORKSPACE_UNSUPPORTED: true,
 }
 /** Every tool a skill may name: the server's reads and the plugin's own two. The router names each in both forms. */
 const TOOLS = new Set([...KNOWN_READS, "export", "recent"])
@@ -131,14 +132,14 @@ describe("skill files", () => {
     const config = JSON.parse(/~~~json\n\s*(\{.*\})\n\s*~~~/.exec(skill)![1]!) as { plugins: { package: string; options: Record<string, unknown> }[] }
     const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { name: string; version: string }
     // A Git install is named by its tag spec: github:<owner>/<name>#v<version>.
-    expect(config.plugins[0]!.package).toBe(`github:${pkg.name.replace(/^@/, "")}#v${pkg.version}`)
+    expect(config.plugins[0]!.package).toBe(`github:${pkg.name.replace(/^@/, "")}#v<version>`)
     expect(loadConfig(config.plugins[0]!.options).exportRoots).toHaveLength(2)
   })
 
   it("contain no internal wording, links or credentials", () => {
     for (const id of IDS) {
       const raw = text(id)
-      // A release tag after "#" (the install spec's #v0.0.0) is public, not an internal label such as V1.
+      // A release tag after "#" (the install spec's #v<version>) is public, not an internal label such as V1.
       expect(raw, id).not.toMatch(/\bWS-[A-Z]\b|\bMode [RF]\b|(?<!#)\bV\d{1,2}\b|\bfake\b|\bmanifest\b|\bplan(?:s|Id)?\b|\bcommit\b|\bharness\b|\bpending\b|\bTODO\b/i)
       expect(raw, id).not.toMatch(/plaud_auth|plaud_recordings|plaud_status|plaud-login|export_commit/)
       expect(raw, id).not.toMatch(/https?:\/\/|\bBearer\s|\beyJ[A-Za-z0-9_-]{8,}|(?:access|refresh)_token|presigned/i)
@@ -168,7 +169,7 @@ describe("skill loading", () => {
       expect(skill.name).toBe(id)
       expect(skill.path).toBe(join(SKILLS.pathname, id, "SKILL.md"))
       expect(skill.description).toMatch(/Use when/)
-      expect(skill.content).toMatch(/^If Plaud's tools are absent, run `\/connect` and choose Plaud .*jelly_connection_request\.\n\n# /)
+      expect(skill.content).toMatch(/^If Plaud's tools are absent, run `\/connect` and choose Plaud .*\n\n# /)
       expect(skill.content).not.toMatch(/^---$/m)
     }
   })
@@ -223,10 +224,10 @@ describe("steering away from get_file", () => {
     }
   })
 
-  it("the Code Mode namespace names every read, steers away from get_file, and sends audio to export", () => {
-    for (const tool of KNOWN_READS) expect(NAMESPACE.description).toContain(tool)
-    expect(NAMESPACE.description).toContain("Don't call get_file")
-    expect(NAMESPACE.description).toMatch(/for audio, even a download link, call export/)
+  it("the Code Mode namespace names the reads it steers to, steers away from get_file, and sends audio to export", () => {
+    for (const tool of ["get_note", "get_transcript", "get_file", "export"]) expect(NAMESPACE.description).toContain(tool)
+    expect(NAMESPACE.description).toContain("Avoid get_file")
+    expect(NAMESPACE.description).toContain("export audio or text to a file")
   })
 
   it("the skills say the same: no get_file, and audio is an export", () => {

@@ -17,11 +17,11 @@ async function registered(host: Harness) {
 }
 
 it("refuses an OpenCode release outside the supported range before registering anything", async () => {
-  const host = await startHost({ version: "2.4.0" })
+  const host = await startHost({ version: "2.5.0" })
   try {
     expect(host.plugin.state).toEqual({
       status: "failed",
-      error: expect.stringMatching(/HOST_UNTESTED: opencode-plaud supports OpenCode >=2\.2\.3 <2\.4\.0, and this is OpenCode 2\.4\.0\..*"allowUntestedHost": true/),
+      error: expect.stringMatching(/HOST_UNTESTED: opencode-plaud supports OpenCode >=2\.4\.1 <2\.5\.0, and this is OpenCode 2\.5\.0\..*"allowUntestedHost": true/),
     })
     expect(await registered(host)).toEqual([])
   } finally {
@@ -30,8 +30,8 @@ it("refuses an OpenCode release outside the supported range before registering a
 })
 
 it.each([
-  ["2.4.0", "outside the range, with allowUntestedHost", { allowUntestedHost: true }, "If Plaud misbehaves, use a tested OpenCode release: 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 or 2.3.2."],
-  ["2.2.99", "inside the range but not tested", {}, "Nothing to do."],
+  ["2.5.0", "outside the range, with allowUntestedHost", { allowUntestedHost: true }, "If Plaud misbehaves, use a tested OpenCode release: 2.4.1."],
+  ["2.4.2", "inside the range but not tested", {}, "Nothing to do."],
 ])("loads %s, %s, and status calls it untested (INSTALL-4)", async (version, _why, options, nextStep) => {
   const host = await startHost({ version, options })
   try {
@@ -41,7 +41,7 @@ it.each([
       const read = await host.opencode.rpc(Plaud).status({}, { location: host.location })
       return isStatus(read) && read.accounts[0]?.state === "signed_in" ? read : undefined
     })
-    expect(status.host).toEqual({ version, range: ">=2.2.3 <2.4.0", tested: false })
+    expect(status.host).toEqual({ version, range: ">=2.4.1 <2.5.0", tested: false })
     expect(status.state).toBe("connected")
     expect(status.nextStep).toBe(nextStep)
   } finally {

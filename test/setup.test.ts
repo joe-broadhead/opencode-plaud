@@ -6,11 +6,11 @@ import plugin from "../src/index.js"
 type Config = Parameters<McpEditor["set"]>[1]
 
 /**
- * Setup names the /connect entries, registers plaud_export and its result hook through ctx.tool, then /plaud-status,
- * the skills, the status RPC and the tools RPC with its permission hook.
+ * Setup names the /connect entries, registers the plugin's tools through ctx.tool, then /plaud-status, the skills,
+ * the status RPC and the tools RPC with its permission hook.
  */
 const registered = async () => ({ dispose: async () => undefined })
-const tool = { transform: registered, hook: registered, list: async () => [] } as unknown as Plugin.Context["tool"]
+const tool = { transform: registered, list: async () => [] } as unknown as Plugin.Context["tool"]
 const command = { transform: registered } as unknown as Plugin.Context["command"]
 const skill = { transform: registered } as unknown as Plugin.Context["skill"]
 const integration = { transform: registered, get: async () => ({ data: { name: "Plaud" } }) } as unknown as Plugin.Context["integration"]
@@ -45,7 +45,7 @@ describe("plugin setup", () => {
   })
 
   it("works with zero config: the plaud server on Plaud's hosted URL", async () => {
-    const { ctx, servers, dispose, register, hook } = fakeContext("2.2.3", undefined)
+    const { ctx, servers, dispose, register, hook } = fakeContext("2.4.1", undefined)
     const cleanup = await plugin.setup(ctx)
     expect(Object.fromEntries(servers)).toEqual({ plaud: { type: "remote", url: "https://mcp.plaud.ai/mcp" } })
     expect(register.mock.calls.map(([contract]) => contract.id)).toEqual(["plaud.recordings", "plaud.recordings.tools"])
@@ -58,15 +58,15 @@ describe("plugin setup", () => {
   })
 
   it("registers extra accounts on the configured URL", async () => {
-    const { ctx, servers } = fakeContext("2.2.4", { accounts: ["work"], url: "https://mcp.eu.example.test/mcp" })
+    const { ctx, servers } = fakeContext("2.4.1", { accounts: ["work"], url: "https://mcp.eu.example.test/mcp" })
     await plugin.setup(ctx)
     expect([...servers.keys()]).toEqual(["plaud", "plaud-work"])
     expect(servers.get("plaud-work")).toEqual({ type: "remote", url: "https://mcp.eu.example.test/mcp" })
   })
 
   it("accepts plain http only on localhost", async () => {
-    await plugin.setup(fakeContext("2.2.3", { url: "http://127.0.0.1:4010/mcp" }).ctx)
-    await expect(plugin.setup(fakeContext("2.2.3", { url: "http://mcp.plaud.ai/mcp" }).ctx)).rejects.toThrow(
+    await plugin.setup(fakeContext("2.4.1", { url: "http://127.0.0.1:4010/mcp" }).ctx)
+    await expect(plugin.setup(fakeContext("2.4.1", { url: "http://mcp.plaud.ai/mcp" }).ctx)).rejects.toThrow(
       /^OPTIONS_INVALID: opencode-plaud has invalid options: url: must be an https URL/,
     )
   })
@@ -78,14 +78,14 @@ describe("plugin setup", () => {
     [{ accounts: ["work", "work"] }, /accounts: aliases must be unique/],
     [{ allowUntestedHost: "yes" }, /allowUntestedHost: /],
   ])("refuses invalid options %j with one message", async (options, message) => {
-    const { ctx, transform } = fakeContext("2.2.3", options)
+    const { ctx, transform } = fakeContext("2.4.1", options)
     await expect(plugin.setup(ctx)).rejects.toThrow(message)
     expect(transform).not.toHaveBeenCalled()
   })
 
   it("refuses an untested host before registering anything", async () => {
-    const { ctx, transform } = fakeContext("2.4.0", {})
-    await expect(plugin.setup(ctx)).rejects.toThrow(/^HOST_UNTESTED: .*OpenCode 2\.4\.0/)
+    const { ctx, transform } = fakeContext("2.5.0", {})
+    await expect(plugin.setup(ctx)).rejects.toThrow(/^HOST_UNTESTED: .*OpenCode 2\.5\.0/)
     expect(transform).not.toHaveBeenCalled()
   })
 

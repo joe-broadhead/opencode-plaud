@@ -7,7 +7,7 @@ Read [AGENTS.md](AGENTS.md) first: it has the rules every change follows. [docs/
 You need:
 
 - Node 24 or later, with npm. The embedded OpenCode host in the host tests needs Node 24.
-- [Bun](https://bun.sh) on `PATH`, for the TUI render test and the pack test. CI uses Bun 1.4.4, the Bun inside the stock OpenCode releases in `TESTED_HOSTS` (`src/version.ts`).
+- [Bun](https://bun.sh) on `PATH`. CI uses Bun 1.4.5 for the TUI render test and the pack test.
 - macOS or Linux.
 
 ```sh
@@ -39,7 +39,7 @@ One command runs every check, in this order. Each stage is also a script of its 
 | lint | `npm run lint` | Import boundaries in `src/`, and the forbidden host APIs in `src/`, `test/` and `scripts/` (see [AGENTS.md](AGENTS.md#forbidden)), with the tools RPC's counted exceptions. |
 | build | `npm run build` | Cleans `dist/`, then bundles `dist/index.js` (the server part) and `dist/tui.js` (the TUI part, after Solid's JSX transform), each one self-contained file with the RPC contract inlined and no relative imports; zod goes into the server part only. It checks that `NOTICE` covers exactly the packages each bundle contains (`node scripts/build.mjs --notice` rewrites it). The build fails if an output imports a module that is neither bundled nor provided by OpenCode. |
 | unit | `npm test` | The plugin's modules against narrow fakes, `scripts/check-upstream.mjs` against a fake server, and a render of the built `dist/tui.js` under Bun. |
-| host | `npm run test:host` | The built plugin in an embedded OpenCode host (`@opencode/sdk`), once per release in `TESTED_HOSTS` (`src/version.ts`), on a loopback fake Plaud server, with the network blocked and every OpenCode path inside a temporary folder: registration, the default rules, user rules, saved approvals, exports, the signed links (in Code Mode and in direct calls by a scripted loopback model), the tools RPC for scripts, setup refusals and the status views. |
+| host | `npm run test:host` | The built plugin in an embedded OpenCode host (`@opencode/sdk` 2.4.1, the lockfile's), on a loopback fake Plaud server, with the network blocked and every OpenCode path inside a temporary folder: registration, the default rules, user rules, saved approvals, exports, signed-link handling (in Code Mode and in direct calls by a scripted loopback model), the tools RPC for scripts, setup refusals and the status views. |
 | pack | `npm run test:pack` | Packs the tarball, installs it alone with scripts off, and loads it in each tested stock OpenCode release (`opencode serve`, on its own port), where it also calls the tools RPC as a script. It also checks the file list, that `dist/` holds only the two self-contained entries with no relative, dynamic or required module, that `dist/tui.js` has no zod and stays under 30 KB, the size, the missing dependencies and peers, and the built `dist/` for forbidden APIs, and imports each export under Bun. |
 
 ### Environment variables
@@ -47,12 +47,10 @@ One command runs every check, in this order. Each stage is also a script of its 
 | Variable | Used by | Effect |
 | --- | --- | --- |
 | `VITEST_MAX_WORKERS` | every stage that runs Vitest | Limits parallel test workers, for example `VITEST_MAX_WORKERS=2` on a busy machine. |
-| `HOST_SDK_DIR_<version>`, such as `HOST_SDK_DIR_2_2_4` or `HOST_SDK_DIR_2_3_0` | `test:host` | A folder whose `node_modules` holds that `@opencode/sdk` release. Without one, `scripts/host-tests.mjs` installs it from npm, with scripts off, into a folder under `/tmp` that it removes afterwards. 2.2.3 is the lockfile's. |
-| `HOST_SDK_DIR` | `test:host` | A folder with an `@opencode/sdk` installed: the host tests run once, on that release only. |
-| `OPENCODE_BIN_<version>`, from `OPENCODE_BIN_2_2_3` to `OPENCODE_BIN_2_3_0` | `test:pack` | Paths to stock `opencode` binaries. Without one, the pack test installs that `@opencode/cli` release from npm, once per run, into its own folder under `/tmp`, so its first run needs the registry. |
+| `OPENCODE_BIN_<version>`, such as `OPENCODE_BIN_2_4_1` | `test:pack` | Paths to stock `opencode` binaries. Without one, the pack test installs that `@opencode/cli` release from npm, once per run, into its own folder under `/tmp`, so its first run needs the registry. |
 | `PACK_TARBALL` | `test:pack` | Test this tarball instead of packing one, such as the tarball a release publishes. |
 
-The tested releases are listed once, in `TESTED_HOSTS` (`src/version.ts`); the host and pack stages, CI and a unit test read it. To test another release, add it there. Do not add another SDK release to a lockfile.
+The tested releases are listed once, in `TESTED_HOSTS` (`src/version.ts`); the pack stage, CI and a unit test read it. The host suite runs on the locked `@opencode/sdk` 2.4.1. Do not add another SDK release to a lockfile.
 
 Every isolated host runs in a folder under `/tmp`, never below your home folder, where OpenCode's upward search would read your own `.opencode` folders and `opencode.json`; a test folder with one of those above it is refused. Each stock `opencode serve` gets its own free port, and its root pins that port for any CLI call, so no test reaches your own OpenCode service.
 
@@ -84,7 +82,7 @@ It needs the network and a signed-in Plaud account, so it is not part of `npm ru
 | `plaud_export` | `src/domain/contract/index.ts`, `src/host/tools/export.ts`, `src/domain/export.ts`, `src/domain/normalize.ts` |
 | `plaud_recent` | `src/domain/contract/index.ts`, `src/host/tools/recent.ts`, `src/domain/normalize.ts` |
 | `plaud_events_list`, `probe` and the `sources` declaration | the `sources` section of `package.json`, `src/host/tools/events.ts`, `test/conformance.test.ts`, `test/fixtures/sources.json` |
-| The Jelly declaration | the `jelly` section of `package.json`, `docs/jelly.md` |
+| The declaration | the `jelly` section of `package.json` |
 | Signed-link withholding | `src/domain/redact.ts`, `src/host/tools/index.ts`, and `shapeResult` in `src/host/tools-rpc.ts` |
 | Status, `/plaud-status`, the RPC and the TUI | `src/status.ts`, `src/rpc.ts`, `src/host/commands.ts`, `src/host/rpc.ts`, `src/tui.tsx` |
 | The tools RPC for scripts | `src/host/tools-rpc.ts` (Plaud's part of the source contract's transport), `docs/scripting.md` |
@@ -111,12 +109,11 @@ a `## [x.y.z] - YYYY-MM-DD` heading below it, newest first, and the npm history 
 `## Earlier releases on npm`.
 
 1. On `master`, set `version` in `package.json` to the new version, and change every install spec in the README,
-   `CONTRIBUTING.md` and `docs/` to `#v<version>` (`test/docs.test.ts` fails until they match). Then run
+   `CONTRIBUTING.md` and `docs/` to `#v<version>`. Then run
    `node scripts/changelog.mjs release`: it turns `## [Unreleased]` into `## [<version>] - <today>`, above the earlier
    releases, and refuses a CHANGELOG it cannot shape. Run `npm run check`.
-2. Push that commit to `master`, and wait for CI to pass on it. A pull request's CI runs the Linux runners only; the
-   push to `master` runs every runner, Apple-silicon macOS (`macos-26`) too, and the release stands on that run. An
-   Intel Mac (`macos-26-intel`) is not required.
+2. Push that commit to `master`, and wait for CI to pass on it. A pull request and a push to master run the same one
+   `ci` job.
 3. Start the release with that commit's full sha:
    `gh workflow run release.yml --ref master -f sha=<full sha>`, or from Actions → release →
    Run workflow, on `master`.
@@ -136,7 +133,7 @@ The declaration is checked against what the provider serves. `npm run capture` (
 through the signed-in OpenCode, never by CI) writes `test/fixtures/live-tools.json` and `test/fixtures/provenance.json`,
 with the signed-in account's own values that some servers write into descriptions (Slack's "Your user_id: …") replaced
 by placeholders such as `U00CURRENTUSER`; the drift check fails a committed capture that still holds one.
-`scripts/check-drift.mjs` checks `jelly.tools`, `test/fixtures/tool-registry.json`, the skills and the docs against them,
+`scripts/check-drift.mjs` checks `test/fixtures/tool-registry.json`, the skills and the docs against them,
 offline, in the kit tests of `npm run check`. The release build runs it with `--release`, which also refuses a capture
 more than 14 days old, unless `provenance.json` holds the owner's written waiver for exactly that capture:
 `"waiver": { "listedAt": "<the capture's date>", "reason": "…", "approvedBy": "…" }` (a new capture drops it). A plugin
@@ -167,7 +164,7 @@ Before the approval, the workflow:
 - **verifies** on a fresh runner: the commit's identity, one parent on `master`, `package.json` exactly the parent's
   without the lifecycle scripts, only regular files in the allowed paths, no `package.json` under `dist/`, and a second,
   independent build of the parent (its own job) equal to the committed `dist/` byte for byte;
-- **installs** the release commit with `plugin add` on each stock OpenCode host (2.2.3 to 2.3.2);
+- **installs** the release commit with `plugin add` on each stock OpenCode host (2.4.1);
 - **packs** the commit before installing anything, keeps that tarball and records its sha256, then runs the pack stage
   against a copy;
 - **runs the conformance kit** on the parent, for a plugin that declares sources (above), and uploads only its report;
@@ -197,7 +194,7 @@ exact `package.json`, the allowed paths and the byte-for-byte rebuild. Never rel
 **A rejected, expired or failed run** leaves nothing behind: the `cleanup` job deletes `release/v<version>` when it points
 at the parent or at that run's commit, and never touches another branch. No tag exists before the approval, so the
 version is not burned: fix `master` and start again. If `cleanup` itself failed, the next run refuses until the branch
-is deleted: `gh api -X DELETE repos/joe-broadhead/opencode-plaud/git/refs/heads/release/v<version>`.
+is deleted: `gh api -X DELETE repos/we-the-rebel-alliance/plaud-plugin/git/refs/heads/release/v<version>`.
 
 **Resume.** If the run fails after creating the tag and before the Release is complete, start it again with the same `sha`. The plan finds the kit's tag on a release commit on that sha with no published Release, and resumes:
 it makes no new commit, checks and installs the tagged commit, stages the files, and after a new approval reuses the tag
@@ -211,8 +208,8 @@ tag, and restores the ruleset exactly as it was.
 
 **Known limit: a `v*` tag pushed by hand.** No ruleset limits who creates a `v*` tag, so anyone with write access can
 push one by hand, pointing at any commit. Such a tag has no published Release, the forward-only check ignores it, and
-Jelly installs only a published Release whose `SHA256SUMS` it verifies. But a user who installs
-`github:joe-broadhead/opencode-plaud#v<x>` directly gets whatever that tag points at. Only the release workflow makes
+A consumer installs only a published Release whose `SHA256SUMS` it verifies. But a user who installs
+`github:we-the-rebel-alliance/plaud-plugin#v<x>` directly gets whatever that tag points at. Only the release workflow makes
 release tags; never push one by hand.
 
 The release kit is these files, the same in every plugin: `scripts/release-rules.mjs`, `scripts/release-commit.mjs`,
@@ -224,10 +221,10 @@ pins each of the scripts whole by its sha256, so a plugin whose copy differs fro
 change the kit in every plugin at once, with the new hashes. Do not re-run the older `apply-release-kit.mjs`: it writes
 back the kit that could release only `v0.0.0`.
 
-Each release has its own tag, and a Git install does not update by itself. To move to a newer release, remove the old entry with `opencode plugin remove github:joe-broadhead/opencode-plaud#v<old version>`, then add the new tag with `opencode plugin add github:joe-broadhead/opencode-plaud#v<version>`.
+The first release on plugin-contract is `v0.0.0` (phase 4b). Each release has its own tag, and a Git install does not update by itself. To move to a newer release, remove the old entry with `opencode plugin remove github:we-the-rebel-alliance/plaud-plugin#v<old version>`, then add the new tag with `opencode plugin add github:we-the-rebel-alliance/plaud-plugin#v<version>`.
 
 Or add the plugin to `opencode.json` instead, with the same spec:
 
 ```json
-{ "plugins": [{ "package": "github:joe-broadhead/opencode-plaud#v0.0.9" }] }
+{ "plugins": [{ "package": "github:we-the-rebel-alliance/plaud-plugin#v<version>" }] }
 ```

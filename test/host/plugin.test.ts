@@ -1,13 +1,14 @@
 import { createHash } from "node:crypto"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { rm, symlink } from "node:fs/promises"
 import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { AUDIO_URL_NOTICE, DATA_LINK_NOTICE } from "../../src/domain/redact.js"
 import { Plaud } from "../../src/rpc.js"
 import { PLUGIN_VERSION } from "../../src/version.js"
 import { AUDIO_BYTES, SIGNATURE } from "../fixtures/fake-plaud.js"
 import { defaultRules } from "../../src/host/permissions.js"
 import { PLUGIN_ID, REPO, startHost, type Harness, type Rule } from "./harness.js"
+import { tempDir } from "../temp-dirs.js"
 
 /**
  * The plugin in a real OpenCode host, configured the way a user with two
@@ -22,6 +23,8 @@ import { PLUGIN_ID, REPO, startHost, type Harness, type Rule } from "./harness.j
 /** The block for the three servers at this suite's access value, broad first: the last matching rule wins. */
 const BLOCK: Rule[] = defaultRules(["plaud", "plaud-work", "plaud-team"], "ask-changes")
 const USER_RULES: Rule[] = [
+  // The export asks for this rule itself when its folder is outside the project; the suite allows it by default.
+  { action: "external_directory", resource: "*", effect: "allow" },
   { action: "plaud_export", resource: "default:transcript", effect: "allow" },
   { action: "plaud_export", resource: "work:audio", effect: "deny" },
 ]
@@ -278,11 +281,12 @@ describe("tools on the host", () => {
     expect(files(host.exportRoot)).toEqual([])
     expect(host.fake.downloads).toHaveLength(before)
 
+    const beforeApproved = files(host.exportRoot)
     const approved = host.call(sessionID, "plaud_export", { recordingId: "rec-1", kind: "audio" })
     await host.opencode.permission.reply({ sessionID, requestID: (await host.asked(sessionID)).id, decision: "once" })
     const path = join(host.exportRoot, "audio", "rec-1.mp3")
     expect(await approved).toEqual({ ok: true, result: { output: { path, bytes: AUDIO_BYTES, sha256: sha256(path) } } })
-    expect(files(host.exportRoot)).toEqual([path])
+    expect(files(host.exportRoot)).toEqual([...beforeApproved, path])
     expect([mode(path), mode(join(host.exportRoot, "audio"))]).toEqual([0o600, 0o700])
     expect(host.fake.downloads).toHaveLength(before + 1)
     // "once" is not remembered.
@@ -314,6 +318,165 @@ describe("tools on the host", () => {
     expect(second).toMatchObject({ ok: true })
   })
 
+  it("refuses an export whose external_directory rule denies the folder, writing nothing", async () => {
+    const sessionID = (
+      await host.opencode.sessions.create({
+        agent: "build",
+        location: host.location,
+        permissions: [
+          { action: "external_directory", resource: join(host.exportRoot, "audio", "*"), effect: "deny" },
+          { action: "plaud_export", resource: "*", effect: "allow" },
+        ],
+      })
+    ).id
+    const before = files(host.exportRoot)
+    const result = await host.call(sessionID, "plaud_export", { recordingId: "rec-1", kind: "audio" })
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("EXPORT_PATH_NOT_PERMITTED") })
+    expect(files(host.exportRoot)).toEqual(before)
+    expect(await host.pending(sessionID)).toBe(0)
+  })
+
+  it("fails closed on an external_directory ask, with no prompt and no file", async () => {
+    const sessionID = (
+      await host.opencode.sessions.create({
+        agent: "build",
+        location: host.location,
+        permissions: [
+          { action: "external_directory", resource: join(host.exportRoot, "audio", "*"), effect: "ask" },
+          { action: "plaud_export", resource: "*", effect: "allow" },
+        ],
+      })
+    ).id
+    const before = files(host.exportRoot)
+    const result = await host.call(sessionID, "plaud_export", { recordingId: "rec-1", kind: "audio", overwrite: true })
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("EXPORT_PATH_NOT_PERMITTED") })
+    expect(await host.pending(sessionID)).toBe(0)
+    expect(files(host.exportRoot)).toEqual(before)
+  })
+
+  it("exports outside the project when the session allows external_directory", async () => {
+    const sessionID = (
+      await host.opencode.sessions.create({
+        agent: "build",
+        location: host.location,
+        permissions: [
+          { action: "external_directory", resource: join(host.exportRoot, "allowed", "*"), effect: "allow" },
+          { action: "plaud_export", resource: "*", effect: "allow" },
+        ],
+      })
+    ).id
+    const before = files(host.exportRoot)
+    const path = join(host.exportRoot, "allowed", "rec-1.md")
+    expect(await host.call(sessionID, "plaud_export", { recordingId: "rec-1", kind: "note", destination: path })).toMatchObject({
+      ok: true,
+      result: { output: { path } },
+    })
+    expect(files(host.exportRoot)).toEqual([...before, path].sort())
+  })
+
+  it("fails closed on external_directory ask in an unattended Code Mode run, promptly", async () => {
+    const sessionID = (
+      await host.opencode.sessions.create({
+        agent: "build",
+        location: host.location,
+        permissions: [
+          { action: "external_directory", resource: join(host.exportRoot, "note", "*"), effect: "ask" },
+          { action: "plaud_export", resource: "*", effect: "allow" },
+        ],
+      })
+    ).id
+    const before = files(host.exportRoot)
+    const started = Date.now()
+    const seen = await host.codemode(
+      sessionID,
+      'try { await tools.plaud.export({ recordingId: "rec-1", kind: "note" }) } catch (error) { throw new Error("SEEN " + String(error?.message ?? error)) }\nthrow new Error("ran")',
+    )
+    expect(seen).toContain("EXPORT_PATH_NOT_PERMITTED")
+    expect(Date.now() - started).toBeLessThan(10_000)
+    expect(await host.pending(sessionID)).toBe(0)
+    expect(files(host.exportRoot)).toEqual(before)
+  })
+
+  it("exports in an unattended Code Mode run when external_directory is allowed", async () => {
+    const sessionID = (
+      await host.opencode.sessions.create({
+        agent: "build",
+        location: host.location,
+        permissions: [
+          { action: "external_directory", resource: join(host.exportRoot, "code-allowed", "*"), effect: "allow" },
+          { action: "plaud_export", resource: "*", effect: "allow" },
+        ],
+      })
+    ).id
+    const before = files(host.exportRoot)
+    const path = join(host.exportRoot, "code-allowed", "rec-1.md")
+    const seen = await host.codemode(
+      sessionID,
+      `const result = await tools.plaud.export({ recordingId: "rec-1", kind: "note", destination: ${JSON.stringify(path)} })\nthrow new Error("SEEN " + JSON.stringify(result))`,
+    )
+    expect(seen).toContain("SEEN")
+    expect(files(host.exportRoot)).toEqual([...before, path].sort())
+  })
+
+  it("resolves a symlinked export root before the external rule check", async () => {
+    const outside = tempDir("plaud-outside-")
+    const target = await startHost({
+      prepare: async ({ work }) => {
+        await symlink(outside, join(work, "export-link"))
+        return { exportRoots: [join(work, "export-link")] }
+      },
+    })
+    try {
+      await target.until("the Plaud tools", async () => {
+        const ids = (await target.tools()).map((tool) => tool.id)
+        return ids.includes("plaud_get_note") ? ids : undefined
+      })
+      const sessionID = (
+        await target.opencode.sessions.create({
+          agent: "build",
+          location: target.location,
+          permissions: [
+            { action: "external_directory", resource: join(outside, "note", "*"), effect: "deny" },
+            { action: "plaud_export", resource: "*", effect: "allow" },
+          ],
+        })
+      ).id
+      const result = await target.call(sessionID, "plaud_export", { recordingId: "rec-1", kind: "note" })
+      expect(result).toMatchObject({ ok: false, error: expect.stringContaining("EXPORT_PATH_NOT_PERMITTED") })
+      expect(existsSync(join(outside, "note", "rec-1.md"))).toBe(false)
+      expect(await target.pending(sessionID)).toBe(0)
+    } finally {
+      await target.close()
+      await rm(outside, { recursive: true, force: true })
+    }
+  })
+
+  it.each(["all", "read-only"] as const)("proves the export at access %s on the real host", async (access) => {
+    const target = await startHost({
+      options: { access },
+      config: { permissions: [{ action: "external_directory", resource: "*", effect: "allow" }] },
+    })
+    try {
+      await target.until("the Plaud tools", async () => {
+        const ids = (await target.tools()).map((tool) => tool.id)
+        return ids.includes("plaud_get_note") ? ids : undefined
+      })
+      const sessionID = await target.session()
+      const path = join(target.exportRoot, "note", "rec-1.md")
+      const result = await target.call(sessionID, "plaud_export", { recordingId: "rec-1", kind: "note" })
+      if (access === "all") {
+        expect(result).toMatchObject({ ok: true, result: { output: { path } } })
+        expect(existsSync(path)).toBe(true)
+      } else {
+        expect(result).toMatchObject({ ok: false, error: expect.stringContaining("Permission denied: plaud_export") })
+        expect(existsSync(path)).toBe(false)
+      }
+      expect(await target.pending(sessionID)).toBe(0)
+    } finally {
+      await target.close()
+    }
+  })
+
   it("is blocked without a prompt by the user's deny", async () => {
     const sessionID = await host.session()
     expect(await host.call(sessionID, "plaud_export", { account: "work", recordingId: "rec-1", kind: "audio" })).toEqual({
@@ -330,7 +493,7 @@ describe("tools on the host", () => {
     expect(await running).toEqual({ ok: false, error: expect.stringMatching(/AUTH_REQUIRED:.*Run \/connect and choose Plaud \(work\)/) })
   })
 
-  it("withholds every signed link on the host's Code Mode path, and exports still read them", async () => {
+  it("passes Plaud's own signed links through in Code Mode, and exports still read them", async () => {
     const sessionID = (
       await host.opencode.sessions.create({
         agent: "build",
@@ -356,29 +519,28 @@ describe("tools on the host", () => {
     const result = JSON.parse(/SEEN (\{.*\})/.exec(seen)?.[1] ?? "null") as Record<string, unknown>
     const file = result.file as string
     expect(file).toContain("<untrusted-user-data-")
-    expect(file).toContain(`"presigned_url":"${AUDIO_URL_NOTICE}"`)
+    expect(file).toContain('"presigned_url"')
+    expect(file).toContain(SIGNATURE)
     // One data_link in source_list and one in note_list.
-    expect(file.split(`"data_link":"${DATA_LINK_NOTICE}"`)).toHaveLength(3)
-    expect(result.notes).toContain(`"data_link":"${DATA_LINK_NOTICE}"`)
+    expect((file.match(/"data_link"/g) ?? []).length).toBeGreaterThanOrEqual(2)
+    expect(result.notes).toContain('"data_link"')
     expect(JSON.stringify(result.user)).toContain('"nickname":"Fixture"')
-    expect(seen).not.toContain(SIGNATURE)
-    expect(seen).not.toContain("X-Amz-")
+    expect(seen).toContain(SIGNATURE)
     // The exports read the raw results plugin-side: the audio from its link, the note from data_content.
     expect(result.audio).toEqual({ path: audio, bytes: AUDIO_BYTES, sha256: sha256(audio) })
     expect(result.note).toMatchObject({ path: note })
     expect(readFileSync(note, "utf8")).toContain("# Note\n\n## Summary\n\n- Ship on Friday.\n")
   })
 
-  it("withholds every link from a failed Plaud call's error text on the host's Code Mode path (PLAUD-4)", async () => {
+  it("passes Plaud's failed-call error text through unchanged in Code Mode", async () => {
     const sessionID = await host.session()
     const seen = await host.codemode(
       sessionID,
       'try { await tools.plaud.get_file({ file_id: "fail" }) } catch (error) { throw new Error("SEEN " + String(error?.message ?? error)) }\nthrow new Error("no error")',
     )
     expect(seen).toContain("SEEN ")
-    expect(seen).toContain("File not found: see [url withheld]")
-    expect(seen).not.toContain(SIGNATURE)
-    expect(seen).not.toContain("files.example.invalid")
+    expect(seen).toContain("File not found: see https://")
+    expect(seen).toContain(SIGNATURE)
   })
 
   it("refuses an export or an unknown tool in an unattended run that nobody can approve", async () => {
@@ -407,7 +569,7 @@ describe("status", () => {
       ],
       exportRoots: [host.exportRoot],
       tools: { visible: 13, unknown: 2, unknownNames: ["delete_everything"] },
-      host: { version: host.sdkVersion, range: ">=2.2.3 <2.4.0", tested: true },
+      host: { version: host.sdkVersion, range: ">=2.4.1 <2.5.0", tested: true },
       // asker's own rules already ask for every Plaud tool (LIVE-1).
       unguardedAgents: ["reviewer"],
       permissionsBlock: BLOCK,

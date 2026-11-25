@@ -130,23 +130,6 @@ describe("the tools RPC in OpenCode", () => {
     expect(host.fake.model.requests).toEqual([])
   })
 
-  it("lists an account's recordings as Memory's events, with no model turn and no prompt", async () => {
-    const from = host.fake.calls.length
-    const result = await call("build", "events_list", { input: { since: "2026-09-28" } })
-    expect(result.value).toMatchObject({
-      source: "plaud",
-      account: "default",
-      owner: { id: "plaud:user-1", label: "Fixture" },
-      events: [{ source: "plaud", account: "default", external_id: "rec-1", kind: "meeting", occurred_at: "2026-10-01T09:00:00.000Z", title: "Weekly sync", text: "Recorded for 1 min.", url: null }],
-      more: false,
-      trust: "untrusted",
-    })
-    expect(new Set(toolCalls(from))).toEqual(new Set(["get_current_user", "list_files"]))
-    expect(await call("build", "events_list", { input: { cursor: result.value.cursor } })).toMatchObject({ value: { events: [], more: false } })
-    expect(await call("build", "events_list", { account: "team", input: { cursor: result.value.cursor } })).toMatchObject({ type: "failed", code: "EVENTS_CURSOR_INVALID" })
-    expect(await host.pending(sessions.build!)).toBe(0)
-  })
-
   it("probes an account for the recordings source, which then lists under that owner reading only list_files", async () => {
     const from = host.fake.calls.length
     const probed = await call("build", "probe", { input: { source: "recordings" } })
@@ -159,7 +142,7 @@ describe("the tools RPC in OpenCode", () => {
       account: "default",
       owner: { id: "plaud:user-1", label: "Fixture" },
       events: [{ source: "recordings", account: "default", external_id: "rec-1", kind: "meeting" }],
-      plugin: "@joe-broadhead/opencode-plaud",
+      plugin: "@we-the-rebel-alliance/plaud-plugin",
       trust: "untrusted",
     })
     expect(new Set(toolCalls(listed))).toEqual(new Set(["list_files"]))

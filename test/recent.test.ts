@@ -56,10 +56,12 @@ async function recent(list: (args: Record<string, unknown>) => unknown, accounts
         callback({ namespace: () => undefined, add: (tool: unknown) => added.push(tool as Tool) } as never)
         return { dispose: async () => undefined }
       },
-      hook: (async () => ({ dispose: async () => undefined })) as ToolsHost["tool"]["hook"],
       list: async () => [executor("plaud_list_files"), ...accounts.map((account) => executor(`plaud-${account}_list_files`))] as never,
     },
     permission: { assert },
+    location: { directory: "/tmp", project: { directory: "/tmp" } },
+    agent: { get: async () => ({ data: { permissions: [] } }) } as never,
+    session: { get: async () => ({}) } as never,
   }
   await registerTools(ctx, { accounts, exportRoots: ["/tmp/plaud"], maxAudioBytes: 1, exportTimeoutMs: 1_000 }, owners())
   const tool = added.find((entry) => entry.name === "recent")

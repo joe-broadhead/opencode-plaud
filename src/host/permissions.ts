@@ -22,7 +22,7 @@ import type { Rule } from "../rpc.js"
  *   is one tool for every account: it asserts `plaud_recent` with the account
  *   as the resource, and reads through that account's `<server>_list_files`,
  *   whose own exact-name rule still applies.
- * - `plaud_events_list`, the plugin's other read, for Memory's collector, is
+ * - `plaud_events_list`, the plugin's other read, for a collector, is
  *   allowed the same way: it asserts `plaud_events_list` with the account as
  *   the resource, and reads through `get_current_user` and `list_files`.
  * - `plaud_probe`, the source contract's probe (a tools RPC method, not a
@@ -43,7 +43,7 @@ export const EXPORT_ACTION = "plaud_export"
 /** The permission action of the plugin's own read, `plaud_recent`. `plaud*_*` matches it too. */
 export const RECENT_ACTION = "plaud_recent"
 
-/** The permission action of the plugin's other read, `plaud_events_list`, for Memory's collector. `plaud*_*` matches it too. */
+/** The permission action of the plugin's other read, `plaud_events_list`, for a collector. `plaud*_*` matches it too. */
 export const EVENTS_ACTION = "plaud_events_list"
 
 /** The permission action of the source contract's probe, a tools RPC method: `sources.probe.action` in package.json. */
@@ -129,7 +129,15 @@ function hasBlock(rules: readonly Rule[], from: number, block: readonly Rule[]):
 const matches = (pattern: string, value: string) =>
   new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")}$`).test(value)
 
-/** The effect of `rules` for an MCP tool call (resource `*`): the last matching rule wins, and no match asks. */
+/**
+ * The effect of `rules` for an action and a resource: the last matching rule wins, and no match asks. Action and
+ * resource use the same `*`/`?` wildcards as OpenCode.
+ */
+export function effectForResource(rules: readonly Rule[], action: string, resource: string): Rule["effect"] {
+  return rules.findLast((rule) => matches(rule.action, action) && matches(rule.resource, resource))?.effect ?? "ask"
+}
+
+/** The effect of `rules` for an MCP tool call (resource `*`). */
 export function evaluate(rules: readonly Rule[], action: string): Rule["effect"] {
-  return rules.findLast((rule) => matches(rule.action, action) && matches(rule.resource, "*"))?.effect ?? "ask"
+  return effectForResource(rules, action, "*")
 }

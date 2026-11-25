@@ -15,12 +15,11 @@ import { network, WORKER_ROOT } from "./setup.js"
  * built package, with its `url` option on a loopback fake Plaud.
  *
  * No real model is configured. Tools run through their host executors with
- * a real session context (the probe plugin), through Code Mode in a schedule
- * check, which runs the host's own tool path and hooks, or in a session turn
- * of the fake's scripted loopback model (`model.test.ts`).
+ * a real session context (the probe plugin), through Code Mode as an
+ * automation's code action, which runs the host's own tool path and hooks,
+ * or in a session turn of the fake's scripted loopback model (`model.test.ts`).
  *
- * The SDK is the root dev dependency `@opencode/sdk` (2.2.3), or the one
- * installed under `HOST_SDK_DIR` to test another release.
+ * The SDK is the root dev dependency `@opencode/sdk` 2.4.1 in node_modules.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -58,6 +57,8 @@ interface HostOptions {
   readonly config?: Record<string, unknown> | ((fake: FakePlaud) => Record<string, unknown>)
   /** What the host reports as `ctx.app.version`; the SDK's own version by default. */
   readonly version?: string
+  /** Runs after the host folders exist, before the plugin starts; its result overrides plugin options. */
+  readonly prepare?: (paths: { readonly root: string; readonly work: string; readonly exportRoot: string }) => Promise<Record<string, unknown> | void> | Record<string, unknown> | void
 }
 
 /** A tool call's outcome as the calling tool sees it. */
@@ -92,34 +93,23 @@ export interface Harness {
   close(): Promise<void>
 }
 
-/** The SDK under test, its version, and its folder. */
+/** The locked SDK, its version, and its folder. */
 async function loadSdk(): Promise<{ sdk: Sdk; version: string; root: string }> {
-  const base = process.env.HOST_SDK_DIR ? resolve(process.env.HOST_SDK_DIR) : REPO
-  const root = join(base, "node_modules", "@opencode", "sdk")
+  const root = join(REPO, "node_modules", "@opencode", "sdk")
   const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version: string; exports: { ".": { import: string } } }
   const sdk = (await import(pathToFileURL(join(root, manifest.exports["."].import)).href)) as Sdk
   return { sdk, version: manifest.version, root }
 }
 
-/** OpenCode 2.3.1 and later: `experimental.automation` replaces `experimental.schedule`, and a code action runs when due. */
-const atLeast231 = (version: string) => {
-  const [major = 0, minor = 0, patch = 0] = version.split(".").map(Number)
-  return major > 2 || (major === 2 && (minor > 3 || (minor === 3 && patch >= 1)))
-}
-
 type Embedded = Awaited<ReturnType<Sdk["OpenCode"]["create"]>>
 
 /**
- * The SDK's host. From 2.3.1 it is the same embedded host, with its own Automation service also running the scheduler,
- * as `opencode serve` does (only a server process starts it): `PromiseSdk.create` is what `OpenCode.create` calls, here
- * with the SDK's `overrides`. The modules sit next to the SDK, so they are the instances its bundle imports.
+ * The SDK's host, with its own Automation service also running the scheduler, as `opencode serve` does (only a server
+ * process starts it): `PromiseSdk.create` is what `OpenCode.create` calls, here with the SDK's `overrides`. The modules
+ * sit next to the SDK, so they are the instances its bundle imports.
  */
 async function createSdk(root: string, options: Parameters<Sdk["OpenCode"]["create"]>[0]): Promise<Embedded> {
   const load = (...path: string[]) => import(pathToFileURL(join(...path)).href)
-  if (!atLeast231(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version as string)) {
-    const { sdk } = await loadSdk()
-    return sdk.OpenCode.create(options)
-  }
   const modules = join(root, "..", "..")
   const { PromiseSdk } = await load(root, "dist", "promise.js")
   const { Automation } = await load(modules, "@opencode", "core", "dist", "automation.js")
@@ -140,7 +130,7 @@ async function createSdk(root: string, options: Parameters<Sdk["OpenCode"]["crea
 /** How OpenCode answered a program run with nobody present: it ran and returned, or its message. */
 type Unattended = { readonly ok: true } | { readonly ok: false; readonly error: string }
 
-/** The part of the `experimental.automation` client of 2.3.1 and later used here; the checks compile against 2.2.3. */
+/** The part of the `experimental.automation` client used here. */
 interface Automations {
   create(input: { sessionID: string; name: string; trigger: { type: "at"; at: string }; action: { type: "code"; code: string } }): Promise<{ id: string }>
   get(input: { automationID: string }): Promise<{ lastOutcome?: string; lastOutput?: string }>
@@ -156,22 +146,21 @@ const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms))
 export async function startHost(input: HostOptions = {}): Promise<Harness> {
   if (Number(process.versions.node.split(".")[0]) < 24) throw new Error(`the host suite needs Node 24 or later, not ${process.version}`)
   const { version: sdkVersion, root: sdkRoot } = await loadSdk()
-  const automations = atLeast231(sdkVersion)
   const root = realpathSync(mkdtempSync(join(tmpdir(), "opencode-plaud-host-")))
   const work = join(root, "work")
   const exportRoot = join(root, "exports")
   mkdirSync(work)
   mkdirSync(join(root, "config"))
+  const prepared = (await input.prepare?.({ root, work, exportRoot })) ?? {}
 
   const fake = await startFakePlaud()
   const revoke = network.allow(fake.origin)
   const deniedBefore = network.denied.length
   const probe = createProbe()
   const config = {
-    plugins: [{ package: REPO, options: { url: fake.url, exportRoots: [exportRoot], ...input.options } }],
-    // A schedule's check program, or on 2.3.1 and later an automation's code action, is how a host test runs Code Mode
-    // with nobody present to answer a prompt.
-    experimental: automations ? { automations: true } : { schedules: true },
+    plugins: [{ package: REPO, options: { url: fake.url, exportRoots: [exportRoot], ...input.options, ...prepared } }],
+    // An automation's code action is how a host test runs Code Mode with nobody present to answer a prompt.
+    experimental: { automations: true },
     // No model is used. An empty base URL stops the host probing local model servers on loopback ports.
     providers: { lmstudio: { settings: { baseURL: "" } }, ollama: { settings: { baseURL: "" } }, vllm: { settings: { baseURL: "" } } },
     ...(typeof input.config === "function" ? input.config(fake) : input.config),
@@ -217,28 +206,13 @@ export async function startHost(input: HostOptions = {}): Promise<Harness> {
 
   /**
    * Runs a Code Mode program once with nobody present to answer a prompt, as the session's agent and under its rules,
-   * with no model, and answers as a schedule's `if: { code }` check did at creation up to 2.3.0: `ok` when the program
-   * returned a boolean or `{ wake }`, else OpenCode's message (a refusal, or what the program threw). Up to 2.3.0 it is
-   * that check, and the schedule is deleted at once. From 2.3.1 it is an automation's code action, due at once:
-   * creation refuses what the rules do not allow, as the check did, and the run's outcome is read back before the
-   * automation is deleted. A run that never comes throws, so it is never read as a refusal.
+   * with no model, as an automation's code action due at once: creation refuses what the rules do not allow, and the
+   * run's outcome is read back before the automation is deleted. A run that never comes throws, so it is never read as
+   * a refusal.
    */
   const unattended = async (sessionID: string, code: string): Promise<Unattended> => {
     const name = "plaud-host-test"
     const refused = (error: unknown): Unattended => ({ ok: false, error: error instanceof Error ? error.message : String(error) })
-    if (!automations) {
-      // Up to 2.3.0 the check's refusal carried a `detail`, which the cases read.
-      const scheduleRefused = (error: unknown): Unattended => {
-        const detail = (error as { detail?: unknown }).detail
-        return error instanceof Error ? { ok: false, error: `${error.message} ${String(detail ?? "")}` } : { ok: false, error: String(error) }
-      }
-      try {
-        await opencode.experimental.schedule.create({ sessionID, when: { in: "6 hours" }, if: { code }, prompt: "unused" })
-        return { ok: true }
-      } catch (error) {
-        return scheduleRefused(error)
-      }
-    }
     const client = (opencode.experimental as unknown as { automation: Automations }).automation
     let automationID: string
     try {

@@ -1,17 +1,17 @@
 {
-  "name": "@joe-broadhead/opencode-plaud",
-  "version": "0.0.9",
+  "name": "@we-the-rebel-alliance/plaud-plugin",
+  "version": "0.0.0",
   "private": true,
-  "description": "Unofficial OpenCode plugin for Plaud recordings",
+  "description": "Unofficial OpenCode plugin for Plaud voice recordings",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/joe-broadhead/opencode-plaud.git"
+    "url": "git+https://github.com/we-the-rebel-alliance/plaud-plugin.git"
   },
-  "homepage": "https://github.com/joe-broadhead/opencode-plaud#readme",
+  "homepage": "https://github.com/we-the-rebel-alliance/plaud-plugin#readme",
   "bugs": {
-    "url": "https://github.com/joe-broadhead/opencode-plaud/issues"
+    "url": "https://github.com/we-the-rebel-alliance/plaud-plugin/issues"
   },
   "keywords": [
     "opencode",
@@ -37,7 +37,7 @@
     "CHANGELOG.md"
   ],
   "opencode": {
-    "host": ">=2.2.3 <2.4.0",
+    "host": ">=2.4.1 <2.5.0",
     "icons": [
       {
         "src": "assets/icon.svg",
@@ -152,13 +152,13 @@
   "devDependencies": {
     "@babel/core": "7.29.7",
     "@babel/preset-typescript": "7.27.1",
-    "@opencode/client": "2.2.3",
-    "@opencode/plugin": "2.2.3",
-    "@opencode/sdk": "2.2.3",
+    "@opencode/client": "2.4.1",
+    "@opencode/plugin": "2.4.1",
+    "@opencode/sdk": "2.4.1",
     "@opentui/core": "0.8.0",
     "@opentui/solid": "0.8.0",
     "@types/node": "24.19.2",
-    "@we-the-rebel-alliance/source-contract": "github:we-the-rebel-alliance/source-contract#v0.3.0",
+    "@we-the-rebel-alliance/source-contract": "github:we-the-rebel-alliance/source-contract#2fd55cdc0c6c1067927fefc403a88bfd18c9a971",
     "babel-preset-solid": "1.9.16",
     "esbuild": "0.28.2",
     "solid-js": "1.9.18",

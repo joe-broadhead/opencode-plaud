@@ -69,7 +69,7 @@ describe("plugin options", () => {
     [{ exportRoots: ["~someone/Plaud"] }, "exportRoots.0: must be an absolute path"],
     [{ maxAudioBytes: 0 }, "maxAudioBytes: Too small"],
     [{ maxAudioBytes: 64 * 1024 ** 3 + 1 }, "maxAudioBytes: Too big"],
-    // Removed in 0.0.5: a text export's cap is fixed at 25 MiB.
+    // A text export's cap is fixed at 25 MiB.
     [{ maxTextBytes: 26_214_400 }, '(options): Unrecognized key: "maxTextBytes"'],
     [{ exportTimeoutMs: 999 }, "exportTimeoutMs: Too small"],
     [{ exportTimeoutMs: 24 * 3_600_000 + 1 }, "exportTimeoutMs: Too big"],

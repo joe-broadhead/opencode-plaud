@@ -2,6 +2,7 @@ import type { Plugin } from "@opencode/plugin"
 import { describe, expect, it, vi } from "vitest"
 import {
   defaultRules,
+  effectForResource,
   evaluate,
   EXPORT_ACTION,
   insertDefaultRules,
@@ -25,7 +26,7 @@ const env: Rule[] = [
   { action: "read", resource: "*.env.example", effect: "allow" },
 ]
 
-/** The built-in agents as 2.2.3 creates them, before any plugin transform. */
+/** The built-in agents as 2.4.1 creates them, before any plugin transform. */
 function builtIns(): Agent[] {
   return [
     { id: "build", permissions: [allow, ...env] },
@@ -217,5 +218,26 @@ describe("unguarded agents", () => {
   it("does not name agents without a base allow", () => {
     const block = defaultRules(["plaud"], "read-only")
     expect(unguardedAgents([{ id: "locked", permissions: [{ action: "*", resource: "*", effect: "deny" }] }], block, "read-only")).toEqual([])
+  })
+})
+
+describe("resource rules", () => {
+  it("matches wildcards in action and resource, lets the last match win, and asks with no match", () => {
+    const rules: Rule[] = [
+      { action: "external_directory", resource: "*", effect: "ask" },
+      { action: "external_directory", resource: "/outside/*", effect: "deny" },
+      { action: "external_directory", resource: "/outside/ok/*", effect: "allow" },
+    ]
+    expect(effectForResource(rules, "external_directory", "/outside/file")).toBe("deny")
+    expect(effectForResource(rules, "external_directory", "/outside/ok/file")).toBe("allow")
+    expect(effectForResource(rules, "external_directory", "/project/file")).toBe("ask")
+    expect(effectForResource(rules, "other", "/outside/file")).toBe("ask")
+  })
+
+  it("uses the last matching rule across the agent's rules then the session's", () => {
+    const agent: Rule[] = [{ action: "external_directory", resource: "*", effect: "allow" }]
+    const session: Rule[] = [{ action: "external_directory", resource: "/outside/*", effect: "deny" }]
+    expect(effectForResource([...agent, ...session], "external_directory", "/outside/file")).toBe("deny")
+    expect(effectForResource([...session, ...agent], "external_directory", "/outside/file")).toBe("allow")
   })
 })

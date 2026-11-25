@@ -34,8 +34,8 @@ export const ERRORS = {
     next: "Write inside a root the plugin lists, or ask the user to add the folder to exportRoots.",
   },
   EXPORT_PATH_NOT_PERMITTED: {
-    meaning: "OpenCode checks the external_directory permission before anything outside the project is written, and the export folder is outside it. A rule refused it, or the person rejected the prompt.",
-    next: "Allow it with { \"action\": \"external_directory\", \"resource\": \"<the export folder>/*\", \"effect\": \"allow\" } in your permissions, or set exportRoots inside the project.",
+    meaning: "The export folder is outside the project, and the external_directory rules do not allow it. An ask is a refusal.",
+    next: "Add { \"action\": \"external_directory\", \"resource\": \"<the export folder>/*\", \"effect\": \"allow\" } to the agent or session rules, or set exportRoots inside the project.",
   },
   EXPORT_BAD_DESTINATION: {
     meaning: "The destination is not a file path the plugin can write.",
@@ -57,9 +57,9 @@ export const ERRORS = {
     meaning: "Writing the file failed.",
     next: "Check the folder is writable and there is space, then retry.",
   },
-  EVENTS_CURSOR_INVALID: {
-    meaning: "The cursor was not issued by `events_list` for this account and its signed-in user.",
-    next: "Pass a cursor from a previous result of the same account, or start again with `since`.",
+  WORKSPACE_UNSUPPORTED: {
+    meaning: "The export runs in a workspace session, whose files are on the workspace machine, not this one.",
+    next: "Run the export in a session whose location is on this machine.",
   },
   CURSOR_INVALID: {
     meaning: "The cursor was not issued by `events_list` for the recordings of this account, or the account is signed in as another user since.",

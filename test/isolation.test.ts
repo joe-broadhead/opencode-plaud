@@ -38,12 +38,12 @@ describe("tempDir", () => {
 
 describe("the tested releases", () => {
   it("are listed once, in src/version.ts, and named in the README, SECURITY and the options", () => {
-    const files = ["src", "scripts", "test", ".github"].flatMap((dir) =>
+    const files = ["src", "test", ".github"].flatMap((dir) =>
       (readdirSync(join(REPO, dir), { recursive: true }) as string[]).map((file) => join(dir, file)).filter((file) => /\.(ts|tsx|mjs|yml)$/.test(file)),
     )
-    const lists = files.filter((file) => /\[\s*"2\.2\.\d+"\s*,\s*"2\.2\.\d+"/.test(readFileSync(join(REPO, file), "utf8")))
-    expect(lists.sort()).toEqual(["src/version.ts", "test/version.test.ts"])
-    const words = `${TESTED_HOSTS.slice(0, -1).join(", ")} and ${TESTED_HOSTS.at(-1)}`
+    const declarations = files.filter((file) => /^export const TESTED_HOSTS\b/m.test(readFileSync(join(REPO, file), "utf8")))
+    expect(declarations).toEqual(["src/version.ts"])
+    const words = TESTED_HOSTS.join(" and ")
     for (const doc of ["README.md", "SECURITY.md", "docs/configuration.md"]) expect(readFileSync(join(REPO, doc), "utf8"), doc).toContain(`tested on ${words}`)
   })
 })

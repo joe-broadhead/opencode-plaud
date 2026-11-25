@@ -8,13 +8,12 @@ unchanged.
 
 ## Install
 
-This repository's first plugin-contract release is `v0.0.0`. Once it is cut:
-
 ```sh
 opencode plugin add github:we-the-rebel-alliance/plaud-plugin#v0.0.0
 ```
 
-The tags from before the migration (up to `v0.0.9`) belong to the old line and are retired.
+The plugin needs OpenCode `>=2.4.1 <2.5.0`; it refuses an untested release with `HOST_UNTESTED`, unless
+`allowUntestedHost` is set.
 
 ## Sign in
 
@@ -47,6 +46,20 @@ another alias, name `default` in the map as above.
 `access` is `all` (the default), `ask-changes` or `read-only`. Every read runs at every level. The export is class
 `export` and effect `local`: it runs at `all`, asks at `ask-changes` and is refused at `read-only`. The export also
 writes only inside `exportRoots`, and outside the project only where the caller's `external_directory` rules allow it.
+
+## Options
+
+| Option | Default | Meaning |
+|---|---|---|
+| `access` | `all` | `all`, `ask-changes` or `read-only`. |
+| `accounts` | one `default` | One profile per alias; a Plaud profile has no fields. |
+| `allowUntestedHost` | `false` | Start outside `>=2.4.1 <2.5.0` instead of refusing. |
+| `url` | `https://mcp.plaud.ai/mcp` | The one Plaud MCP endpoint every account's server uses; plain `http` only on localhost. |
+| `exportRoots` | `["~/Plaud"]` | The folders an export may write in; the first holds the default destination. |
+| `maxAudioBytes` | `2147483648` | The largest audio file one export downloads. |
+| `exportTimeoutMs` | `1800000` | How long one export may take, in milliseconds. |
+
+The full table is in [Configuration](docs/configuration.md).
 
 ## Capabilities
 
@@ -112,6 +125,23 @@ None.
 | `OPTIONS_INVALID` | the plugin's options do not match their schema |
 | `UNAVAILABLE` | the provider could not be reached |
 <!-- /generated:errors -->
+
+## Troubleshooting
+
+- **A call says `ACCOUNT_REQUIRED`.** More than one alias is configured; pass `account: "work"` (or another alias the
+  next step lists). With one alias you can leave it out.
+- **A call says `NEEDS_SIGN_IN`.** Sign in to that alias's server (`plaud` or `plaud-<alias>`) through OpenCode's MCP
+  sign-in, then read `status`; a failed or disabled server is an `error` there with a reason.
+- **An export says `PERMISSION_DENIED`.** The destination is outside `exportRoots`, or it is outside the project and
+  the agent's or session's `external_directory` rules do not allow it. Add the folder to the rules or to
+  `exportRoots`; an ask is a refusal, so no prompt appears.
+- **An export says `INPUT_INVALID`.** A file already exists at the destination and the plan did not say `overwrite`, or
+  the destination is a folder or an export root itself.
+- **`events_list` says `UNAVAILABLE` and names a probe.** A page names its account's owner: call `probe` for that
+  account after a restart, then list again.
+- **A cursor is refused.** A cursor belongs to one plugin, source, account and scope. Read again with `since`, without
+  the cursor; do not reuse another account's cursor.
+- **`HOST_UNTESTED`.** The OpenCode release is outside the tested range; install 2.4.1, or set `allowUntestedHost`.
 
 ## Docs
 

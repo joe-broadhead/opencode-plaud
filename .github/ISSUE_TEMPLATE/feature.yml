@@ -5,16 +5,17 @@ body:
   - type: markdown
     attributes:
       value: |
-        A new capability starts in the manifest and needs a handler, tests and a recorded fixture. Read AGENTS.md
-        before you open the pull request.
+        A new capability starts in `package.json` `capabilities` and needs a handler in `src/handlers/`, a provider
+        call in `src/provider/`, tests and a recorded fixture. Read AGENTS.md before you open the pull request.
   - type: dropdown
     id: kind
     attributes:
       label: What kind of capability
       options:
         - A read method
-        - A write method
-        - An events source
+        - A write or export method
+        - An events source or snapshot
+        - An action (preview and commit)
         - An account mechanism
         - Documentation or layout
     validations:
@@ -30,7 +31,7 @@ body:
     id: proposal
     attributes:
       label: The proposal
-      description: The method or source, its class, the provider operations it needs, and what its answer looks like.
+      description: The method or source, its class, the Plaud tool operations it needs (list_files, get_file, get_note, get_transcript, get_current_user), and what its answer looks like.
     validations:
       required: true
   - type: textarea

@@ -33,7 +33,7 @@ const fixture = {
   plugin: packageName,
   namespace: manifest.plugin.summary,
   accounts: {
-    real: true,
+    real: false,
     aliases: ["work", "personal"],
     required: { method: "plan_export", code: "ACCOUNT_REQUIRED" },
     unknown: { method: "plan_export", account: "nobodyhere", code: "ACCOUNT_UNKNOWN" },

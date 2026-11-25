@@ -3,7 +3,7 @@
   "plugin": "@we-the-rebel-alliance/plaud-plugin",
   "namespace": "Plaud voice recordings: list an account's recordings as events, read the newest as a list, and export one recording's audio, transcript or note to a local file. Reads only, plus one local export; Plaud's own MCP tools pass through.",
   "accounts": {
-    "real": true,
+    "real": false,
     "aliases": [
       "work",
       "personal"
@@ -259,7 +259,7 @@
     "emitted": [],
     "status": {
       "name": "plaud",
-      "version": "0.0.0",
+      "version": "0.0.1",
       "host": {
         "version": "2.4.1",
         "range": ">=2.4.1 <2.5.0",

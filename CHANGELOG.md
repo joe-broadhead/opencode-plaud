@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.0.0 (2026-11-25)
+## 0.0.1 (2026-11-25)
 
-The first release, on plugin-contract v0.
+The release, on plugin-contract v0.
 
 - One `register` call wires every door; handlers live in `src/handlers/` and Plaud's endpoint and tool names in
   `src/provider/`.
@@ -25,9 +25,9 @@ The first release, on plugin-contract v0.
 
 ### Removed since v0.0.9
 
-- **The skill ids `opencode-plaud`, `opencode-plaud-export` and `opencode-plaud-digest`.** They are renamed `plaud`,
-  `plaud-export` and `plaud-digest`: contract §3 gives a plugin one name, and a skill is `<name>` or `<name>-<topic>`.
-  The folders and bodies are the same, now registered with their YAML descriptions.
+- **The three skill ids.** They lost their old vendor prefix and are `plaud`, `plaud-export` and `plaud-digest`:
+  contract §3 gives a plugin one name, and a skill is `<name>` or `<name>-<topic>`. The folders and bodies are the
+  same, now registered with their YAML descriptions.
 - **The snapshot source `plaud.recordings.list`.** It is `plaud.recent`, named after the method it reads (`recent`) and
   part of the Recordings service, as contract §7 asks; the old id named the events source instead.
 - **The RPC ids `plaud.recordings`, `plaud.recordings.tools` and `plaud.recordings.tui`.** One RPC id, `plaud`, carries

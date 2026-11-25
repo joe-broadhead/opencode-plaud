@@ -116,7 +116,7 @@ describe("doors", () => {
     const status = (await rpc(host).status({ sessionID, input: {} }, { location: host.location })) as Record<string, unknown>
     expect(status).toMatchObject({
       name: "plaud",
-      version: "0.0.0",
+      version: "0.0.1",
       host: { version: host.sdkVersion, range: ">=2.4.1 <2.5.0", tested: ["2.4.1"] },
       state: "ready",
       accounts: [

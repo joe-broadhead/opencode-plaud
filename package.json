@@ -1,6 +1,6 @@
 {
   "name": "@we-the-rebel-alliance/plaud-plugin",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Plaud voice recordings: an events source, a recent-recordings snapshot and a local export through Plaud's MCP server.",
   "license": "MIT",
   "type": "module",

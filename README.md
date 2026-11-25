@@ -9,7 +9,7 @@ unchanged.
 ## Install
 
 ```sh
-opencode plugin add github:we-the-rebel-alliance/plaud-plugin#v0.0.0
+opencode plugin add github:we-the-rebel-alliance/plaud-plugin#v0.0.1
 ```
 
 The plugin needs OpenCode `>=2.4.1 <2.5.0`; it refuses an untested release with `HOST_UNTESTED`, unless

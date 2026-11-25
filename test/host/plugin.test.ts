@@ -83,6 +83,16 @@ describe("activation and registration", () => {
     }
   })
 
+  it("registers no command, so the pre-4b /plaud-status has no new counterpart", async () => {
+    const { data } = await host.opencode.command.list({ location: host.location })
+    expect(data.filter((command) => command.name.startsWith("plaud"))).toEqual([])
+  })
+
+  it("adds no agent of its own, like v0.0.9", async () => {
+    const { data } = await host.opencode.agent.list({ location: host.location })
+    expect(data.filter((agent) => agent.id.startsWith("plaud"))).toEqual([])
+  })
+
   it("registers its six methods as tools next to the server's own tools", async () => {
     const ids = (await host.tools()).map((tool) => tool.id).filter((id) => id.startsWith("plaud"))
     expect(ids.sort()).toEqual(

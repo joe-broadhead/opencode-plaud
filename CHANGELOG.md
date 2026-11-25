@@ -22,3 +22,14 @@ The first release, on plugin-contract v0.
 - Docs, skills and `AGENTS.md` for this plugin; generated sections from the manifest, and `plugin-kit check` and
   `plugin-kit docs --check` in `npm run check`.
 - Tests: unit, the synthetic two-account conformance fixture, the real OpenCode 2.4.1 host and the packed tarball.
+
+### Removed since v0.0.9
+
+- **The `/plaud-status` command.** The contract's `status` method (an agent tool and the RPC method `plaud.status`) is
+  the one status answer; its `unguardedAgents` value exists only inside a handler call, and a command cannot produce it.
+  Standard §2 makes a status command optional.
+- **The `/plaud` TUI view.** Optional per standard §2; it rendered the old status shape, which v0 does not have. The
+  status method and its RPC answer replace it for any client.
+- **The `/connect` display labels "Plaud" and "Plaud (alias)", and the "needs a new sign-in" status line.** The servers
+  and their sign-ins are unchanged (`plaud` and `plaud-<alias>`); OpenCode now shows the server name, and the contract's
+  `accounts` module registers servers without a label hook.

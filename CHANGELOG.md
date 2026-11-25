@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.1 (2026-11-25)
+## 0.0.0 (2026-11-25)
 
 The release, on plugin-contract v0.
 

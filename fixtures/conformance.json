@@ -259,7 +259,7 @@
     "emitted": [],
     "status": {
       "name": "plaud",
-      "version": "0.0.1",
+      "version": "0.0.0",
       "host": {
         "version": "2.4.1",
         "range": ">=2.4.1 <2.5.0",

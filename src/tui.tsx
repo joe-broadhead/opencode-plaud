@@ -9,9 +9,7 @@ import { Plaud, isStatus, statusLines, type Status, type Tone } from "./rpc.js"
  * `status` RPC and shows the same lines as `/plaud-status`. While the dialog
  * is open, the status is read again when the server reconnects, when a
  * Plaud server's state changes, and when an agent, an integration or a
- * credential changes. The 2.2.x TUI
- * receives no `mcp.tools.changed` event; a server's tools change when it
- * connects, which `mcp.status.changed` reports.
+ * credential changes.
  */
 
 export const TUI_ID = "plaud.recordings.tui"

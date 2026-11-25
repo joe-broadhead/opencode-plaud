@@ -25,6 +25,8 @@ export type ToolsHost = {
   readonly tool: Pick<PluginContext["tool"], "transform" | "list">
   readonly permission: Pick<PluginContext["permission"], "assert">
   readonly location: ExportLocation
+  readonly agent: Pick<PluginContext["agent"], "get">
+  readonly session: Pick<PluginContext["session"], "get">
 }
 
 /** `kept` is the plugin's record of each account's owner, which probe sets and the recordings source's pages name. */

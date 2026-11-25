@@ -11,7 +11,7 @@ import { recentTool } from "../src/host/tools/recent.js"
 const ROOT = fileURLToPath(new URL("../", import.meta.url))
 const read = (path: string) => readFileSync(`${ROOT}${path}`, "utf8")
 
-const host = { tool: { list: async () => [] }, permission: { assert: async () => undefined }, location: { directory: "/tmp", project: { directory: "/tmp" } } } as never
+const host = { tool: { list: async () => [] }, permission: { assert: async () => undefined }, location: { directory: "/tmp", project: { directory: "/tmp" } }, agent: { get: async () => ({ data: { permissions: [] } }) }, session: { get: async () => ({}) } } as never
 const settings = { exportRoots: ["/tmp/plaud"], maxAudioBytes: 1_000_000, exportTimeoutMs: 1_000 }
 
 /** Every sentence the model is given: the namespace, the plugin's own tool descriptions, the skills, the declaration line. */

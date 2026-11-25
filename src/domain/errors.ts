@@ -34,8 +34,8 @@ export const ERRORS = {
     next: "Write inside a root the plugin lists, or ask the user to add the folder to exportRoots.",
   },
   EXPORT_PATH_NOT_PERMITTED: {
-    meaning: "The export folder is outside the project, and the plugin's external_directory assertion for it was refused. A rule denied it.",
-    next: "Allow it with { \"action\": \"external_directory\", \"resource\": \"<the export folder>/*\", \"effect\": \"allow\" } in your permissions, or set exportRoots inside the project.",
+    meaning: "The export folder is outside the project, and the external_directory rules do not allow it. An ask is a refusal.",
+    next: "Add { \"action\": \"external_directory\", \"resource\": \"<the export folder>/*\", \"effect\": \"allow\" } to the agent or session rules, or set exportRoots inside the project.",
   },
   EXPORT_BAD_DESTINATION: {
     meaning: "The destination is not a file path the plugin can write.",
@@ -56,6 +56,10 @@ export const ERRORS = {
   EXPORT_FAILED: {
     meaning: "Writing the file failed.",
     next: "Check the folder is writable and there is space, then retry.",
+  },
+  WORKSPACE_UNSUPPORTED: {
+    meaning: "The export runs in a workspace session, whose files are on the workspace machine, not this one.",
+    next: "Run the export in a session whose location is on this machine.",
   },
   CURSOR_INVALID: {
     meaning: "The cursor was not issued by `events_list` for the recordings of this account, or the account is signed in as another user since.",

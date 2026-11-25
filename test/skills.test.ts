@@ -33,6 +33,7 @@ const CODES: Record<Exclude<ErrorCode, "INPUT_INVALID" | "EVENTS_OWNER_UNKNOWN" 
   EXPORT_TOO_LARGE: true,
   EXPORT_TIMEOUT: true,
   EXPORT_FAILED: true,
+  WORKSPACE_UNSUPPORTED: true,
 }
 /** Every tool a skill may name: the server's reads and the plugin's own two. The router names each in both forms. */
 const TOOLS = new Set([...KNOWN_READS, "export", "recent"])

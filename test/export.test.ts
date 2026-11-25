@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { createHash } from "node:crypto"
 import { lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -62,7 +63,7 @@ function plaudTools(servers = ["plaud", "plaud-work"]): Record<string, Executor>
   )
 }
 
-function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request: unknown) => Promise<void>; settings?: Partial<ToolOptions>; location?: ToolsHost["location"] } = {}) {
+function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request: unknown) => Promise<void>; settings?: Partial<ToolOptions>; location?: ToolsHost["location"]; agentRules?: readonly { action: string; resource: string; effect: "allow" | "ask" | "deny" }[]; sessionRules?: readonly { action: string; resource: string; effect: "allow" | "ask" | "deny" }[] } = {}) {
   const executors = options.tools ?? plaudTools()
   const calls: { id: string; args: Record<string, unknown>; signal: AbortSignal }[] = []
   const assert = vi.fn(options.assert ?? (async () => undefined))
@@ -89,6 +90,8 @@ function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request
     },
     permission: { assert },
     location: options.location ?? { directory: dir, project: { directory: dir } },
+    agent: { get: async () => ({ data: { permissions: options.agentRules ?? [] } }) } as never,
+    session: { get: async () => ({ permissions: options.sessionRules ?? [] }) } as never,
   }
   const settings: ToolOptions = {
     accounts: ["work"],
@@ -146,32 +149,57 @@ describe("registration", () => {
 })
 
 describe("one-step export", () => {
-  it("asserts external_directory for a folder outside the project before plaud_export", async () => {
+  it("writes outside the project only when the rules allow external_directory, and still asserts plaud_export", async () => {
     const project = join(dir, "project")
     const requests: Record<string, unknown>[] = []
     const { run } = await exporter({
       location: { directory: project, project: { directory: project } },
+      agentRules: [{ action: "external_directory", resource: "*", effect: "allow" }],
       assert: async (request) => void requests.push(request as Record<string, unknown>),
     })
     await run({ recordingId: "rec-1", kind: "note" })
-    expect(requests.map((request) => request["action"])).toEqual(["external_directory", "plaud_export"])
-    expect(requests[0]).toMatchObject({
-      action: "external_directory",
-      resources: [join(roots[0]!, "note", "*")],
-      save: [],
-      metadata: { input: { paths: [join(roots[0]!, "note")] } },
-    })
+    expect(requests.map((request) => request["action"])).toEqual(["plaud_export"])
   })
 
-  it("turns an external_directory refusal into EXPORT_PATH_NOT_PERMITTED with the rule as the next step", async () => {
+  it.each(["deny", "ask"] as const)("fails closed on an external_directory %s, without plaud_export or a prompt", async (effect) => {
     const project = join(dir, "project")
+    const assert = vi.fn(async () => undefined)
     const { run } = await exporter({
       location: { directory: project, project: { directory: project } },
-      assert: async (request) => {
-        if ((request as { action?: string }).action === "external_directory") throw new Error("Permission denied: external_directory")
-      },
+      agentRules: [{ action: "external_directory", resource: join(roots[0]!, "note", "*"), effect }],
+      assert,
     })
-    await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(/^EXPORT_PATH_NOT_PERMITTED: .*external_directory/)
+    await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(/^EXPORT_PATH_NOT_PERMITTED: .*do not allow/)
+    expect(assert).not.toHaveBeenCalled()
+    expect(existsSync(join(roots[0]!, "note", "rec-1.md"))).toBe(false)
+  })
+
+  it("resolves a symlinked export root to its real folder before the external rule check", async () => {
+    const outside = await realpath(await mkdtemp(join(tmpdir(), "plaud-outside-")))
+    const project = join(dir, "project")
+    await mkdir(project)
+    await symlink(outside, join(project, "export"))
+    try {
+      const assert = vi.fn(async () => undefined)
+      const { run } = await exporter({
+        location: { directory: project, project: { directory: project } },
+        settings: { exportRoots: [join(project, "export")] },
+        agentRules: [{ action: "external_directory", resource: join(outside, "note", "*"), effect: "deny" }],
+        assert,
+      })
+      await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(/^EXPORT_PATH_NOT_PERMITTED:/)
+      expect(assert).not.toHaveBeenCalled()
+      expect(existsSync(join(outside, "note", "rec-1.md"))).toBe(false)
+    } finally {
+      await rm(outside, { recursive: true, force: true })
+    }
+  })
+
+  it("refuses a workspace session before reading or writing", async () => {
+    const { run, assert, calls } = await exporter({ location: { directory: dir, workspaceID: "ws_1", project: { directory: dir } } })
+    await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(/^WORKSPACE_UNSUPPORTED:/)
+    expect(assert).not.toHaveBeenCalled()
+    expect(calls).toEqual([])
   })
 
   it("exports audio after one permission assertion, into folders it creates", async () => {

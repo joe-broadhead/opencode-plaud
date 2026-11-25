@@ -48,8 +48,9 @@ export folder, without asking. It can also run a tool Plaud adds later. Nothing 
 recording, because Plaud's server offers no such tool; the plugin's own tools are reads and the export.
 
 The export is the one tool that writes to disk, and it writes only inside `exportRoots` (`~/Plaud` by default). When
-the target folder is outside the project, the plugin asserts `external_directory` for it, as well as `plaud_export`, before
-anything is written. A rule for one does not cover the other, and an agent whose base rule allows everything is not asked:
+the target folder is outside the project, the plugin evaluates the agent's and session's `external_directory` rules
+itself and fails closed: only an explicit allow writes, an `ask` is a refusal, no prompt is shown, and saved approvals are not consulted. A rule for one
+does not cover the other, and an agent whose base rule allows everything is not asked:
 
 ```json
 { "permissions": [{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }] }

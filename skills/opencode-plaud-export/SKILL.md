@@ -72,12 +72,13 @@ call unchanged.
 | `PLAUD_UNREADABLE` | Plaud sent something the plugin cannot read. Report it. |
 | `CONTENT_UNAVAILABLE` | No audio yet, or no such transcript block. Offer another block or the note. |
 | `EXPORT_OUTSIDE_ROOTS` | Omit `destination`, or pick a file inside an export root. |
-| `EXPORT_PATH_NOT_PERMITTED` | The export folder is outside the project, and the plugin's `external_directory` assertion for it was refused. Give the rule from the message and let the user add it; don't retry. |
+| `EXPORT_PATH_NOT_PERMITTED` | The export folder is outside the project, and the `external_directory` rules do not allow it; an `ask` counts as a refusal. Give the rule from the message and let the user add it; don't retry. |
 | `EXPORT_BAD_DESTINATION` | Pass a file path, not a folder or a root, or omit `destination`. |
 | `EXPORT_EXISTS` | Ask the user whether to replace the file or choose another path. |
 | `EXPORT_TOO_LARGE` | Report the size and the limit (`maxAudioBytes`, or 25 MiB for text). Don't split or retry. |
 | `EXPORT_TIMEOUT` | Report it; the user can raise `exportTimeoutMs`. |
 | `EXPORT_FAILED` | The download or the local write failed. Follow the next step. |
+| `WORKSPACE_UNSUPPORTED` | The session runs on a workspace, not this machine. Run the export in a session on this machine. |
 
 ~~~js
 return await tools.plaud.export({ recordingId: "RECORDING_ID", kind: "transcript", block: "transaction_polish" })

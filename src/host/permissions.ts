@@ -129,7 +129,15 @@ function hasBlock(rules: readonly Rule[], from: number, block: readonly Rule[]):
 const matches = (pattern: string, value: string) =>
   new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")}$`).test(value)
 
-/** The effect of `rules` for an MCP tool call (resource `*`): the last matching rule wins, and no match asks. */
+/**
+ * The effect of `rules` for an action and a resource: the last matching rule wins, and no match asks. Action and
+ * resource use the same `*`/`?` wildcards as OpenCode.
+ */
+export function effectForResource(rules: readonly Rule[], action: string, resource: string): Rule["effect"] {
+  return rules.findLast((rule) => matches(rule.action, action) && matches(rule.resource, resource))?.effect ?? "ask"
+}
+
+/** The effect of `rules` for an MCP tool call (resource `*`). */
 export function evaluate(rules: readonly Rule[], action: string): Rule["effect"] {
-  return rules.findLast((rule) => matches(rule.action, action) && matches(rule.resource, "*"))?.effect ?? "ask"
+  return effectForResource(rules, action, "*")
 }

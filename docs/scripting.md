@@ -50,8 +50,9 @@ The plugin's default rules allow every method, at the default `access: "all"`, s
 `events_list` or `probe` unless the `access` option or the session's rules restrict it. An `ask` is refused here.
 `plaud_export` is not among the methods: a script never runs it, whatever the rules say.
 
-When the model's export target is outside the project, the plugin asserts `external_directory` for the folder, as well as
-`plaud_export`, before anything is written. That check is not a script method. The rule a person adds for the model is:
+When the model's export target is outside the project, the plugin evaluates the agent's and session's
+`external_directory` rules itself and fails closed: only an explicit allow writes, and an `ask` is a refusal. That check is
+not a script method. The rule a person adds for the model is:
 
 ```json
 { "permissions": [
@@ -60,7 +61,7 @@ When the model's export target is outside the project, the plugin asserts `exter
 ] }
 ```
 
-A refusal that names `external_directory` costs nothing: nothing was read and nothing was written. Move the folder
+A refusal costs nothing: nothing was read and nothing was written. Move the folder
 inside the project with the `exportRoots` option, or add the rule. An agent defined only in your config misses the
 default rules; at `"ask-changes"` or `"read-only"`, `/plaud-status` names it and gives the fix.
 

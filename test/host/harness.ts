@@ -57,6 +57,8 @@ interface HostOptions {
   readonly config?: Record<string, unknown> | ((fake: FakePlaud) => Record<string, unknown>)
   /** What the host reports as `ctx.app.version`; the SDK's own version by default. */
   readonly version?: string
+  /** Runs after the host folders exist, before the plugin starts; its result overrides plugin options. */
+  readonly prepare?: (paths: { readonly root: string; readonly work: string; readonly exportRoot: string }) => Promise<Record<string, unknown> | void> | Record<string, unknown> | void
 }
 
 /** A tool call's outcome as the calling tool sees it. */
@@ -149,13 +151,14 @@ export async function startHost(input: HostOptions = {}): Promise<Harness> {
   const exportRoot = join(root, "exports")
   mkdirSync(work)
   mkdirSync(join(root, "config"))
+  const prepared = (await input.prepare?.({ root, work, exportRoot })) ?? {}
 
   const fake = await startFakePlaud()
   const revoke = network.allow(fake.origin)
   const deniedBefore = network.denied.length
   const probe = createProbe()
   const config = {
-    plugins: [{ package: REPO, options: { url: fake.url, exportRoots: [exportRoot], ...input.options } }],
+    plugins: [{ package: REPO, options: { url: fake.url, exportRoots: [exportRoot], ...input.options, ...prepared } }],
     // An automation's code action is how a host test runs Code Mode with nobody present to answer a prompt.
     experimental: { automations: true },
     // No model is used. An empty base URL stops the host probing local model servers on loopback ports.

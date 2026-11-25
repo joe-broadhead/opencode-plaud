@@ -122,7 +122,7 @@ So, in each case:
 - `plaud_export` asks at `"ask-changes"` and is denied at `"read-only"`;
 - any other tool on a Plaud server follows the same rule, so `"all"` runs a tool Plaud adds later, and `"read-only"` denies it.
 
-When an export folder is outside the project, the plugin asserts `external_directory` for the target folder before it writes, as well as asserting `plaud_export`. A refusal costs nothing, since nothing was read or written; allow it with `{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }`, or move the folder inside the project with `exportRoots`.
+When an export folder is outside the project, the plugin evaluates the agent's and session's `external_directory` rules itself and fails closed: only an explicit allow writes, an `ask` is a refusal, and no prompt is shown. Saved approvals are not consulted for `external_directory`, so an explicit allow rule is required. A refusal costs nothing, since nothing was read or written; allow it with `{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }`, or move the folder inside the project with `exportRoots`.
 
 OpenCode uses the last rule that matches. Everything after the base allow comes later and wins over these rules:
 
@@ -178,7 +178,7 @@ When a prompt offers "Always allow", OpenCode saves the approval for the whole p
 
 ### Runs that cannot ask
 
-`opencode run` and other unattended runs cannot answer a prompt. There, a tool whose rule asks, or the plugin's `external_directory` assertion for an export folder outside the project, fails with `Permission … needs approval` unless a rule allows it. At the default `"all"` nothing in the plugin asks.
+`opencode run` and other unattended runs cannot answer a prompt. The plugin never prompts for `external_directory`: it evaluates the rules itself and fails closed, so an export outside the project needs an explicit allow rule in the agent's or session's permissions. At the default `"all"` nothing else in the plugin asks.
 
 ### Agents defined in your config
 
@@ -323,13 +323,14 @@ Plugin errors read `CODE: what happened. Next step: What to do.`
 | `PLAUD_UNREADABLE` | export, recent, events list | Plaud returned something the plugin cannot use, such as an audio link that is not a valid https URL, an audio download that redirects to one or more than 5 times, a transcript that never ends, or a recording list that is not a list. |
 | `CONTENT_UNAVAILABLE` | export | The recording has no audio yet, or no such transcript block. |
 | `EXPORT_OUTSIDE_ROOTS` | export | The destination is outside the export roots. |
-| `EXPORT_PATH_NOT_PERMITTED` | export | The export folder is outside the project and the plugin's `external_directory` assertion for it was refused. |
+| `EXPORT_PATH_NOT_PERMITTED` | export | The export folder is outside the project and the `external_directory` rules do not allow it; an `ask` counts as a refusal. |
 | `EXPORT_BAD_DESTINATION` | export | The destination is a folder or a root, or the recording id cannot be a file name. |
 | `EXPORT_EXISTS` | export | A file exists and `overwrite` is not true. |
 | `EXPORT_TOO_LARGE` | export | The audio is over `maxAudioBytes`, or a transcript or note is over 25 MiB. |
 | `EXPORT_TIMEOUT` | export | The export took longer than `exportTimeoutMs`. |
 | `EXPORT_FAILED` | export | The download or the local write failed. |
+| `WORKSPACE_UNSUPPORTED` | export | The session runs on a workspace, whose files are not on this machine. |
 
-OpenCode itself reports a blocked call as `Permission denied: <action>`, and an ask in a run that cannot answer as `Permission <action> needs approval`.
+OpenCode itself reports a blocked call as `Permission denied: <action>`. The export never prompts for `external_directory`: an ask there is a refusal.
 
 Scripts that use the tools RPC get their own error codes; see [Scripting](scripting.md#errors).

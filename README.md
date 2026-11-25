@@ -20,7 +20,7 @@ Install from a release:
 opencode plugin add github:we-the-rebel-alliance/plaud-plugin#v<version>
 ```
 
-The first release on plugin-contract is `v0.0.0` (phase 4b). Run `opencode reload`, or restart OpenCode. Then run `/plaud-status`: it shows `sign-in required` until you sign in.
+The old `v0.0.0`–`v0.0.9` tags predate the transfer and must not be installed. The first plugin-contract release will be `v0.0.0` in phase 4b, after the owner removes those tags. Run `opencode reload`, or restart OpenCode. Then run `/plaud-status`: it shows `sign-in required` until you sign in.
 
 Or add the plugin to `opencode.json` instead, with the same spec:
 
@@ -194,13 +194,13 @@ The block for each value, for the default account's `plaud` server, generated fr
 
 "Always allow" on an export remembers only that account and kind, such as `default:transcript`. Your own `permissions` rules win over the defaults.
 
-When an export folder is outside the project, the plugin asserts `external_directory` for the target folder before it writes, as well as `plaud_export`. A rule for `plaud_export` alone does not cover an unattended run:
+When an export folder is outside the project, the plugin evaluates the agent's and session's `external_directory` rules itself and fails closed: only an explicit allow writes, an `ask` is a refusal, and no prompt is shown. This applies interactively, in `opencode run` and in automations; saved approvals are not consulted for `external_directory`, so an explicit allow rule is required. A rule for `plaud_export` alone does not cover it:
 
 ```json
 { "permissions": [{ "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" }] }
 ```
 
-`opencode run` and other runs where nobody can answer refuse an export unless a rule allows it. See [Permissions](https://github.com/we-the-rebel-alliance/plaud-plugin/blob/master/docs/configuration.md#permissions).
+`opencode run` and other runs where nobody can answer never prompt for `external_directory`: an export outside the project needs an explicit allow rule. See [Permissions](https://github.com/we-the-rebel-alliance/plaud-plugin/blob/master/docs/configuration.md#permissions).
 
 ## Accounts
 
@@ -246,7 +246,7 @@ Errors from the plugin read `CODE: what happened. Next step: What to do.` Every 
 | `EXPORT_EXISTS` | The destination file exists and overwrite was not set. | Ask the user before passing overwrite: true, or choose another path. |
 | `EXPORT_FAILED` | Writing the file failed. | Check the folder is writable and there is space, then retry. |
 | `EXPORT_OUTSIDE_ROOTS` | The destination is outside the export folders the plugin may write in. | Write inside a root the plugin lists, or ask the user to add the folder to exportRoots. |
-| `EXPORT_PATH_NOT_PERMITTED` | The export folder is outside the project, and the plugin's external_directory assertion for it was refused. A rule denied it. | Allow it with { "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" } in your permissions, or set exportRoots inside the project. |
+| `EXPORT_PATH_NOT_PERMITTED` | The export folder is outside the project, and the external_directory rules do not allow it. An ask is a refusal. | Add { "action": "external_directory", "resource": "<the export folder>/*", "effect": "allow" } to the agent or session rules, or set exportRoots inside the project. |
 | `EXPORT_TIMEOUT` | The export did not finish inside exportTimeoutMs. | Ask the user to raise exportTimeoutMs, then retry. |
 | `EXPORT_TOO_LARGE` | The exported text is over the 25 MiB cap. | Export one transcript block or the note instead of everything. |
 | `INPUT_INVALID` | A call's input is not the method's schema, such as `account` in a plugin tool's input. | Call describe for the schema, then pass the fields it names; the account is the envelope's. |
@@ -260,6 +260,7 @@ Errors from the plugin read `CODE: what happened. Next step: What to do.` Every 
 | `TOOL_UNAVAILABLE` | The tools RPC refused the call. | Call describe to see which methods OpenCode lists now, and run /plaud-status. |
 | `UNAVAILABLE` | A listing of the recordings source came before any probe named the account's owner since OpenCode started. | Call `probe` for the account, then list again. |
 | `UPSTREAM_ERROR` | The tools RPC refused the call. | Check the input against the method's schema from describe, and run /plaud-status if it keeps failing. |
+| `WORKSPACE_UNSUPPORTED` | The export runs in a workspace session, whose files are on the workspace machine, not this one. | Run the export in a session whose location is on this machine. |
 
 <!-- /generated:codes -->
 

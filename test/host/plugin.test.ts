@@ -65,6 +65,24 @@ describe("activation and registration", () => {
     })
   })
 
+  it("registers every skills/*/SKILL.md as a skill on the host", async () => {
+    const { data } = await host.opencode.skill.list({ location: host.location })
+    const folders = readdirSync(join(REPO, "skills"), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+    const own = data.filter((skill) => skill.path.startsWith(`${join(REPO, "skills")}/`))
+    // The loader reads the folder, so the registered ids are exactly the folders under skills/.
+    expect(own.map((skill) => skill.id).sort()).toEqual(folders)
+    expect(folders).toEqual(["plaud", "plaud-digest", "plaud-export"])
+    for (const skill of own) {
+      expect(skill.name).toBe(skill.id)
+      expect(skill.path).toBe(join(REPO, "skills", skill.id, "SKILL.md"))
+      expect((skill.description ?? "").length).toBeLessThanOrEqual(300)
+      expect(skill.content.length).toBeGreaterThan(200)
+    }
+  })
+
   it("registers its six methods as tools next to the server's own tools", async () => {
     const ids = (await host.tools()).map((tool) => tool.id).filter((id) => id.startsWith("plaud"))
     expect(ids.sort()).toEqual(

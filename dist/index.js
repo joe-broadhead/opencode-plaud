@@ -13567,6 +13567,57 @@ function loadSettings(raw) {
   };
 }
 
+// src/skills.ts
+import { readdir, readFile } from "node:fs/promises";
+import { join as join4 } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Skill } from "@opencode/plugin";
+var invalid2 = (what) => new Error(`SKILLS_INVALID: A plaud skill is broken: ${what}. Next step: Reinstall the plugin.`);
+function parseSkill(folder, path, text2) {
+  const where = `skills/${folder}/SKILL.md`;
+  const match2 = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text2.replace(/\r\n/g, "\n"));
+  if (!match2) throw invalid2(`${where} has no frontmatter`);
+  const fields = new Map(
+    match2[1].split("\n").flatMap((line2) => {
+      const colon = line2.indexOf(":");
+      return colon === -1 ? [] : [[line2.slice(0, colon).trim(), line2.slice(colon + 1).trim()]];
+    })
+  );
+  const name = fields.get("name");
+  const description = fields.get("description");
+  if (!name) throw invalid2(`${where} has no name`);
+  if (!description) throw invalid2(`${where} has no description`);
+  if (name !== folder) throw invalid2(`${where} is named "${name}", not "${folder}"`);
+  return {
+    id: Skill.ID.make(name),
+    name: Skill.Name.make(name),
+    description,
+    path: Skill.Info.fields.path.make(path),
+    content: match2[2].trim()
+  };
+}
+async function loadSkills(directory) {
+  const root = fileURLToPath(directory);
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => {
+    throw invalid2("the skills folder is missing");
+  });
+  const folders = entries.filter((entry2) => entry2.isDirectory()).map((entry2) => entry2.name).sort();
+  return Promise.all(
+    folders.map(async (folder) => {
+      const path = join4(root, folder, "SKILL.md");
+      const text2 = await readFile(path, "utf8").catch(() => {
+        throw invalid2(`skills/${folder} has no SKILL.md`);
+      });
+      return parseSkill(folder, path, text2);
+    })
+  );
+}
+async function registerSkills(ctx, skills) {
+  return ctx.skill.transform((editor) => {
+    for (const skill of skills) editor.add(skill);
+  });
+}
+
 // src/index.ts
 var src_default = Plugin.define({
   id: manifest.plugin.name,
@@ -13577,6 +13628,8 @@ var src_default = Plugin.define({
     const plan = accountsOf(manifest, options);
     if (!plan.ok) throw new Error(`OPTIONS_INVALID: ${plan.problems.join("; ")}. Next step: fix the plugin's accounts option.`);
     const registered = await registerPlaudAccounts(context, manifest, options, settings.url);
+    const skills = await loadSkills(new URL("../skills/", import.meta.url));
+    const skillRegistration = await registerSkills(context, skills);
     const handlers = handlersFor({
       packageName,
       manifest,
@@ -13607,7 +13660,10 @@ var src_default = Plugin.define({
       owners: owners()
     });
     const registration = await register(context, manifest, handlers);
-    return () => registration.dispose();
+    return async () => {
+      await registration.dispose();
+      await skillRegistration.dispose();
+    };
   }
 });
 export {

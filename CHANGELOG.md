@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.1 (2026-11-25)
+## 0.0.0 (2026-11-25)
 
 The release, on plugin-contract v0.
 
@@ -22,22 +22,3 @@ The release, on plugin-contract v0.
 - Docs, skills and `AGENTS.md` for this plugin; generated sections from the manifest, and `plugin-kit check` and
   `plugin-kit docs --check` in `npm run check`.
 - Tests: unit, the synthetic two-account conformance fixture, the real OpenCode 2.4.1 host and the packed tarball.
-
-### Removed since v0.0.9
-
-- **The three skill ids.** They lost their old vendor prefix and are `plaud`, `plaud-export` and `plaud-digest`:
-  contract §3 gives a plugin one name, and a skill is `<name>` or `<name>-<topic>`. The folders and bodies are the
-  same, now registered with their YAML descriptions.
-- **The snapshot source `plaud.recordings.list`.** It is `plaud.recent`, named after the method it reads (`recent`) and
-  part of the Recordings service, as contract §7 asks; the old id named the events source instead.
-- **The RPC ids `plaud.recordings`, `plaud.recordings.tools` and `plaud.recordings.tui`.** One RPC id, `plaud`, carries
-  every method (contract §3); a script that called the tools RPC uses the agent tool or
-  `POST /api/rpc/plaud/<method>`.
-- **The `/plaud-status` command.** The contract's `status` method (an agent tool and the RPC method `plaud.status`) is
-  the one status answer; its `unguardedAgents` value exists only inside a handler call, and a command cannot produce it.
-  Standard §2 makes a status command optional.
-- **The `/plaud` TUI view.** Optional per standard §2; it rendered the old status shape, which v0 does not have. The
-  status method and its RPC answer replace it for any client.
-- **The `/connect` display labels "Plaud" and "Plaud (alias)", and the "needs a new sign-in" status line.** The servers
-  and their sign-ins are unchanged (`plaud` and `plaud-<alias>`); OpenCode now shows the server name, and the contract's
-  `accounts` module registers servers without a label hook.

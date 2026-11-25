@@ -1,0 +1,302 @@
+{
+  "$comment": "Recorded from the synthetic two-account Plaud provider through the plugin's own handlers: events, a list snapshot, probe and status. Every owner and recording is invented; the vendor's MCP tools are declared as mcp:<tool> and have no handler.",
+  "plugin": "@we-the-rebel-alliance/plaud-plugin",
+  "namespace": "Plaud voice recordings: list an account's recordings as events, read the newest as a list, and export one recording's audio, transcript or note to a local file. Reads only, plus one local export; Plaud's own MCP tools pass through.",
+  "accounts": {
+    "real": true,
+    "aliases": [
+      "work",
+      "personal"
+    ],
+    "required": {
+      "method": "plan_export",
+      "code": "ACCOUNT_REQUIRED"
+    },
+    "unknown": {
+      "method": "plan_export",
+      "account": "nobodyhere",
+      "code": "ACCOUNT_UNKNOWN"
+    },
+    "cursors": [
+      {
+        "method": "events_list",
+        "account": "work",
+        "other": "personal",
+        "code": "CURSOR_INVALID"
+      }
+    ]
+  },
+  "sources": {
+    "plaud.recordings": {
+      "cases": [
+        {
+          "input": {
+            "source": "recordings",
+            "account": "work",
+            "since": "2026-11-01T00:00:00.000Z"
+          },
+          "expect": "page",
+          "answer": {
+            "source": "recordings",
+            "account": "work",
+            "owner": {
+              "id": "plaud:user-work",
+              "label": "Ana"
+            },
+            "events": [
+              {
+                "source": "recordings",
+                "account": "work",
+                "external_id": "w-1",
+                "kind": "meeting",
+                "occurred_at": "2026-11-02T09:00:00.000Z",
+                "thread": null,
+                "actors": [],
+                "title": "Weekly sync",
+                "text": "Recorded for 1 min.",
+                "url": null,
+                "labels": [],
+                "hash": "sha256:876a6be7b06102ba240e56b8bbc79601c2a5cb7b8ea84542812df2c32eeeb24a"
+              },
+              {
+                "source": "recordings",
+                "account": "work",
+                "external_id": "w-2",
+                "kind": "meeting",
+                "occurred_at": "2026-11-04T14:30:00.000Z",
+                "thread": null,
+                "actors": [],
+                "title": "Customer call",
+                "text": "Recorded for 2 min.",
+                "url": null,
+                "labels": [],
+                "hash": "sha256:04d8998293d52464337720b15aa031e1fa634ab243d35fcfc079a49b31b0438a"
+              },
+              {
+                "source": "recordings",
+                "account": "work",
+                "external_id": "w-3",
+                "kind": "meeting",
+                "occurred_at": "2026-11-09T08:15:00.000Z",
+                "thread": null,
+                "actors": [],
+                "title": "Board meeting",
+                "text": "Recorded for 1 h 0 min.",
+                "url": null,
+                "labels": [],
+                "hash": "sha256:20594889d1ee165770ea0bed9e9a7c45b408b42b53068401576addad1e4ffe50"
+              },
+              {
+                "source": "recordings",
+                "account": "work",
+                "external_id": "w-4",
+                "kind": "meeting",
+                "occurred_at": "2026-11-10T07:00:00.000Z",
+                "thread": null,
+                "actors": [],
+                "title": "Voice memo",
+                "text": "Recorded for 1 min.",
+                "url": null,
+                "labels": [],
+                "hash": "sha256:bfd1431783644a821b77413254c7a4441532e772acac6397181ce1099b8514dd"
+              }
+            ],
+            "cursor": "eyJ2IjoyLCJzIjoicmVjb3JkaW5ncyIsImIiOiI2NmY0NWY0NjI1NjgxNTE0IiwiYSI6IndvcmsiLCJvIjoicGxhdWQ6dXNlci13b3JrIiwibCI6IkFuYSIsInQiOjE3OTQzODA0MDAwMDAsImkiOiJ3LTUiLCJmIjoxNzkzNDkxMjAwMDAwLCJjIjoxNzkzNDkxMjAwMDAwLCJuIjoxNzk1MTMyODAwMDAwLCJrIjoiQUdXcjFPcUQ2NC1RZ3B4VjhVZnAifQ",
+            "more": false,
+            "trust": "untrusted",
+            "refused": [
+              {
+                "external_id": "w-5",
+                "reason": "secret",
+                "detail": "holds a secret (api key)"
+              }
+            ],
+            "plugin": "@we-the-rebel-alliance/plaud-plugin",
+            "asOf": "2026-11-20T00:00:00.000Z"
+          }
+        },
+        {
+          "input": {
+            "source": "recordings",
+            "account": "personal",
+            "since": "2026-11-01T00:00:00.000Z"
+          },
+          "expect": "page",
+          "answer": {
+            "source": "recordings",
+            "account": "personal",
+            "owner": {
+              "id": "plaud:user-personal",
+              "label": "Sam"
+            },
+            "events": [
+              {
+                "source": "recordings",
+                "account": "personal",
+                "external_id": "p-1",
+                "kind": "meeting",
+                "occurred_at": "2026-11-05T18:00:00.000Z",
+                "thread": null,
+                "actors": [],
+                "title": "Grocery list",
+                "text": "Recorded for 1 min.",
+                "url": null,
+                "labels": [],
+                "hash": "sha256:bf1afa5d4b5ca59c810b31318fe9a2b17afc4cc783bd3de71d89fe4b01e14e40"
+              }
+            ],
+            "cursor": "eyJ2IjoyLCJzIjoicmVjb3JkaW5ncyIsImIiOiJkMTk0NjYwYzJmYjZmODNmIiwiYSI6InBlcnNvbmFsIiwibyI6InBsYXVkOnVzZXItcGVyc29uYWwiLCJsIjoiU2FtIiwidCI6MTc5MzkwMTYwMDAwMCwiaSI6InAtMSIsImYiOjE3OTM0OTEyMDAwMDAsImMiOjE3OTM0OTEyMDAwMDAsIm4iOjE3OTUxMzI4MDAwMDAsImsiOiJIZTV1In0",
+            "more": false,
+            "trust": "untrusted",
+            "plugin": "@we-the-rebel-alliance/plaud-plugin",
+            "asOf": "2026-11-20T00:00:00.000Z"
+          }
+        },
+        {
+          "input": {
+            "source": "recordings",
+            "account": "work",
+            "since": "2026-11-20T00:00:00.000Z"
+          },
+          "expect": "empty",
+          "answer": {
+            "source": "recordings",
+            "account": "work",
+            "owner": {
+              "id": "plaud:user-work",
+              "label": "Ana"
+            },
+            "events": [],
+            "cursor": "eyJ2IjoyLCJzIjoicmVjb3JkaW5ncyIsImIiOiI2NmY0NWY0NjI1NjgxNTE0IiwiYSI6IndvcmsiLCJvIjoicGxhdWQ6dXNlci13b3JrIiwibCI6IkFuYSIsInQiOjE3OTUxMzI4MDAwMDAsImkiOiIiLCJmIjoxNzk1MTMyODAwMDAwLCJjIjoxNzk1MTMyODAwMDAwLCJuIjoxNzk1MTMyODAwMDAwLCJrIjoiIn0",
+            "more": false,
+            "trust": "untrusted",
+            "plugin": "@we-the-rebel-alliance/plaud-plugin",
+            "asOf": "2026-11-20T00:00:00.000Z"
+          }
+        },
+        {
+          "input": {
+            "source": "recordings",
+            "account": "personal",
+            "cursor": "eyJ2IjoyLCJzIjoicmVjb3JkaW5ncyIsImIiOiI2NmY0NWY0NjI1NjgxNTE0IiwiYSI6IndvcmsiLCJvIjoicGxhdWQ6dXNlci13b3JrIiwibCI6IkFuYSIsInQiOjE3OTQzODA0MDAwMDAsImkiOiJ3LTUiLCJmIjoxNzkzNDkxMjAwMDAwLCJjIjoxNzkzNDkxMjAwMDAwLCJuIjoxNzk1MTMyODAwMDAwLCJrIjoiQUdXcjFPcUQ2NC1RZ3B4VjhVZnAifQ"
+          },
+          "expect": "CURSOR_INVALID",
+          "refuses": "CURSOR_INVALID: the cursor was not issued by events_list for the recordings of the Plaud account \"personal\". Next step: Start again: call events_list for \"personal\" with since, without a cursor."
+        },
+        {
+          "input": {
+            "source": "other",
+            "account": "work"
+          },
+          "expect": "SOURCE_UNKNOWN",
+          "refuses": "SOURCE_UNKNOWN: other is not a source of plaud. Next step: Read the recordings source, or omit source."
+        }
+      ],
+      "probe": {
+        "input": {
+          "source": "recordings",
+          "account": "work"
+        },
+        "answer": {
+          "source": "recordings",
+          "account": "work",
+          "owner": {
+            "id": "plaud:user-work",
+            "label": "Ana"
+          },
+          "trust": "untrusted"
+        }
+      }
+    },
+    "plaud.recent": {
+      "probe": {
+        "input": {
+          "source": "recordings",
+          "account": "work"
+        },
+        "answer": {
+          "source": "recordings",
+          "account": "work",
+          "owner": {
+            "id": "plaud:user-work",
+            "label": "Ana"
+          },
+          "trust": "untrusted"
+        }
+      },
+      "snapshot": {
+        "input": {
+          "limit": 3,
+          "account": "work"
+        },
+        "answer": {
+          "source": "recent",
+          "account": "work",
+          "data": {
+            "items": [
+              {
+                "id": "w-4",
+                "text": "Voice memo · 2026-11-10 07:00 UTC · 1 min"
+              },
+              {
+                "id": "w-3",
+                "text": "Board meeting · 2026-11-09 08:15 UTC · 1 h 0 min"
+              },
+              {
+                "id": "w-2",
+                "text": "Customer call · 2026-11-04 14:30 UTC · 2 min"
+              }
+            ],
+            "editable": false
+          },
+          "asOf": "2026-11-20T00:00:00.000Z",
+          "trust": "untrusted"
+        }
+      }
+    }
+  },
+  "events": {
+    "emitted": [],
+    "status": {
+      "name": "plaud",
+      "version": "0.0.0",
+      "host": {
+        "version": "2.4.1",
+        "range": ">=2.4.1 <2.5.0",
+        "tested": [
+          "2.4.1"
+        ]
+      },
+      "state": "ready",
+      "accounts": [
+        {
+          "alias": "work",
+          "state": "ready",
+          "owner": {
+            "id": "plaud:user-work",
+            "label": "Ana"
+          }
+        },
+        {
+          "alias": "personal",
+          "state": "ready",
+          "owner": {
+            "id": "plaud:user-personal",
+            "label": "Sam"
+          }
+        }
+      ],
+      "unguardedAgents": [],
+      "nextStep": null
+    }
+  },
+  "actions": [],
+  "rpc": {
+    "inputs": {
+      "plan_export": {
+        "recordingId": "w-1",
+        "kind": "note"
+      }
+    }
+  }
+}

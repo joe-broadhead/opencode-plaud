@@ -1,10 +1,23 @@
 {
   "name": "@we-the-rebel-alliance/plaud-plugin",
   "version": "0.0.0",
-  "private": true,
-  "description": "Unofficial OpenCode plugin for Plaud voice recordings",
-  "type": "module",
+  "description": "Plaud voice recordings for OpenCode: an events source, a recent-recordings snapshot and a local export, through Plaud's hosted MCP server.",
   "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./server": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "assets",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/we-the-rebel-alliance/plaud-plugin.git"
@@ -16,86 +29,184 @@
   "keywords": [
     "opencode",
     "opencode-plugin",
+    "plugin-contract",
     "plaud"
   ],
-  "exports": {
-    ".": "./dist/index.js",
-    "./tui": "./dist/tui.js",
-    "./icon.svg": "./assets/icon.svg",
-    "./icon-128.png": "./assets/icon-128.png",
-    "./icon-256.png": "./assets/icon-256.png"
-  },
-  "files": [
-    "dist",
-    "assets/icon.svg",
-    "assets/icon-128.png",
-    "assets/icon-256.png",
-    "skills",
-    "README.md",
-    "LICENSE",
-    "NOTICE",
-    "CHANGELOG.md"
-  ],
-  "opencode": {
-    "host": ">=2.4.1 <2.5.0",
-    "icons": [
-      {
-        "src": "assets/icon.svg",
-        "mimeType": "image/svg+xml",
-        "sizes": [
-          "any"
-        ]
+  "capabilities": {
+    "version": 1,
+    "plugin": {
+      "name": "plaud",
+      "title": "Plaud",
+      "summary": "Plaud voice recordings: list an account's recordings as events, read the newest as a list, and export one recording's audio, transcript or note to a local file. Reads only, plus one local export; Plaud's own MCP tools pass through.",
+      "vendor": {
+        "id": "plaud",
+        "name": "Plaud",
+        "domain": "plaud.ai"
       },
-      {
-        "src": "assets/icon-128.png",
-        "mimeType": "image/png",
-        "sizes": [
-          "128x128"
-        ]
-      },
-      {
-        "src": "assets/icon-256.png",
-        "mimeType": "image/png",
-        "sizes": [
-          "256x256"
+      "icons": [
+        {
+          "src": "assets/icon.svg",
+          "type": "image/svg+xml"
+        },
+        {
+          "src": "assets/icon-128.png",
+          "type": "image/png"
+        },
+        {
+          "src": "assets/icon-256.png",
+          "type": "image/png"
+        }
+      ],
+      "host": {
+        "opencode": ">=2.4.1 <2.5.0",
+        "tested": [
+          "2.4.1"
         ]
       }
-    ],
-    "vendor": {
-      "id": "plaud",
-      "name": "Plaud",
-      "domain": "plaud.ai",
-      "mark": true
-    }
-  },
-  "sources": {
-    "contractVersion": 1,
-    "rpc": "plaud.recordings.tools",
-    "probe": {
-      "action": "plaud_probe"
     },
-    "items": [
+    "accounts": {
+      "via": "mcp",
+      "profile": {
+        "$ref": "#/options/properties/accounts/additionalProperties"
+      },
+      "owner": "plaud"
+    },
+    "options": {
+      "type": "object",
+      "properties": {
+        "access": {
+          "type": "string",
+          "enum": [
+            "all",
+            "ask-changes",
+            "read-only"
+          ],
+          "default": "all",
+          "description": "How much the plugin's methods may do. Reads run at every level; the export runs at all, asks at ask-changes and is refused at read-only."
+        },
+        "accounts": {
+          "type": "object",
+          "description": "One profile per account alias. Each alias signs in to its own Plaud MCP server, named plaud for default and plaud-<alias> otherwise.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false,
+            "description": "One Plaud account. It has no fields: OpenCode holds the sign-in for the alias's server."
+          }
+        },
+        "allowUntestedHost": {
+          "type": "boolean",
+          "default": false,
+          "description": "Start outside the tested OpenCode range instead of refusing with HOST_UNTESTED."
+        },
+        "url": {
+          "type": "string",
+          "default": "https://mcp.plaud.ai/mcp",
+          "description": "The Plaud MCP endpoint every account's server uses. Change it only to reach Plaud through a proxy you run; plain http is accepted only on localhost."
+        },
+        "exportRoots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "default": [
+            "~/Plaud"
+          ],
+          "description": "The folders an export may write in, absolute or starting with ~/. The first holds the default destination. A destination outside every root is refused."
+        },
+        "maxAudioBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 68719476736,
+          "default": 2147483648,
+          "description": "The largest audio file one export downloads, in bytes, up to 64 GiB. The default is 2 GiB."
+        },
+        "exportTimeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 86400000,
+          "default": 1800000,
+          "description": "How long one export may take, in milliseconds, from 1 second to 24 hours. The default is 30 minutes."
+        }
+      },
+      "additionalProperties": false
+    },
+    "methods": {
+      "status": {
+        "class": "read",
+        "accounts": "none"
+      },
+      "probe": {
+        "class": "read",
+        "accounts": "optional",
+        "operations": [
+          "get_current_user"
+        ]
+      },
+      "events_list": {
+        "class": "read",
+        "accounts": "optional",
+        "operations": [
+          "list_files"
+        ]
+      },
+      "recent": {
+        "class": "read",
+        "accounts": "optional",
+        "operations": [
+          "list_files"
+        ]
+      },
+      "plan_export": {
+        "class": "read",
+        "accounts": "optional",
+        "plans": true
+      },
+      "export": {
+        "class": "export",
+        "accounts": "optional",
+        "commits": "plan_export",
+        "operations": [
+          "get_file",
+          "get_note",
+          "get_transcript"
+        ]
+      },
+      "mcp:get_current_user": {
+        "class": "read"
+      },
+      "mcp:get_file": {
+        "class": "read"
+      },
+      "mcp:get_note": {
+        "class": "read"
+      },
+      "mcp:get_transcript": {
+        "class": "read"
+      },
+      "mcp:list_files": {
+        "class": "read"
+      }
+    },
+    "sources": [
       {
         "id": "plaud.recordings",
         "kind": "events",
         "reads": "meeting",
-        "tool": "events_list",
+        "method": "events_list",
         "input": {
           "source": "recordings"
         },
-        "accounts": {
-          "named": true,
-          "server": "plaud-{account}"
+        "service": {
+          "id": "plaud.recordings",
+          "label": "Recordings"
         },
-        "permission": {
-          "events": "plaud_events_list",
-          "operations": [
-            "get_current_user",
-            "list_files"
-          ],
-          "identity": [
-            "get_current_user"
-          ]
+        "operations": [
+          "list_files"
+        ],
+        "cadence": {
+          "suggestMinutes": 15
         },
         "private": true,
         "cost": {
@@ -104,249 +215,117 @@
         "maxBytes": 262144
       },
       {
-        "id": "plaud.recordings.list",
+        "id": "plaud.recent",
         "kind": "snapshot",
-        "tool": "events_list",
-        "input": {
-          "source": "recordings",
-          "list": "recordings"
-        },
         "output": "list",
-        "accounts": {
-          "named": true,
-          "server": "plaud-{account}"
+        "method": "recent",
+        "service": {
+          "id": "plaud.recordings",
+          "label": "Recordings"
         },
-        "permission": {
-          "tool": "plaud_events_list",
-          "operations": [
-            "get_current_user",
-            "list_files"
-          ],
-          "identity": [
-            "get_current_user"
-          ]
-        },
+        "operations": [
+          "list_files"
+        ],
         "private": true,
         "cost": {
           "class": "free"
         },
-        "maxAgeSec": 900,
         "maxBytes": 262144
       }
-    ]
+    ],
+    "actions": [
+      {
+        "id": "plaud.export",
+        "effect": "local",
+        "preview": "plan_export",
+        "commit": "export",
+        "input": {
+          "type": "object",
+          "properties": {
+            "recordingId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "audio",
+                "transcript",
+                "note"
+              ]
+            },
+            "block": {
+              "type": "string",
+              "enum": [
+                "transaction",
+                "transaction_polish",
+                "outline",
+                "mark_memo"
+              ]
+            },
+            "destination": {
+              "type": "string"
+            },
+            "overwrite": {
+              "type": "boolean"
+            },
+            "account": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "recordingId",
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        "output": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ],
+    "events": {}
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
     "build": "npm run clean && node scripts/build.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tui.json --noEmit && tsc -p test/tsconfig.json",
-    "lint": "vitest run --project lint && node scripts/check-copies.mjs && node scripts/check-icons.mjs && node scripts/check-workflows.mjs && node scripts/check-forbidden.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json",
     "test": "vitest run --project unit",
-    "conformance": "vitest run test/conformance.test.ts",
-    "test:kit": "node --test scripts/release-kit.test.mjs",
-    "test:host": "node scripts/host-tests.mjs",
+    "test:host": "vitest run --project host",
     "test:pack": "vitest run --project pack",
-    "check": "npm run typecheck && npm run lint && npm run build && npm test && npm run test:kit && npm run test:host && npm run test:pack",
-    "check:upstream": "node scripts/check-upstream.mjs",
-    "capture": "node scripts/capture-tools.mjs"
+    "fixtures": "node scripts/record-fixture.mjs",
+    "docs": "plugin-kit docs",
+    "docs:check": "plugin-kit docs --check",
+    "check": "npm run typecheck && npm run build && npm test && npm run test:host && npm run test:pack && plugin-kit check && plugin-kit docs --check"
   },
   "devDependencies": {
-    "@babel/core": "7.29.7",
-    "@babel/preset-typescript": "7.27.1",
     "@opencode/client": "2.4.1",
+    "@opencode/core": "2.4.1",
     "@opencode/plugin": "2.4.1",
     "@opencode/sdk": "2.4.1",
-    "@opentui/core": "0.8.0",
-    "@opentui/solid": "0.8.0",
     "@types/node": "24.19.2",
-    "@we-the-rebel-alliance/source-contract": "github:we-the-rebel-alliance/source-contract#2fd55cdc0c6c1067927fefc403a88bfd18c9a971",
-    "babel-preset-solid": "1.9.16",
+    "@we-the-rebel-alliance/plugin-contract": "github:we-the-rebel-alliance/plugin-contract#v0.0.0",
     "esbuild": "0.28.2",
-    "solid-js": "1.9.18",
     "typescript": "5.9.3",
-    "vitest": "5.0.5",
-    "zod": "4.6.7"
-  },
-  "jelly": {
-    "title": "Plaud",
-    "summary": "Your Plaud recordings, transcripts and notes.",
-    "icon": "assets/icon.svg",
-    "tools": [
-      {
-        "name": "plaud.recent",
-        "permission": "plaud_recent",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud.events_list",
-        "permission": "plaud_events_list",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud.list_files",
-        "permission": "plaud_list_files",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud.get_file",
-        "permission": "plaud_get_file",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud.get_note",
-        "permission": "plaud_get_note",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud.get_transcript",
-        "permission": "plaud_get_transcript",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud.get_current_user",
-        "permission": "plaud_get_current_user",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud-*.list_files",
-        "permission": "plaud_list_files",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud-*.get_file",
-        "permission": "plaud_get_file",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud-*.get_note",
-        "permission": "plaud_get_note",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud-*.get_transcript",
-        "permission": "plaud_get_transcript",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud-*.get_current_user",
-        "permission": "plaud_get_current_user",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "plaud.export",
-        "permission": "plaud_export",
-        "effect": "allow",
-        "readOnly": false
-      }
-    ],
-    "skills": [
-      "opencode-plaud",
-      "opencode-plaud-export",
-      "opencode-plaud-digest"
-    ],
-    "rpc": [],
-    "views": [],
-    "signIns": [
-      {
-        "id": "plaud",
-        "label": "Plaud",
-        "server": "plaud*",
-        "account": {
-          "option": "accounts",
-          "label": "Account name",
-          "description": "A short name for another Plaud account, such as work. Its server is plaud-<name>, listed in /connect as Plaud (<name>).",
-          "placeholder": "work",
-          "required": false,
-          "reserved": [
-            "default"
-          ]
-        }
-      }
-    ],
-    "contributes": {
-      "homeFeeds": [
-        {
-          "id": "plaud.recent",
-          "label": "Recent Plaud recordings",
-          "description": "Your newest recordings, by title, time and length.",
-          "keywords": [
-            "plaud",
-            "recordings",
-            "voice notes"
-          ],
-          "feed": {
-            "title": "Recent recordings",
-            "size": "m",
-            "template": "list",
-            "cadence": 1800,
-            "mode": "looking",
-            "preview": "desktop-only",
-            "tools": [
-              "plaud.recent"
-            ],
-            "script": "return await tools.plaud.recent({});"
-          }
-        }
-      ],
-      "homeWidgets": [],
-      "workKinds": [],
-      "settings": [
-        {
-          "key": "access",
-          "label": "Access",
-          "type": "string",
-          "choices": [
-            {
-              "value": "all",
-              "label": "Allowed",
-              "description": "Every tool runs without asking, reads and changes alike."
-            },
-            {
-              "value": "ask-changes",
-              "label": "Ask before changes",
-              "description": "Reads run without asking. Each change asks you first."
-            },
-            {
-              "value": "read-only",
-              "label": "Read only",
-              "description": "Reads run. Changes never run."
-            }
-          ],
-          "default": "all",
-          "description": "all, ask-changes or read-only. Generates default rules for agents with a base allow rule."
-        },
-        {
-          "key": "maxAudioBytes",
-          "label": "Largest audio export",
-          "type": "number",
-          "integer": true,
-          "min": 1,
-          "max": 68719476736,
-          "default": 2147483648,
-          "description": "The largest audio file an export writes, in bytes: a whole number up to 64 GiB. The default is 2 GiB."
-        },
-        {
-          "key": "exportTimeoutMs",
-          "label": "Export time limit",
-          "type": "number",
-          "integer": true,
-          "min": 1000,
-          "max": 86400000,
-          "default": 1800000,
-          "description": "How long one export may take, in milliseconds, counted from your approval: 1 second to 24 hours. The default is 30 minutes."
-        }
-      ]
-    }
+    "vitest": "5.0.5"
   }
 }

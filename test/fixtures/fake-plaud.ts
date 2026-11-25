@@ -4,16 +4,12 @@ import type { AddressInfo } from "node:net"
 /**
  * A loopback stand-in for Plaud's hosted MCP server, in this process.
  *
- * - `/mcp` answers MCP over Streamable HTTP (JSON responses), signed in: Plaud's five reads, plus
- *   `delete_everything`, a tool the plugin does not know, which must ask.
+ * - `/mcp` answers MCP over Streamable HTTP (JSON responses), signed in: Plaud's five reads.
  * - `/auth/mcp` answers 401 with OAuth metadata, like Plaud before sign-in, so OpenCode reports the
  *   server as needing sign-in. Nothing ever completes a sign-in.
  * - Signed links point at this server, with the seven query parameters of Plaud's live links:
  *   `presigned_url` in `get_file` (`/audio/<id>.mp3?…`), and `data_link` in each item of
  *   `get_file`'s `source_list` and `note_list` and of `get_note` (`/data/<id>?…`).
- * - `/v1/chat/completions` and `/api/v1/models` are a local chat-completions model API for a scripted
- *   model (`model.script`), so a test can see exactly what a model receives. Every chat request is
- *   kept in `model.requests`.
  *
  * - A `get_file` call for the file id `fail` answers an MCP tool error (`isError`): `UPSTREAM_FAILURE`, two lines,
  *   with a signed link in the first.
@@ -30,13 +26,6 @@ export const UPSTREAM_FAILURE = `File not found: see https://files.example.inval
 /** The tool error for `list_files` with a `page_size` below Plaud's minimum, 10. */
 const PAGE_SIZE_REFUSED = "page_size must be at least 10"
 export const AUDIO_BYTES = 200_000
-export const MODEL_ID = "fixture-model"
-
-/** A tool call the scripted model makes, in order: the n-th call follows n tool results. */
-interface ScriptedCall {
-  readonly tool: string
-  readonly arguments: Record<string, unknown>
-}
 
 interface FakeCall {
   readonly tool: string
@@ -54,12 +43,6 @@ export interface FakePlaud {
   readonly calls: FakeCall[]
   /** Audio downloads served. */
   readonly downloads: string[]
-  readonly model: {
-    /** The calls the model makes, one per turn, before it answers with text. */
-    script: ScriptedCall[]
-    /** Every chat request body, in order. */
-    readonly requests: unknown[]
-  }
   close(): Promise<void>
 }
 
@@ -75,14 +58,12 @@ const TOOLS = [
     inputSchema: object({ file_id: { type: "string" }, block: { type: "string" }, cursor: { type: "string" } }, ["file_id"]),
   },
   { name: "get_current_user", description: "The signed-in account (fixture)", inputSchema: object({}) },
-  { name: "delete_everything", description: "A tool the plugin does not know (fixture)", inputSchema: object({}) },
 ]
 
 export async function startFakePlaud(): Promise<FakePlaud> {
   const calls: FakeCall[] = []
   const downloads: string[] = []
 
-  const model = { script: [] as ScriptedCall[], requests: [] as unknown[] }
   let origin = ""
 
   const signed = (path: string) =>
@@ -181,36 +162,11 @@ export async function startFakePlaud(): Promise<FakePlaud> {
     }
   }
 
-  /**
-   * One streamed chat completion. A request that offers tools is an agent turn: after n tool results the
-   * model makes the n-th scripted call, then answers "Done.". Any other request, such as a title, gets text.
-   */
-  function chat(response: ServerResponse, body: string) {
-    const request = JSON.parse(body) as { tools?: unknown[]; messages?: { role: string }[] }
-    model.requests.push(request)
-    const results = (request.messages ?? []).filter((message) => message.role === "tool").length
-    const call = request.tools?.length ? model.script[results] : undefined
-    const chunk = (delta: unknown, finish: string | null) =>
-      `data: ${JSON.stringify({ id: "chatcmpl-fixture", object: "chat.completion.chunk", created: 0, model: MODEL_ID, choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`
-    const usage = `data: ${JSON.stringify({ id: "chatcmpl-fixture", object: "chat.completion.chunk", created: 0, model: MODEL_ID, choices: [], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } })}\n\n`
-    const delta = call
-      ? { role: "assistant", tool_calls: [{ index: 0, id: `call_${results + 1}`, type: "function", function: { name: call.tool, arguments: JSON.stringify(call.arguments) } }] }
-      : { role: "assistant", content: "Done." }
-    response.writeHead(200, { "content-type": "text/event-stream" })
-    response.end(`${chunk(delta, null)}${chunk({}, call ? "tool_calls" : "stop")}${usage}data: [DONE]\n\n`)
-  }
-
   const server = createServer(async (request, response) => {
     let body = ""
     for await (const chunk of request) body += chunk
     const path = new URL(request.url ?? "/", origin).pathname
     if (path === "/mcp") return mcp(request, response, body)
-    if (path === "/api/v1/models") {
-      return json(response, 200, {
-        models: [{ type: "llm", key: MODEL_ID, display_name: "Fixture model", loaded_instances: [], max_context_length: 32_000, capabilities: { vision: false, trained_for_tool_use: true } }],
-      })
-    }
-    if (path === "/v1/chat/completions") return chat(response, body)
     if (path.startsWith("/audio/")) {
       downloads.push(path)
       response.writeHead(200, { "content-type": "audio/mpeg", "content-length": String(AUDIO_BYTES) })
@@ -239,7 +195,6 @@ export async function startFakePlaud(): Promise<FakePlaud> {
     authUrl: `${origin}/auth/mcp`,
     calls,
     downloads,
-    model,
     close: async () => {
       server.closeAllConnections()
       await new Promise<void>((resolve) => server.close(() => resolve()))

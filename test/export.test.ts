@@ -1,611 +1,220 @@
-import { existsSync } from "node:fs"
+/** The export: the plan (which writes nothing), the commit (which writes one file), and the external_directory gate. */
 import { createHash } from "node:crypto"
-import { lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises"
+import { createServer, type Server } from "node:http"
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
+import type { AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { MAX_TEXT_BYTES } from "../src/domain/export.js"
-import type { ToolContext } from "../src/host/context.js"
-import { NAMESPACE, registerTools, type ToolOptions, type ToolsHost } from "../src/host/tools/index.js"
-import { owners } from "../src/host/tools/events.js"
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest"
+import { refusal, run, runtimeFor } from "./support/handlers.js"
+import { createFakeProvider } from "./fixtures/plaud-provider.js"
+import type { Rule } from "../src/export/matcher.js"
 
-/**
- * plaud_export against a narrow fake host: the permission assertion, the
- * host's Plaud MCP executors from tool.list(), and a stubbed fetch for the
- * signed audio link. The filesystem is real, under a temporary directory.
- */
+const AUDIO_BYTES = 200_000
+const SIGNATURE = "X-Amz-Signature=fake-signature"
+let audio: Server
+let origin: string
+const roots: string[] = []
 
-const SECRET = "X-Amz-Signature=SECRET"
-const AUDIO_URL = `https://audio.plaud.test/files/rec-1.mp3?${SECRET}`
-const FILE = {
-  id: "rec-1",
-  name: "Weekly sync",
-  created_at: "2026-10-01T09:00:00.000Z",
-  start_at: "2026-10-01T09:00:00.000Z",
-  duration: 3_600_000,
-  presigned_url: AUDIO_URL,
-}
-const PAGES: Record<string, unknown> = {
-  first: { segments: [{ speaker: "Alice", start_time: 0, end_time: 4_700, content: "Hello." }], next_cursor: "cur_2" },
-  cur_2: { segments: [{ speaker: "Bob", start_time: 61_000, end_time: 63_500, content: "Bye." }], next_cursor: null },
-}
-const NOTES = [{ data_type: "auto_sum_note", data_tab_name: "AI summary", data_title: "Weekly sync", data_content: "- Ship on Friday.", data_error_code: 0 }]
-
-type Executor = (args: Record<string, unknown>) => Promise<unknown>
-type Tool = { input: { "~standard": { validate(value: unknown): unknown } }; execute(input: unknown, context: ToolContext): Promise<{ output: unknown }> }
-
-let dir: string
-let roots: string[]
-
-beforeEach(async () => {
-  dir = await realpath(await mkdtemp(join(tmpdir(), "plaud-export-test-")))
-  roots = [join(dir, "Plaud"), join(dir, "Second")]
-})
-
-afterEach(async () => {
-  vi.useRealTimers()
-  vi.unstubAllGlobals()
-  await rm(dir, { recursive: true, force: true })
-})
-
-function json(value: unknown) {
-  return { output: value, content: [{ type: "text", text: JSON.stringify(value) }] }
-}
-
-/** The host's Plaud tools, keyed by tool id, answering like the hosted server. */
-function plaudTools(servers = ["plaud", "plaud-work"]): Record<string, Executor> {
-  return Object.fromEntries(
-    servers.flatMap((server) => [
-      [`${server}_get_file`, async () => json(FILE)],
-      [`${server}_get_transcript`, async (args: Record<string, unknown>) => json(PAGES[(args["cursor"] as string | undefined) ?? "first"])],
-      [`${server}_get_note`, async () => json(NOTES)],
-    ]),
-  )
-}
-
-function fakeHost(options: { tools?: Record<string, Executor>; assert?: (request: unknown) => Promise<void>; settings?: Partial<ToolOptions>; location?: ToolsHost["location"]; agentRules?: readonly { action: string; resource: string; effect: "allow" | "ask" | "deny" }[]; sessionRules?: readonly { action: string; resource: string; effect: "allow" | "ask" | "deny" }[] } = {}) {
-  const executors = options.tools ?? plaudTools()
-  const calls: { id: string; args: Record<string, unknown>; signal: AbortSignal }[] = []
-  const assert = vi.fn(options.assert ?? (async () => undefined))
-  const added: unknown[] = []
-  const namespaces: unknown[] = []
-  const disposed: string[] = []
-  const ctx: ToolsHost = {
-    tool: {
-      transform: async (callback) => {
-        callback({ namespace: (value: unknown) => namespaces.push(value), add: (tool: unknown) => added.push(tool) } as never)
-        return { dispose: async () => void disposed.push("tools") }
-      },
-      list: async () =>
-        Object.entries(executors).map(([id, execute]) => ({
-          id,
-          name: id,
-          description: "",
-          input: { type: "object" },
-          execute: async (args: Record<string, unknown>, context: ToolContext) => {
-            calls.push({ id, args, signal: context.signal })
-            return execute(args)
-          },
-        })) as never,
-    },
-    permission: { assert },
-    location: options.location ?? { directory: dir, project: { directory: dir } },
-    agent: { get: async () => ({ data: { permissions: options.agentRules ?? [] } }) } as never,
-    session: { get: async () => ({ permissions: options.sessionRules ?? [] }) } as never,
-  }
-  const settings: ToolOptions = {
-    accounts: ["work"],
-    exportRoots: roots,
-    maxAudioBytes: 1024 * 1024,
-    exportTimeoutMs: 30 * 60 * 1000,
-    ...options.settings,
-  }
-  return { ctx, settings, calls, assert, added, namespaces, disposed }
-}
-
-async function exporter(options: Parameters<typeof fakeHost>[0] = {}) {
-  const host = fakeHost(options)
-  const registration = await registerTools(host.ctx, host.settings, owners())
-  const tool = host.added[0] as Tool
-  const progress = vi.fn(async (_update: Record<string, unknown>) => undefined)
-  /** Validates like the host, then runs the export with a tool context. */
-  const run = async (input: unknown, signal = new AbortController().signal) => {
-    const parsed = (await tool.input["~standard"].validate(input)) as { value?: unknown; issues?: unknown }
-    if (parsed.issues) throw new Error(`invalid input: ${JSON.stringify(parsed.issues)}`)
-    const context = { sessionID: "ses_1", agent: "build", messageID: "msg_1", id: "call_1", signal, progress } as unknown as ToolContext
-    return (await tool.execute(parsed.value, context)).output as { path: string; bytes: number; sha256: string }
-  }
-  return { ...host, registration, tool, run, progress }
-}
-
-function audioResponse(bytes: Uint8Array, headers: Record<string, string> = { "content-type": "audio/mpeg" }) {
-  const fetch = vi.fn(async (_url: string, _init?: RequestInit) => new Response(bytes, { headers }))
-  vi.stubGlobal("fetch", fetch)
-  return fetch
-}
-
-const sha256 = (data: Uint8Array | string) => createHash("sha256").update(data).digest("hex")
-
-/** Every entry below `dir`, so a test can prove nothing else was written. */
-async function tree(root = dir): Promise<string[]> {
-  const entries = await readdir(root, { recursive: true }).catch(() => [] as string[])
-  return entries.map(String).sort()
-}
-
-describe("registration", () => {
-  it("registers unpinned export, recent and events_list tools in the plaud namespace, without a hook", async () => {
-    const { added, namespaces, registration, disposed } = await exporter()
-    expect(added).toHaveLength(3)
-    expect(added[0]).toMatchObject({ name: "export", options: { namespace: "plaud" } })
-    expect((added[0] as { options: Record<string, unknown> }).options).not.toHaveProperty("pinned")
-    expect(added[1]).toMatchObject({ name: "recent", options: { namespace: "plaud" } })
-    expect(added[2]).toMatchObject({ name: "events_list", options: { namespace: "plaud" } })
-    for (const tool of added.slice(1)) expect((tool as { options: Record<string, unknown> }).options).not.toHaveProperty("pinned")
-    expect((added[0] as { description: string }).description).toContain(roots.join(", "))
-    expect(namespaces).toEqual([NAMESPACE])
-    await registration.dispose()
-    expect(disposed).toEqual(["tools"])
-  })
-})
-
-describe("one-step export", () => {
-  it("writes outside the project only when the rules allow external_directory, and still asserts plaud_export", async () => {
-    const project = join(dir, "project")
-    const requests: Record<string, unknown>[] = []
-    const { run } = await exporter({
-      location: { directory: project, project: { directory: project } },
-      agentRules: [{ action: "external_directory", resource: "*", effect: "allow" }],
-      assert: async (request) => void requests.push(request as Record<string, unknown>),
-    })
-    await run({ recordingId: "rec-1", kind: "note" })
-    expect(requests.map((request) => request["action"])).toEqual(["plaud_export"])
-  })
-
-  it.each(["deny", "ask"] as const)("fails closed on an external_directory %s, without plaud_export or a prompt", async (effect) => {
-    const project = join(dir, "project")
-    const assert = vi.fn(async () => undefined)
-    const { run } = await exporter({
-      location: { directory: project, project: { directory: project } },
-      agentRules: [{ action: "external_directory", resource: join(roots[0]!, "note", "*"), effect }],
-      assert,
-    })
-    await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(/^EXPORT_PATH_NOT_PERMITTED: .*do not allow/)
-    expect(assert).not.toHaveBeenCalled()
-    expect(existsSync(join(roots[0]!, "note", "rec-1.md"))).toBe(false)
-  })
-
-  it("resolves a symlinked export root to its real folder before the external rule check", async () => {
-    const outside = await realpath(await mkdtemp(join(tmpdir(), "plaud-outside-")))
-    const project = join(dir, "project")
-    await mkdir(project)
-    await symlink(outside, join(project, "export"))
-    try {
-      const assert = vi.fn(async () => undefined)
-      const { run } = await exporter({
-        location: { directory: project, project: { directory: project } },
-        settings: { exportRoots: [join(project, "export")] },
-        agentRules: [{ action: "external_directory", resource: join(outside, "note", "*"), effect: "deny" }],
-        assert,
-      })
-      await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(/^EXPORT_PATH_NOT_PERMITTED:/)
-      expect(assert).not.toHaveBeenCalled()
-      expect(existsSync(join(outside, "note", "rec-1.md"))).toBe(false)
-    } finally {
-      await rm(outside, { recursive: true, force: true })
+beforeAll(async () => {
+  audio = createServer((request, response) => {
+    if (request.url?.startsWith("/audio/")) {
+      response.writeHead(200, { "content-type": "audio/mpeg", "content-length": String(AUDIO_BYTES) })
+      response.end(Buffer.alloc(AUDIO_BYTES, 7))
+      return
     }
+    response.writeHead(404).end()
   })
-
-  it("refuses a workspace session before reading or writing", async () => {
-    const { run, assert, calls } = await exporter({ location: { directory: dir, workspaceID: "ws_1", project: { directory: dir } } })
-    await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(/^WORKSPACE_UNSUPPORTED:/)
-    expect(assert).not.toHaveBeenCalled()
-    expect(calls).toEqual([])
-  })
-
-  it("exports audio after one permission assertion, into folders it creates", async () => {
-    const audio = new Uint8Array(300_000).map((_, index) => index % 251)
-    const fetch = audioResponse(audio, { "content-type": "audio/mpeg", "content-length": String(audio.byteLength) })
-    const { run, assert, calls } = await exporter()
-
-    const result = await run({ recordingId: "rec-1", kind: "audio" })
-
-    const path = join(roots[0]!, "audio", "rec-1.mp3")
-    expect(result).toEqual({ path, bytes: audio.byteLength, sha256: sha256(audio) })
-    expect(new Uint8Array(await readFile(path))).toEqual(audio)
-    expect(assert).toHaveBeenCalledOnce()
-    expect(assert.mock.calls[0]![0]).toEqual({
-      sessionID: "ses_1",
-      agent: "build",
-      action: "plaud_export",
-      resources: ["default:audio"],
-      save: ["default:audio"],
-      metadata: { account: "default", kind: "audio", recordingId: "rec-1", destination: `${join(roots[0]!, "audio")}/`, overwrite: false },
-      source: { type: "tool", messageID: "msg_1", id: "call_1" },
-    })
-    expect(calls.map((call) => [call.id, call.args])).toEqual([["plaud_get_file", { file_id: "rec-1" }]])
-    expect(fetch.mock.calls[0]).toEqual([AUDIO_URL, expect.objectContaining({ redirect: "manual" })])
-    expect((await stat(roots[0]!)).mode & 0o777).toBe(0o700)
-    expect((await stat(join(roots[0]!, "audio"))).mode & 0o777).toBe(0o700)
-    expect((await stat(path)).mode & 0o777).toBe(0o600)
-    expect(await tree()).toEqual(["Plaud", "Plaud/audio", "Plaud/audio/rec-1.mp3"])
-    expect(JSON.stringify(result)).not.toContain(SECRET)
-  })
-
-  it("names audio from the content type when the link has no extension", async () => {
-    audioResponse(new Uint8Array([1, 2, 3]), { "content-type": "audio/ogg; codecs=opus" })
-    const tools = { ...plaudTools(), plaud_get_file: async () => json({ ...FILE, presigned_url: `https://audio.plaud.test/raw?${SECRET}` }) }
-    const { run } = await exporter({ tools })
-    expect((await run({ recordingId: "rec-1", kind: "audio" })).path).toBe(join(roots[0]!, "audio", "rec-1.ogg"))
-  })
-
-  it("exports every transcript page of another account as Markdown", async () => {
-    const { run, assert, calls } = await exporter()
-    const result = await run({ account: "work", recordingId: "rec-1", kind: "transcript" })
-
-    const text = await readFile(result.path, "utf8")
-    expect(result).toEqual({ path: join(roots[0]!, "transcript", "rec-1.transaction.md"), bytes: Buffer.byteLength(text), sha256: sha256(text) })
-    expect(text).toContain('recording_id: "rec-1"\nname: "Weekly sync"\n')
-    expect(text).toContain("duration_ms: 3600000\nkind: transcript\nblock: transaction\n")
-    expect(text).toContain("- [00:00:00] Alice: Hello.\n- [00:01:01] Bob: Bye.\n")
-    expect(assert.mock.calls[0]![0]).toMatchObject({ resources: ["work:transcript"], save: ["work:transcript"], metadata: { account: "work", block: "transaction" } })
-    expect(calls.map((call) => [call.id, call.args])).toEqual([
-      ["plaud-work_get_file", { file_id: "rec-1" }],
-      // 500 segments a page, Plaud's maximum, so a long transcript takes a few reads, not dozens (PLAUD-R7).
-      ["plaud-work_get_transcript", { file_id: "rec-1", block: "transaction", limit: 500 }],
-      ["plaud-work_get_transcript", { file_id: "rec-1", block: "transaction", limit: 500, cursor: "cur_2" }],
-    ])
-  })
-
-  it("exports the note tabs to an explicit destination, creating its folders inside a root", async () => {
-    const { run } = await exporter()
-    const destination = join(roots[1]!, "meetings", "2026", "sync.md")
-    const result = await run({ recordingId: "rec-1", kind: "note", destination })
-    expect(result.path).toBe(destination)
-    expect(await readFile(destination, "utf8")).toContain("# Note\n\n## AI summary\n\n- Ship on Friday.\n")
-    expect(await tree()).toEqual(["Second", "Second/meetings", "Second/meetings/2026", "Second/meetings/2026/sync.md"])
-  })
-
-  it("gives each transcript block of a recording its own default file, so a second block does not collide", async () => {
-    const { run } = await exporter()
-    const polished = await run({ recordingId: "rec-1", kind: "transcript", block: "transaction_polish" })
-    const outline = await run({ recordingId: "rec-1", kind: "transcript", block: "outline" })
-    expect(polished.path).toBe(join(roots[0]!, "transcript", "rec-1.transaction_polish.md"))
-    expect(outline.path).toBe(join(roots[0]!, "transcript", "rec-1.outline.md"))
-    expect((await readdir(join(roots[0]!, "transcript"))).sort()).toEqual(["rec-1.outline.md", "rec-1.transaction_polish.md"])
-    expect(await readFile(outline.path, "utf8")).toContain("block: outline\n")
-  })
-
-  it("exports the outline as topics at their offsets, not as JSON", async () => {
-    const outline = { segments: [{ start_time: 0, end_time: 300_000, topic: "Launch checklist" }, { start_time: 3_723_000, end_time: 3_900_000, topic: "Pricing" }], next_cursor: null }
-    const { run } = await exporter({ tools: { ...plaudTools(), plaud_get_transcript: async () => json(outline) } })
-    const text = await readFile((await run({ recordingId: "rec-1", kind: "transcript", block: "outline" })).path, "utf8")
-    expect(text).toContain("# Transcript\n\n## Outline\n\n- [00:00:00] Launch checklist\n- [01:02:03] Pricing\n")
-    expect(text).not.toContain("{")
-  })
-
-  it("names note tabs by data_tab_name and says which tab Plaud could not load", async () => {
-    const notes = [...NOTES, { ...NOTES[0], data_type: "custom_note", data_tab_name: "Decisions", data_content: "", data_error_code: 3 }]
-    const { run } = await exporter({ tools: { ...plaudTools(), plaud_get_note: async () => json(notes) } })
-    const text = await readFile((await run({ recordingId: "rec-1", kind: "note" })).path, "utf8")
-    expect(text).toContain("## AI summary\n\n- Ship on Friday.\n\n## Decisions\n\n_Plaud could not load this tab (error code 3)._\n")
-  })
-
-  it("writes a tab's content even when it carries a non-zero data_error_code, as loaded tabs do live", async () => {
-    const notes = [{ ...NOTES[0], data_error_code: 10 }]
-    const { run } = await exporter({ tools: { ...plaudTools(), plaud_get_note: async () => json(notes) } })
-    const text = await readFile((await run({ recordingId: "rec-1", kind: "note" })).path, "utf8")
-    expect(text).toContain("## AI summary\n\n- Ship on Friday.\n")
-    expect(text).not.toContain("could not load")
-  })
-
-  it("reports progress while streaming audio", async () => {
-    audioResponse(new Uint8Array(10))
-    const { run, progress } = await exporter()
-    await run({ recordingId: "rec-1", kind: "audio" })
-    expect(progress).toHaveBeenCalledWith({ phase: "audio", bytes: 10 })
-  })
+  await new Promise<void>((resolve) => audio.listen(0, "127.0.0.1", resolve))
+  origin = `http://127.0.0.1:${(audio.address() as AddressInfo).port}`
 })
 
-describe("refusals", () => {
-  it("refuses a destination outside the roots before asking or reading", async () => {
-    const { run, assert, calls } = await exporter()
-    await expect(run({ recordingId: "rec-1", kind: "note", destination: join(dir, "elsewhere", "a.md") })).rejects.toThrow(
-      /^EXPORT_OUTSIDE_ROOTS: .*elsewhere\/a\.md is outside the export roots .* Next step: Choose a destination inside an export root/,
-    )
-    await expect(run({ recordingId: "rec-1", kind: "note", destination: `${roots[0]}-sibling/a.md` })).rejects.toThrow(/EXPORT_OUTSIDE_ROOTS/)
-    expect(assert).not.toHaveBeenCalled()
-    expect(calls).toEqual([])
-    expect(await tree()).toEqual([])
-  })
-
-  it("refuses a folder inside a root that links out of the roots, writing nothing through it", async () => {
-    const outside = join(dir, "outside")
-    await mkdir(join(roots[0]!), { recursive: true })
-    await mkdir(outside)
-    await symlink(outside, join(roots[0]!, "escape"))
-    const { run } = await exporter()
-    await expect(run({ recordingId: "rec-1", kind: "note", destination: join(roots[0]!, "escape", "deeper", "a.md") })).rejects.toThrow(
-      /^EXPORT_OUTSIDE_ROOTS:/,
-    )
-    expect(await readdir(outside)).toEqual([])
-  })
-
-  it("refuses to replace an existing file unless overwrite is true", async () => {
-    const existing = join(roots[0]!, "note", "rec-1.md")
-    await mkdir(join(roots[0]!, "note"), { recursive: true })
-    await writeFile(existing, "keep me")
-    const { run } = await exporter()
-    await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(
-      `EXPORT_EXISTS: A file already exists at ${existing}. Next step: Ask the user whether to replace it; if they agree, pass overwrite: true, or else choose another destination.`,
-    )
-    expect(await readFile(existing, "utf8")).toBe("keep me")
-    expect(await readdir(join(roots[0]!, "note"))).toEqual(["rec-1.md"])
-
-    await run({ recordingId: "rec-1", kind: "note", overwrite: true })
-    expect(await readFile(existing, "utf8")).toContain("# Note")
-    expect(await readdir(join(roots[0]!, "note"))).toEqual(["rec-1.md"])
-  })
-
-  it("refuses a folder or a root as the destination file", async () => {
-    await mkdir(join(roots[0]!, "folder"), { recursive: true })
-    const { run } = await exporter()
-    await expect(run({ recordingId: "rec-1", kind: "note", destination: join(roots[0]!, "folder"), overwrite: true })).rejects.toThrow(
-      /^EXPORT_BAD_DESTINATION: .*folder is a folder/,
-    )
-    await expect(run({ recordingId: "rec-1", kind: "note", destination: roots[1]! })).rejects.toThrow(/^EXPORT_BAD_DESTINATION:/)
-  })
-
-  it("rethrows a declined prompt untouched and writes nothing", async () => {
-    const declined = Object.assign(new Error(""), { name: "Permission.DeclinedError" })
-    const { run, calls } = await exporter({ assert: async () => Promise.reject(declined) })
-    const failure = await run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)
-    expect(failure).toBe(declined)
-    expect(calls).toEqual([])
-    expect(await tree()).toEqual([])
-  })
-
-  it("reports a denied read as an export error with the next step", async () => {
-    const tools = { ...plaudTools(), plaud_get_file: async () => Promise.reject(new Error("Permission denied: plaud_get_file")) }
-    const { run } = await exporter({ tools })
-    await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(
-      "PLAUD_READ_FAILED: plaud_get_file failed: Permission denied: plaud_get_file. Next step: Retry once; if it fails again, ask the user to run /plaud-status and follow its next step.",
-    )
-    expect(await tree()).toEqual([])
-  })
-
-  it("rethrows a read whose prompt was declined untouched", async () => {
-    const declined = new Error("")
-    const tools = { ...plaudTools(), plaud_get_file: async () => Promise.reject(declined) }
-    const { run } = await exporter({ tools })
-    expect(await run({ recordingId: "rec-1", kind: "note" }).catch((error: unknown) => error)).toBe(declined)
-  })
-
-  it("names the sign-in step when the account's server is not connected", async () => {
-    const { run } = await exporter({ tools: plaudTools(["plaud"]) })
-    await expect(run({ account: "work", recordingId: "rec-1", kind: "note" })).rejects.toThrow(
-      "AUTH_REQUIRED: The plaud-work server is not connected or not signed in, so plaud-work_get_file is unavailable. Next step: Run /connect and choose Plaud (work), then press o or Enter to open the sign-in page.",
-    )
-  })
-
-  it("reports audio Plaud does not have yet, and refuses a link that is not https without fetching it", async () => {
-    const fetch = audioResponse(new Uint8Array(1))
-    const missing = await exporter({ tools: { ...plaudTools(), plaud_get_file: async () => json({ ...FILE, presigned_url: undefined }) } })
-    await expect(missing.run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^CONTENT_UNAVAILABLE: Plaud has no audio/)
-    const local = await exporter({ tools: { ...plaudTools(), plaud_get_file: async () => json({ ...FILE, presigned_url: "file:///etc/passwd" }) } })
-    await expect(local.run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^PLAUD_UNREADABLE: Plaud returned an audio link that is not a valid https URL\./)
-    expect(fetch).not.toHaveBeenCalled()
-  })
-
-  it("refuses an audio link that does not parse with a code and a next step, never the link (PLAUD-1)", async () => {
-    const fetch = audioResponse(new Uint8Array(1))
-    const tools = { ...plaudTools(), plaud_get_file: async () => json({ ...FILE, presigned_url: `https://[audio.plaud.test/rec-1.mp3?${SECRET}` }) }
-    const failure = (await (await exporter({ tools })).run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error & { code?: unknown }
-    expect(failure.message).toBe(
-      "PLAUD_UNREADABLE: Plaud returned an audio link that is not a valid https URL. Next step: Update opencode-plaud and retry later; if it still fails, report it to the plugin's maintainers.",
-    )
-    expect(failure.code).toBe("PLAUD_UNREADABLE")
-    expect(JSON.stringify({ ...failure, stack: failure.stack })).not.toContain(SECRET)
-    expect(fetch).not.toHaveBeenCalled()
-    expect(await tree()).toEqual([])
-  })
-
-  it("refuses an audio link with credentials in it", async () => {
-    const fetch = audioResponse(new Uint8Array(1))
-    const tools = { ...plaudTools(), plaud_get_file: async () => json({ ...FILE, presigned_url: `https://user:pass@audio.plaud.test/rec-1.mp3?${SECRET}` }) }
-    await expect((await exporter({ tools })).run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^PLAUD_UNREADABLE: Plaud returned an audio link that is not a valid https URL\./)
-    expect(fetch).not.toHaveBeenCalled()
-  })
-
-  it("reports a missing transcript block", async () => {
-    const tools = { ...plaudTools(), plaud_get_transcript: async () => json('Block "outline" not available for this recording.') }
-    const { run } = await exporter({ tools })
-    await expect(run({ recordingId: "rec-1", kind: "transcript", block: "outline" })).rejects.toThrow(/^CONTENT_UNAVAILABLE: Plaud has no outline block/)
-    expect(await tree()).toEqual(["Plaud", "Plaud/transcript"])
-  })
-
-  it("never puts the audio link in an error", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("denied", { status: 403 })))
-    const { run } = await exporter()
-    const failure = (await run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error
-    expect(failure.message).toMatch(/^EXPORT_FAILED: Plaud's audio server refused the download \(HTTP 403\)\./)
-    expect(failure.message).not.toContain("audio.plaud.test")
-
-    vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError(`fetch failed for ${AUDIO_URL}`))))
-    const offline = (await run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error
-    expect(offline.message).toMatch(/^EXPORT_FAILED: The audio download could not start\./)
-    expect(offline.message).not.toContain(SECRET)
-
-    const tools = { ...plaudTools(), plaud_get_file: async () => Promise.reject(new Error(`upstream said ${AUDIO_URL}`)) }
-    const echoed = (await (await exporter({ tools })).run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error
-    expect(echoed.message).toContain("upstream said [url withheld]")
-    expect(echoed.message).not.toContain(SECRET)
-  })
+afterAll(async () => {
+  audio.closeAllConnections()
+  await new Promise<void>((resolve) => audio.close(() => resolve()))
 })
 
-/**
- * A fetch that answers from a table by URL and, like Node's own, follows redirects itself unless the call says
- * `redirect: "manual"`. Every URL it was asked for is recorded.
- */
-function web(routes: Record<string, () => Response>) {
-  const asked: string[] = []
-  const fetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
-    let url = String(input)
-    for (let hops = 0; hops < 20; hops++) {
-      asked.push(url)
-      const response = routes[url]?.() ?? new Response("missing", { status: 404 })
-      const location = response.headers.get("location")
-      if (init?.redirect === "manual" || location === null || response.status < 300 || response.status > 399) return response
-      url = new URL(location, url).href
-    }
-    throw new TypeError("redirect count exceeded")
-  })
-  vi.stubGlobal("fetch", fetch)
-  return { fetch, asked }
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
+function setup(parts: Parameters<typeof runtimeFor>[0] = {}) {
+  const root = mkdtempSync(join(tmpdir(), "plaud-export-"))
+  roots.push(root)
+  const provider = createFakeProvider({ audioBase: origin })
+  return { root, runtime: runtimeFor({ exportRoots: [root], provider, ...parts }) }
 }
 
-const redirect = (location: string, status = 302) => () => new Response(null, { status, headers: { location } })
-const audio = (bytes: string) => () => new Response(bytes, { headers: { "content-type": "audio/mpeg" } })
+async function plan(runtime: ReturnType<typeof runtimeFor>, input: Record<string, unknown>) {
+  return (await run(runtime, "plan_export", input, "work")) as { method: string; output: { path: string; kind: string; recordingId: string; overwrite: boolean; block?: string }; changes: string[]; trust: string }
+}
 
-describe("redirects of the audio link (PLAUD-2)", () => {
-  it("follows https redirects, relative ones too, and names the file from Plaud's link", async () => {
-    const cdn = `https://cdn.plaud.test/a/b?${SECRET}`
-    const { asked } = web({ [AUDIO_URL]: redirect(cdn, 307), [cdn]: redirect(`/final?${SECRET}`, 301), [`https://cdn.plaud.test/final?${SECRET}`]: audio("RIFF") })
-    const result = await (await exporter()).run({ recordingId: "rec-1", kind: "audio" })
-    expect(result.path).toBe(join(roots[0]!, "audio", "rec-1.mp3"))
-    expect(await readFile(result.path, "utf8")).toBe("RIFF")
-    expect(asked).toEqual([AUDIO_URL, cdn, `https://cdn.plaud.test/final?${SECRET}`])
+async function commit(runtime: ReturnType<typeof runtimeFor>, answer: unknown, account = "work") {
+  return (await run(runtime, "export", { planId: "plan_test" }, account, answer)) as { output: { path: string; bytes: number; sha256: string }; trust: string }
+}
+
+describe("plan_export", () => {
+  it("names the default note, transcript and audio files, and writes nothing", async () => {
+    const { root, runtime } = setup()
+    const note = await plan(runtime, { recordingId: "w-1", kind: "note" })
+    expect(note).toEqual({
+      method: "export",
+      output: { recordingId: "w-1", kind: "note", path: join(root, "note", "w-1.md"), overwrite: false },
+      changes: [`Write ${join(root, "note", "w-1.md")}.`],
+      trust: "untrusted",
+    })
+    expect((await plan(runtime, { recordingId: "w-1", kind: "transcript", block: "outline" })).output.path).toBe(join(root, "transcript", "w-1.outline.md"))
+    expect((await plan(runtime, { recordingId: "w-1", kind: "audio" })).output.path).toBe(join(root, "audio", "w-1.mp3"))
+    expect(existsSync(join(root, "note"))).toBe(false)
+  })
+
+  it("keeps a destination inside an export root and refuses one outside", async () => {
+    const { root, runtime } = setup()
+    expect((await plan(runtime, { recordingId: "w-1", kind: "note", destination: join(root, "mine.md") })).output.path).toBe(join(root, "mine.md"))
+    expect(await refusal(run(runtime, "plan_export", { recordingId: "w-1", kind: "note", destination: "/etc/plaud.md" }, "work"))).toMatch(/^PERMISSION_DENIED: .* outside the export roots/)
+    expect(await refusal(run(runtime, "plan_export", { recordingId: "w-1", kind: "note", destination: root }, "work"))).toMatch(/^INPUT_INVALID: .* is an export root, not a file/)
+    expect(await refusal(run(runtime, "plan_export", { recordingId: "w-1", kind: "note", destination: "relative.md" }, "work"))).toMatch(/^INPUT_INVALID: the destination must be an absolute file path/)
+  })
+
+  it("refuses a block that is not a transcript's, and a recording id that is not a file name", async () => {
+    const { runtime } = setup()
+    expect(await refusal(run(runtime, "plan_export", { recordingId: "w-1", kind: "note", block: "outline" }, "work"))).toMatch(/^INPUT_INVALID: block is only valid for kind transcript/)
+    expect(await refusal(run(runtime, "plan_export", { recordingId: "../escape", kind: "note" }, "work"))).toMatch(/^INPUT_INVALID: the recording id cannot be used as a file name/)
+  })
+})
+
+describe("export", () => {
+  it("writes a note as Markdown, with its size and hash", async () => {
+    const { root, runtime } = setup()
+    const answer = await commit(runtime, await plan(runtime, { recordingId: "w-1", kind: "note" }))
+    const path = join(root, "note", "w-1.md")
+    expect(answer).toEqual({ output: { path, bytes: Buffer.byteLength(readFileSync(path)), sha256: createHash("sha256").update(readFileSync(path)).digest("hex") }, trust: "untrusted" })
+    const text = readFileSync(path, "utf8")
+    expect(text).toContain('name: "Weekly sync"')
+    expect(text).toContain("## Summary\n\n- Ship on Friday.")
+    expect(statSync(path).mode & 0o777).toBe(0o600)
+    expect(statSync(join(root, "note")).mode & 0o777).toBe(0o700)
+  })
+
+  it("writes every transcript page it reads", async () => {
+    const { root, runtime } = setup()
+    const answer = await commit(runtime, await plan(runtime, { recordingId: "w-1", kind: "transcript" }))
+    expect(answer.output.path).toBe(join(root, "transcript", "w-1.transaction.md"))
+    const text = readFileSync(answer.output.path, "utf8")
+    expect(text).toContain("- [00:00:00] Alice: Hello.")
+    expect(text).toContain("- [00:01:01] Bob: Bye.")
+    expect(text).toContain("- [00:02:00] Alice: One more thing.")
+  })
+
+  it("downloads the audio, streams it to the file and hashes it", async () => {
+    const { root, runtime } = setup()
+    const answer = await commit(runtime, await plan(runtime, { recordingId: "w-2", kind: "audio" }))
+    expect(answer.output).toEqual({ path: join(root, "audio", "w-2.mp3"), bytes: AUDIO_BYTES, sha256: createHash("sha256").update(Buffer.alloc(AUDIO_BYTES, 7)).digest("hex") })
+    expect(readFileSync(answer.output.path).length).toBe(AUDIO_BYTES)
+  })
+
+  it("refuses an existing file without overwrite, and replaces it with overwrite", async () => {
+    const { root, runtime } = setup()
+    const first = await plan(runtime, { recordingId: "w-1", kind: "note" })
+    await commit(runtime, first)
+    expect(await refusal(commit(runtime, first))).toMatch(/^INPUT_INVALID: a file already exists/)
+    const again = await commit(runtime, await plan(runtime, { recordingId: "w-1", kind: "note", overwrite: true }))
+    expect(again.output.path).toBe(join(root, "note", "w-1.md"))
+  })
+
+  it("refuses a plan that names no file this commit writes", async () => {
+    const { runtime } = setup()
+    expect(await refusal(run(runtime, "export", { planId: "x" }, "work", { method: "export", output: {} }))).toMatch(/^PLAN_INVALID: /)
+  })
+})
+
+describe("the external_directory gate", () => {
+  const outside = () => {
+    const root = mkdtempSync(join(tmpdir(), "plaud-project-"))
+    roots.push(root)
+    return root
+  }
+
+  it("writes inside the project without asking for a rule", async () => {
+    const { root, runtime } = setup()
+    expect((await commit(runtime, await plan(runtime, { recordingId: "w-1", kind: "note" }))).output.path).toBe(join(root, "note", "w-1.md"))
   })
 
   it.each([
-    ["plain http", `http://cdn.plaud.test/rec-1.mp3?${SECRET}`],
-    ["a link with credentials", `https://user:pass@cdn.plaud.test/rec-1.mp3?${SECRET}`],
-    ["this machine", `http://127.0.0.1:9/rec-1.mp3?${SECRET}`],
-    ["another scheme", `file:///etc/passwd?${SECRET}`],
-    ["a location that does not parse", `https://[cdn.plaud.test/rec-1.mp3?${SECRET}`],
-  ])("refuses a redirect to %s before fetching it, writes nothing, and never names the link", async (_name, target) => {
-    const { asked } = web({ [AUDIO_URL]: redirect(target), [target]: audio("stolen") })
-    const failure = (await (await exporter()).run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error
-    expect(failure.message).toBe(
-      "PLAUD_UNREADABLE: Plaud's audio link redirected to an address that is not a valid https URL. Next step: Update opencode-plaud and retry later; if it still fails, report it to the plugin's maintainers.",
-    )
-    expect(failure.message).not.toContain("plaud.test")
-    expect(asked).toEqual([AUDIO_URL])
-    expect(await tree()).toEqual([])
+    ["agent", "deny"],
+    ["agent", "ask"],
+    ["session", "deny"],
+    ["session", "ask"],
+  ] as const)("refuses on an %s rule that %ss the folder, and asks nobody", async (who, effect) => {
+    const { root } = setup()
+    const project = outside()
+    const folder = join(root, "note")
+    const rule: Rule = { action: "external_directory", resource: `${folder}/*`, effect }
+    const runtime = runtimeFor({
+      exportRoots: [root],
+      provider: createFakeProvider({ audioBase: origin }),
+      location: { directory: project, project: { directory: project } },
+      agentRules: async () => (who === "agent" ? [rule] : []),
+      sessionRules: async () => (who === "session" ? [rule] : []),
+    })
+    expect(await refusal(commit(runtime, await plan(runtime, { recordingId: "w-1", kind: "note" })))).toMatch(/^PERMISSION_DENIED: the export folder is outside the project/)
+    expect(existsSync(folder)).toBe(false)
   })
 
-  it("refuses a redirect without a location, and a chain longer than five", async () => {
-    web({ [AUDIO_URL]: () => new Response(null, { status: 302 }) })
-    await expect((await exporter()).run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^PLAUD_UNREADABLE: Plaud's audio link redirected to an address that is not a valid https URL\./)
-
-    const hop = (n: number) => `https://cdn.plaud.test/${n}?${SECRET}`
-    const { asked } = web({ [AUDIO_URL]: redirect(hop(1)), ...Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [hop(n), redirect(hop(n + 1))])) })
-    const failure = (await (await exporter()).run({ recordingId: "rec-1", kind: "audio" }).catch((error: unknown) => error)) as Error
-    expect(failure.message).toBe("PLAUD_UNREADABLE: Plaud's audio link redirected more than 5 times. Next step: Update opencode-plaud and retry later; if it still fails, report it to the plugin's maintainers.")
-    expect(asked).toHaveLength(6)
-    expect(await tree()).toEqual([])
-  })
-})
-
-describe("size caps", () => {
-  it("refuses audio whose declared size is over the cap before writing", async () => {
-    audioResponse(new Uint8Array(10), { "content-length": "2000" })
-    const { run } = await exporter({ settings: { maxAudioBytes: 1000 } })
-    await expect(run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(
-      "EXPORT_TOO_LARGE: The audio is 2000 bytes, over maxAudioBytes (1000). Next step: Ask the user to raise the maxAudioBytes plugin option.",
-    )
-    expect(await tree()).toEqual([])
-  })
-
-  it("stops a stream that grows past the cap and removes the staging file", async () => {
-    const chunks = [new Uint8Array(600), new Uint8Array(600)]
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ pull: (controller) => void (chunks.length > 0 ? controller.enqueue(chunks.shift()!) : controller.close()) }))))
-    const { run } = await exporter({ settings: { maxAudioBytes: 1000 } })
-    await expect(run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(/^EXPORT_TOO_LARGE: The audio grew past maxAudioBytes \(1000\)/)
-    expect(await tree()).toEqual(["Plaud", "Plaud/audio"])
-  })
-
-  it("refuses Markdown over the fixed 25 MiB text cap", async () => {
-    const huge = { segments: [{ speaker: "Alice", start_time: 0, content: "a".repeat(MAX_TEXT_BYTES) }], next_cursor: null }
-    const { run } = await exporter({ tools: { ...plaudTools(), plaud_get_transcript: async () => json(huge) } })
-    await expect(run({ recordingId: "rec-1", kind: "transcript" })).rejects.toThrow(
-      /^EXPORT_TOO_LARGE: The transcript is \d+ bytes, over the 25 MiB limit for a text export\. Next step: Export the outline block or the note instead, which are shorter\.$/,
-    )
-    expect(await tree()).toEqual(["Plaud", "Plaud/transcript"])
-  })
-})
-
-describe("time budget", () => {
-  it("finishes an audio download that streams for more than 120 s within exportTimeoutMs", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
-    const started = Date.now()
-    let sent = 0
-    // True while the stream waits on its (fake) 10 s timer for the next chunk.
-    let waiting = false
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        new Response(
-          new ReadableStream({
-            pull: (controller) =>
-              new Promise<void>((resolve) => {
-                waiting = true
-                setTimeout(() => {
-                  waiting = false
-                  if (sent === 13) controller.close()
-                  else controller.enqueue(new Uint8Array(1000).fill(++sent))
-                  resolve()
-                }, 10_000)
-              }),
-          }),
-        ),
-      ),
-    )
-    const { run, progress } = await exporter({ settings: { exportTimeoutMs: 30 * 60 * 1000 } })
-    let settled = false
-    const pending = run({ recordingId: "rec-1", kind: "audio" }).finally(() => (settled = true))
-    // Move the fake clock only while the stream waits on it. Otherwise yield, so the export's real file writes can
-    // finish: a fixed number of steps raced those writes and ran out on slow runners, leaving a timer never advanced.
-    const deadline = performance.now() + 20_000
-    while (!settled && performance.now() < deadline) {
-      if (waiting) await vi.advanceTimersByTimeAsync(10_000)
-      else await new Promise((resolve) => setImmediate(resolve))
+  it("writes outside the project when an agent or session rule allows the folder", async () => {
+    for (const who of ["agent", "session"] as const) {
+      const { root } = setup()
+      const project = outside()
+      const folder = join(root, "note")
+      const rule: Rule = { action: "external_directory", resource: `${folder}/*`, effect: "allow" }
+      const runtime = runtimeFor({
+        exportRoots: [root],
+        provider: createFakeProvider({ audioBase: origin }),
+        location: { directory: project, project: { directory: project } },
+        agentRules: async () => (who === "agent" ? [rule] : []),
+        sessionRules: async () => (who === "session" ? [rule] : []),
+      })
+      expect((await commit(runtime, await plan(runtime, { recordingId: "w-1", kind: "note" }))).output.path).toBe(join(folder, "w-1.md"))
     }
-    expect(settled).toBe(true)
-    const result = await pending
-    expect(Date.now() - started).toBeGreaterThan(120_000)
-    expect(result.bytes).toBe(13_000)
-    expect((await readFile(result.path)).subarray(12_000)).toEqual(Buffer.alloc(1000, 13))
-    // Reports are throttled to one a second, so their count depends on how the stream queues chunks.
-    const reported = progress.mock.calls.map(([update]) => update["bytes"] as number)
-    expect(reported.length).toBeGreaterThan(1)
-    expect(reported).toEqual([...reported].sort((a, b) => a - b))
   })
 
-  it("stops a stalled export at exportTimeoutMs and leaves no file", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ pull: () => new Promise<void>(() => undefined) }))))
-    const { run } = await exporter({ settings: { exportTimeoutMs: 200 } })
-    await expect(run({ recordingId: "rec-1", kind: "audio" })).rejects.toThrow(
-      "EXPORT_TIMEOUT: The export did not finish within exportTimeoutMs (200 ms). Next step: Ask the user to raise the exportTimeoutMs plugin option, or retry on a faster connection.",
-    )
-    expect(await tree()).toEqual(["Plaud", "Plaud/audio"])
+  it("refuses a session on a workspace, where the files are on another machine", async () => {
+    const { root } = setup()
+    const runtime = runtimeFor({ exportRoots: [root], provider: createFakeProvider({ audioBase: origin }), location: { directory: root, project: { directory: root }, workspaceID: "ws-1" } })
+    expect(await refusal(commit(runtime, await plan(runtime, { recordingId: "w-1", kind: "note" })))).toMatch(/^UNAVAILABLE: the export runs in a workspace session/)
   })
 
-  it("passes its budget to the host's Plaud reads", async () => {
-    const tools = { ...plaudTools(), plaud_get_note: () => new Promise<unknown>(() => undefined) }
-    const { run, calls } = await exporter({ tools, settings: { exportTimeoutMs: 200 } })
-    await expect(run({ recordingId: "rec-1", kind: "note" })).rejects.toThrow(/^EXPORT_TIMEOUT:/)
-    expect(calls.at(-1)?.signal.aborted).toBe(true)
+  it("refuses a symlink inside a root that leads out of it", async () => {
+    const { root } = setup()
+    const target = mkdtempSync(join(tmpdir(), "plaud-outside-"))
+    roots.push(target)
+    symlinkSync(target, join(root, "esc"))
+    const answer = await plan(runtimeFor({ exportRoots: [root], provider: createFakeProvider({ audioBase: origin }) }), { recordingId: "w-1", kind: "note", destination: join(root, "esc", "w-1.md") })
+    expect(await refusal(commit(runtimeFor({ exportRoots: [root], provider: createFakeProvider({ audioBase: origin }) }), answer))).toMatch(/^PERMISSION_DENIED: /)
+    expect(existsSync(join(target, "w-1.md"))).toBe(false)
   })
 
-  it("rethrows the caller's cancellation without writing", async () => {
-    const controller = new AbortController()
-    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
-      controller.abort(new Error("cancelled by the user"))
-      init?.signal?.throwIfAborted()
-      return new Response(new Uint8Array(1))
-    }))
-    const { run } = await exporter()
-    await expect(run({ recordingId: "rec-1", kind: "audio" }, controller.signal)).rejects.toThrow("cancelled by the user")
-    expect(await lstat(join(roots[0]!, "audio")).catch(() => undefined)).toBeUndefined()
+  it("never names a signed audio link in a refusal", async () => {
+    const { root } = setup()
+    const project = outside()
+    const runtime = runtimeFor({ exportRoots: [root], provider: createFakeProvider({ audioBase: origin }), location: { directory: project, project: { directory: project } } })
+    const message = await refusal(commit(runtime, await plan(runtime, { recordingId: "w-1", kind: "audio" })))
+    expect(message).not.toContain(SIGNATURE)
+    expect(message).toMatch(/^PERMISSION_DENIED: /)
+  })
+})
+
+describe("the local action", () => {
+  it("is the manifest's only action, with effect local", async () => {
+    const { default: pkg } = (await import("../package.json", { with: { type: "json" } })) as { default: { capabilities: { actions: { id: string; effect: string; preview: string; commit: string }[] } } }
+    expect(pkg.capabilities.actions).toEqual([{ id: "plaud.export", effect: "local", preview: "plan_export", commit: "export", input: expect.anything(), output: expect.anything() }])
+  })
+
+  it("writes the exact file the plan showed", async () => {
+    const { runtime } = setup()
+    const answer = await plan(runtime, { recordingId: "w-1", kind: "note", destination: undefined })
+    const written = await commit(runtime, answer)
+    expect(written.output.path).toBe(answer.output.path)
+    writeFileSync(join(runtime.location.directory, ".keep"), "")
   })
 })

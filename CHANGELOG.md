@@ -2,10 +2,21 @@
 
 ## 0.0.0 (unreleased)
 
-- Renamed the package to `@we-the-rebel-alliance/plaud-plugin` and restarted the version at 0.0.0.
-- Requires OpenCode 2.4.1: the supported range is `>=2.4.1 <2.5.0`, and 2.4.1 is the one tested release.
-- Install instructions name a release tag only; the first release on plugin-contract is `v0.0.0` (phase 4b).
-- Removed contract 1's `plaud` events source; `events_list` serves the declared `recordings` source only.
-- Removed the pre-lookback cursor fallback; such a cursor is refused with `CURSOR_INVALID`.
-- Removed the `execute.after` tool hook: Plaud's own read results pass through unchanged, while the plugin's own tools and the tools RPC never return a signed link.
-- Removed the app-specific docs page and prose. The `jelly` declaration stays until the contract migration.
+The first release on plugin-contract v0.
+
+- One `register` call wires every door; handlers live in `src/handlers/` and Plaud's endpoint and tool names in
+  `src/provider/`.
+- The `capabilities` manifest: `status`, `probe`, `events_list`, `recent`, `plan_export` and `export`, Plaud's five MCP
+  tools as pass-through reads, the `plaud.recordings` events source, the `plaud.recent` list snapshot and the
+  `plaud.export` local action. No bus events: Plaud has no write, and the only write is the local export.
+- Accounts through the contract's `accounts` module: one Plaud MCP server per alias, `plaud` and `plaud-<alias>`, each
+  with its own sign-in; `account` on every method that takes one.
+- Access through the contract's `access` module: every read runs at every level, the export asks at `ask-changes` and is
+  refused at `read-only`.
+- The export is a local action: `plan_export` names the exact file and writes nothing, `export` takes only `{ planId }`
+  and writes atomically inside an export root.
+- The export's `external_directory` gate mirrors OpenCode's own matcher, tested against the host's on darwin, win32 and
+  linux; the macOS case-different and Windows backslash shapes are covered.
+- Docs, skills and `AGENTS.md` written fresh from the template; generated sections from the manifest.
+- `plugin-kit` replaces the copied kit; `plugin-kit check` and `plugin-kit docs --check` are part of `npm run check`.
+- Tests: unit, the synthetic two-account conformance fixture, the real OpenCode 2.4.1 host and the packed tarball.

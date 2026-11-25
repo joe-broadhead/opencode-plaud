@@ -4,12 +4,10 @@ import { afterAll } from "vitest"
 import { tempDir } from "../temp-dirs.js"
 import { installNetworkGuard } from "./network.js"
 
-// Runs before a test file imports the SDK, which reads its global paths once,
-// at import: OPENCODE_TEST_HOME (or the OS home), the XDG variables and the
-// temp directory. All of them point into a fresh root, and every inherited
-// variable is removed, not just the OPENCODE ones, so no provider key, proxy
-// or credential path leaks in. The root is under /tmp, with no OpenCode
-// config above it for the host's upward search to find.
+// Runs before a test file imports the SDK, which reads its global paths once, at import: OPENCODE_TEST_HOME (or the OS
+// home), the XDG variables and the temp directory. All of them point into a fresh root, and every inherited variable is
+// removed, not just the OPENCODE ones, so no provider key, proxy or credential path leaks in. The root is under /tmp,
+// with no OpenCode config above it for the host's upward search to find.
 export const WORKER_ROOT = tempDir("plugin-host-worker-")
 const root = WORKER_ROOT
 for (const key of Object.keys(process.env)) delete process.env[key]

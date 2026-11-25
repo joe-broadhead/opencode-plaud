@@ -8,37 +8,28 @@ import { createProbe } from "./probe.js"
 import { network, WORKER_ROOT } from "./setup.js"
 
 /**
- * The plugin inside a real OpenCode host: the public `@opencode/sdk`
- * assembles the OpenCode server in this process and answers client calls
- * in memory, with no listener and no CLI. The plugin loads the way a user
- * loads it, from a config `plugins` entry pointing at this repository's
- * built package, with its `url` option on a loopback fake Plaud.
+ * The plugin inside a real OpenCode host: the public `@opencode/sdk` assembles the OpenCode server in this process and
+ * answers client calls in memory, with no listener and no CLI. The plugin loads the way a user loads it, from a config
+ * `plugins` entry pointing at this repository's built package, with its `url` option on a loopback fake Plaud.
  *
- * No real model is configured. Tools run through their host executors with
- * a real session context (the probe plugin), through Code Mode as an
- * automation's code action, which runs the host's own tool path and hooks,
- * or in a session turn of the fake's scripted loopback model (`model.test.ts`).
- *
- * The SDK is the root dev dependency `@opencode/sdk` 2.4.1 in node_modules.
+ * No real model is configured. Tools run through their host executors with a real session context (the probe plugin),
+ * or through Code Mode as an automation's code action, which runs the host's own tool path and hooks.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 export const REPO = resolve(HERE, "../..")
-export const PLUGIN_ID = "plaud.recordings"
+export const PLUGIN_ID = "plaud"
 
 type Sdk = typeof import("@opencode/sdk")
-/**
- * The embedded host's client surface. The SDK's own `OpenCode.Interface`
- * loses most of its types to the host's internal declarations; the generated
- * client types are the same contract.
- */
+/** The embedded host's client surface. The SDK's own interface loses most of its types to internal declarations. */
 export type Host = OpenCodeClient & {
   readonly sessions: OpenCodeClient["session"]
   readonly events: OpenCodeClient["event"]
   close(): Promise<void>
 }
 type PluginEntry = Awaited<ReturnType<Host["plugin"]["list"]>>["data"][number]
-type ToolContext = Parameters<Awaited<ReturnType<ReturnType<ReturnType<typeof createProbe>["context"]>["tool"]["list"]>>[number]["execute"]>[1]
+type ProbeContext = ReturnType<ReturnType<typeof createProbe>["context"]>
+type Tools = Awaited<ReturnType<ProbeContext["tool"]["list"]>>
 interface HostEvent {
   readonly type: string
   readonly data?: Record<string, unknown>
@@ -57,6 +48,8 @@ interface HostOptions {
   readonly config?: Record<string, unknown> | ((fake: FakePlaud) => Record<string, unknown>)
   /** What the host reports as `ctx.app.version`; the SDK's own version by default. */
   readonly version?: string
+  /** Extra test plugins beside the probe, such as a policy plugin. */
+  readonly plugins?: readonly import("@opencode/plugin").Plugin.Plugin[]
   /** Runs after the host folders exist, before the plugin starts; its result overrides plugin options. */
   readonly prepare?: (paths: { readonly root: string; readonly work: string; readonly exportRoot: string }) => Promise<Record<string, unknown> | void> | Record<string, unknown> | void
 }
@@ -75,7 +68,7 @@ export interface Harness {
   /** The plugin's entry in the host's plugin list once it stopped loading. */
   readonly plugin: PluginEntry
   /** Every tool the host has registered at the location, with its executor. */
-  tools(): ReturnType<ReturnType<ReturnType<typeof createProbe>["context"]>["tool"]["list"]>
+  tools(): Promise<Tools>
   probe(): ReturnType<ReturnType<typeof createProbe>["context"]>
   session(agent?: string): Promise<string>
   /** Runs a registered tool's host executor with a session context, as the host would. */
@@ -105,8 +98,7 @@ type Embedded = Awaited<ReturnType<Sdk["OpenCode"]["create"]>>
 
 /**
  * The SDK's host, with its own Automation service also running the scheduler, as `opencode serve` does (only a server
- * process starts it): `PromiseSdk.create` is what `OpenCode.create` calls, here with the SDK's `overrides`. The modules
- * sit next to the SDK, so they are the instances its bundle imports.
+ * process starts it): `PromiseSdk.create` is what `OpenCode.create` calls, here with the SDK's `overrides`.
  */
 async function createSdk(root: string, options: Parameters<Sdk["OpenCode"]["create"]>[0]): Promise<Embedded> {
   const load = (...path: string[]) => import(pathToFileURL(join(...path)).href)
@@ -146,7 +138,7 @@ const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms))
 export async function startHost(input: HostOptions = {}): Promise<Harness> {
   if (Number(process.versions.node.split(".")[0]) < 24) throw new Error(`the host suite needs Node 24 or later, not ${process.version}`)
   const { version: sdkVersion, root: sdkRoot } = await loadSdk()
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "opencode-plaud-host-")))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "plaud-host-")))
   const work = join(root, "work")
   const exportRoot = join(root, "exports")
   mkdirSync(work)
@@ -159,7 +151,6 @@ export async function startHost(input: HostOptions = {}): Promise<Harness> {
   const probe = createProbe()
   const config = {
     plugins: [{ package: REPO, options: { url: fake.url, exportRoots: [exportRoot], ...input.options, ...prepared } }],
-    // An automation's code action is how a host test runs Code Mode with nobody present to answer a prompt.
     experimental: { automations: true },
     // No model is used. An empty base URL stops the host probing local model servers on loopback ports.
     providers: { lmstudio: { settings: { baseURL: "" } }, ollama: { settings: { baseURL: "" } }, vllm: { settings: { baseURL: "" } } },
@@ -169,8 +160,7 @@ export async function startHost(input: HostOptions = {}): Promise<Harness> {
   let opencode: Host
   try {
     opencode = (await createSdk(sdkRoot, {
-      plugins: [probe.plugin],
-      // An embedded host reports "unknown" unless told, and the plugin refuses an untested host.
+      plugins: [probe.plugin, ...(input.plugins ?? [])],
       app: { version: input.version ?? sdkVersion },
       config: { content: JSON.stringify(config), directory: join(root, "config"), project: false, claude: false },
       database: { path: join(root, "opencode.db") },
@@ -204,12 +194,7 @@ export async function startHost(input: HostOptions = {}): Promise<Harness> {
     }
   }
 
-  /**
-   * Runs a Code Mode program once with nobody present to answer a prompt, as the session's agent and under its rules,
-   * with no model, as an automation's code action due at once: creation refuses what the rules do not allow, and the
-   * run's outcome is read back before the automation is deleted. A run that never comes throws, so it is never read as
-   * a refusal.
-   */
+  /** Runs a Code Mode program once with nobody present to answer a prompt, as a schedule check. */
   const unattended = async (sessionID: string, code: string): Promise<Unattended> => {
     const name = "plaud-host-test"
     const refused = (error: unknown): Unattended => ({ ok: false, error: error instanceof Error ? error.message : String(error) })
@@ -222,7 +207,7 @@ export async function startHost(input: HostOptions = {}): Promise<Harness> {
     }
     try {
       const run = await until(
-        "the automation's code action has run (is the host's Automation scheduler forked? see the harness's createSdk)",
+        "the automation's code action has run",
         async () => {
           const info = await client.get({ automationID })
           return info.lastOutcome === undefined ? undefined : info
@@ -230,7 +215,6 @@ export async function startHost(input: HostOptions = {}): Promise<Harness> {
         60_000,
       )
       if (run.lastOutcome === "fired" || run.lastOutcome === "late") return { ok: true }
-      // A program that cannot succeed on a retry (a bad return value, a scoped ask) pauses its automation.
       if (run.lastOutcome === "failed") return { ok: false, error: (run.lastOutput ?? "").replace(/^Paused: /, "") }
       throw new Error(`the automation's code action ended "${run.lastOutcome}": ${run.lastOutput ?? ""}`)
     } finally {
@@ -261,9 +245,9 @@ export async function startHost(input: HostOptions = {}): Promise<Harness> {
         id: `call_host_${seq}`,
         signal: new AbortController().signal,
         progress: async () => undefined,
-      } as unknown as ToolContext
+      }
       try {
-        return { ok: true, result: await found.execute(value as never, context) }
+        return { ok: true, result: await found.execute(value as never, context as never) }
       } catch (error) {
         const inner = (error as { error?: unknown }).error
         const message = [error instanceof Error ? error.message : String(error), inner instanceof Error ? inner.message : ""].filter(Boolean)
@@ -300,7 +284,6 @@ export async function startHost(input: HostOptions = {}): Promise<Harness> {
 
   try {
     // Isolation: the host's global folders, created at start, and its temp directory are in the worker's root.
-    // Its config folder is the `config.directory` above.
     const inside = (path: string) => path.startsWith(`${WORKER_ROOT}/`)
     const global = ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"].map((key) => join(process.env[key] ?? "", "opencode"))
     const { paths } = await opencode.server.info()

@@ -13573,16 +13573,81 @@ import { join as join4 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Skill } from "@opencode/plugin";
 var invalid2 = (what) => new Error(`SKILLS_INVALID: A plaud skill is broken: ${what}. Next step: Reinstall the plugin.`);
+function blockHeader(value) {
+  const named = /^([|>])([1-9]?)([+-]?)$/.exec(value) ?? /^([|>])([+-]?)([1-9]?)$/.exec(value);
+  if (named === null) return void 0;
+  const indent = [named[2], named[3]].find((part) => part !== void 0 && /^[1-9]$/.test(part));
+  return {
+    style: named[1],
+    chomp: value.includes("-") ? "strip" : value.includes("+") ? "keep" : "clip",
+    ...indent === void 0 ? {} : { indent: Number(indent) }
+  };
+}
+function blockScalar(header, raw, terminated) {
+  const indents = raw.filter((line2) => line2.trim() !== "").map((line2) => /^ */.exec(line2)[0].length);
+  const indent = header.indent ?? (indents.length === 0 ? 0 : Math.min(...indents));
+  const lines = raw.map((line2) => line2.trim() === "" ? "" : line2.slice(Math.min(indent, line2.length)));
+  let end = lines.length;
+  while (end > 0 && lines[end - 1] === "") end--;
+  const kept = lines.slice(0, end);
+  const trailing = lines.length - end;
+  const breaks = kept.length === 0 ? trailing : 1 + (terminated ? trailing : Math.max(0, trailing - 1));
+  const endOf = (body2) => header.chomp === "strip" ? body2 : header.chomp === "keep" ? `${body2}${"\n".repeat(breaks)}` : `${body2}
+`;
+  if (header.style === "|") {
+    const body2 = kept.join("\n");
+    return body2 === "" ? header.chomp === "keep" ? "\n".repeat(breaks) : "" : endOf(body2);
+  }
+  let body = "";
+  let blanks = 0;
+  let started = false;
+  for (const line2 of kept) {
+    if (line2 === "") {
+      blanks++;
+      continue;
+    }
+    if (!started) {
+      body += `${"\n".repeat(blanks)}${line2}`;
+      started = true;
+    } else {
+      body += `${blanks === 0 ? " " : "\n".repeat(blanks)}${line2}`;
+    }
+    blanks = 0;
+  }
+  return body === "" ? header.chomp === "keep" ? "\n".repeat(breaks) : "" : endOf(body);
+}
+function fieldsOf(frontmatter2) {
+  const fields = /* @__PURE__ */ new Map();
+  const lines = frontmatter2.split("\n");
+  for (let at = 0; at < lines.length; at++) {
+    const line2 = lines[at];
+    if (line2.trim() === "" || /^\s/.test(line2) || line2.trimStart().startsWith("#")) continue;
+    const colon = line2.indexOf(":");
+    if (colon <= 0) continue;
+    const key = line2.slice(0, colon).trim();
+    const rest = line2.slice(colon + 1).trim();
+    const header = blockHeader(rest);
+    if (header === void 0) {
+      fields.set(key, rest);
+      continue;
+    }
+    const block = [];
+    let next = at + 1;
+    for (; next < lines.length; next++) {
+      const candidate = lines[next];
+      if (candidate.trim() !== "" && !/^\s/.test(candidate)) break;
+      block.push(candidate);
+    }
+    fields.set(key, blockScalar(header, block, next < lines.length));
+    at = next - 1;
+  }
+  return fields;
+}
 function parseSkill(folder, path, text2) {
   const where = `skills/${folder}/SKILL.md`;
   const match2 = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text2.replace(/\r\n/g, "\n"));
   if (!match2) throw invalid2(`${where} has no frontmatter`);
-  const fields = new Map(
-    match2[1].split("\n").flatMap((line2) => {
-      const colon = line2.indexOf(":");
-      return colon === -1 ? [] : [[line2.slice(0, colon).trim(), line2.slice(colon + 1).trim()]];
-    })
-  );
+  const fields = fieldsOf(match2[1]);
   const name = fields.get("name");
   const description = fields.get("description");
   if (!name) throw invalid2(`${where} has no name`);

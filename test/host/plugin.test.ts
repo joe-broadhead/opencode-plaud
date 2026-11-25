@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { Rpc } from "@opencode/plugin/rpc"
+import { parse as parseYaml } from "yaml"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { manifest } from "../../src/manifest.js"
 import { PLUGIN_ID, REPO, startHost, type Harness } from "./harness.js"
@@ -78,6 +79,15 @@ describe("activation and registration", () => {
     for (const skill of own) {
       expect(skill.name).toBe(skill.id)
       expect(skill.path).toBe(join(REPO, "skills", skill.id, "SKILL.md"))
+      // The registered description is the frontmatter's, as a real YAML parser reads it: never ">", "|" or empty.
+      const text = readFileSync(join(REPO, "skills", skill.id, "SKILL.md"), "utf8")
+      const frontmatter = /^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? ""
+      const parsed = parseYaml(frontmatter) as { description?: unknown }
+      expect(typeof parsed.description, skill.id).toBe("string")
+      expect(skill.description, skill.id).not.toBe(">")
+      expect(skill.description, skill.id).not.toBe("|")
+      expect(skill.description, skill.id).not.toBe("")
+      expect(skill.description, skill.id).toBe(parsed.description)
       expect((skill.description ?? "").length).toBeLessThanOrEqual(300)
       expect(skill.content.length).toBeGreaterThan(200)
     }

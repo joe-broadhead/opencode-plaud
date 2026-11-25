@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.0.0 (2026-11-25)
+## 0.0.1 (2026-11-25)
 
-The first release, on plugin-contract v0.
+The release, on plugin-contract v0.
 
 - One `register` call wires every door; handlers live in `src/handlers/` and Plaud's endpoint and tool names in
   `src/provider/`.

@@ -45,11 +45,11 @@ function withoutAccount(input: Readonly<Record<string, unknown>>): { account: st
 }
 
 describe("the recorded fixture", () => {
-  it("was recorded for this package, this namespace and two real synthetic aliases", () => {
+  it("was recorded for this package, this namespace and two synthetic aliases", () => {
     expect(fixture.plugin).toBe(packageName)
     expect(fixture.namespace).toBe(manifest.plugin.summary)
     expect(fixture.namespace.length).toBeLessThanOrEqual(400)
-    expect(fixture.accounts.real).toBe(true)
+    expect(fixture.accounts.real).toBe(false)
     expect(fixture.accounts.aliases).toEqual(["work", "personal"])
     expect(fixture.accounts.required).toEqual({ method: "plan_export", code: "ACCOUNT_REQUIRED" })
     expect(fixture.accounts.unknown).toEqual({ method: "plan_export", account: "nobodyhere", code: "ACCOUNT_UNKNOWN" })

@@ -10,9 +10,9 @@ import { runtimeFor } from "./support/handlers.js"
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as Record<string, unknown> & { capabilities: unknown; devDependencies: Record<string, string> }
 
 describe("the package", () => {
-  it("is the org's plugin package at 0.0.0, with no runtime or peer dependency", () => {
+  it("is the org's plugin package at 0.0.1, with no runtime or peer dependency", () => {
     expect(packageName).toBe("@we-the-rebel-alliance/plaud-plugin")
-    expect(version).toBe("0.0.0")
+    expect(version).toBe("0.0.1")
     expect(pkg).not.toHaveProperty("dependencies")
     expect(pkg).not.toHaveProperty("peerDependencies")
     // Only the package's own keys: the manifest is capabilities, and a legacy key is refused by the validator.

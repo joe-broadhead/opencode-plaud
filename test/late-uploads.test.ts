@@ -140,6 +140,25 @@ describe("recordings that reach Plaud after the cursor passed their start", () =
     expect(await plaud.read(first.cursor, DAY0 + DAY + 20 * HOUR)).toMatchObject({ ids: [], gaps: [undefined] })
   })
 
+  it("lists two recordings that share a start across a page boundary, once each, in the (timestamp, id) order", async () => {
+    // The cursor is a total order `(timestamp, external_id)`, not a timestamp: resuming after the last page's timestamp
+    // alone would skip the second of two recordings that started at the same moment.
+    const start = DAY0 + 9 * HOUR
+    const held = [recording("same-b", start, HOUR), recording("same-a", start, HOUR)]
+    const plaud = await collector(held, DAY0 + 20 * HOUR)
+    const first = await plaud.list({ since: "2026-11-10T00:00:00Z", limit: 1 })
+    expect(first.events.map((event) => [event.external_id, event.occurred_at])).toEqual([["same-a", new Date(start).toISOString()]])
+    expect(first.more).toBe(true)
+    const second = await plaud.list({ cursor: first.cursor, limit: 1 })
+    expect(second.events.map((event) => [event.external_id, event.occurred_at])).toEqual([["same-b", new Date(start).toISOString()]])
+    expect(second.more).toBe(false)
+    const third = await plaud.list({ cursor: second.cursor, limit: 1 })
+    expect(third.events).toEqual([])
+    const listed = [...first.events, ...second.events].map((event) => event.external_id)
+    expect(listed).toEqual(["same-a", "same-b"])
+    expect(new Set(listed).size).toBe(listed.length)
+  })
+
   it("keeps its cursor within 1,024 characters when 14 days hold more recordings than it can remember, and repeats none", async () => {
     const held = Array.from({ length: 14 * 24 }, (_, hour) => recording(`hourly-${String(hour).padStart(3, "0")}`, DAY0 + hour * HOUR + 5 * 60_000, 30 * 60_000))
     const plaud = await collector(held, DAY0 + 14 * DAY + 7 * HOUR)

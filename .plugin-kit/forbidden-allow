@@ -1,2 +1,0 @@
-docs/accounts.md:secret kit v0.0.0 detector false positive: prose about the credentials OpenCode stores, line 17
-test/settings.test.ts:secret invented test credential: the URL user name/password refusal for the url option

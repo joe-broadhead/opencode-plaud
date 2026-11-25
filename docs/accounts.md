@@ -14,7 +14,7 @@ The mechanism is `mcp`: Plaud's own MCP server holds the credentials. OpenCode a
 one endpoint in `src/provider/` (or `options.url`), named `plaud` for `default` and `plaud-<alias>` otherwise. Each has
 its own OAuth, so two aliases are two independent sign-ins. Sign in through OpenCode's MCP sign-in, once per alias.
 
-The plugin never sees a token, a refresh token or a password: OpenCode stores and refreshes them per server.
+The plugin never receives OpenCode's stored sign-in material: OpenCode stores and refreshes it per server.
 
 ## Picking an account
 

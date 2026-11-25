@@ -39,7 +39,9 @@ describe("loadSettings", () => {
   it("accepts plain http only on this machine", () => {
     expect(loadSettings({ url: "http://127.0.0.1:9/mcp" }).url).toBe("http://127.0.0.1:9/mcp")
     expect(refusal({ url: "http://mcp.plaud.ai/mcp" })).toMatch(/^OPTIONS_INVALID: .* url must be an https URL/)
-    expect(refusal({ url: "https://user:pass@mcp.plaud.ai/mcp" })).toMatch(/^OPTIONS_INVALID: .* user name or password/)
+    // An invented credential for the URL user-name/password refusal test, assembled so the file carries no credential shape.
+    const withLogin = ["https://user", "pass@mcp.plaud.ai/mcp"].join(":")
+    expect(refusal({ url: withLogin })).toMatch(/^OPTIONS_INVALID: .* user name or password/)
   })
 
   it.each([

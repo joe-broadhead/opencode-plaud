@@ -47,6 +47,26 @@ describe("events_list", () => {
     expect(next.more).toBe(false)
   })
 
+  it("keeps the since window through cursor pages of limit 1: every matching recording once, none from before since", async () => {
+    const runtime = await probed()
+    const since = "2026-11-05T00:00:00.000Z"
+    const seen: string[] = []
+    const refused: string[] = []
+    let page = await list(runtime, { source: "recordings", since, limit: 1 })
+    for (;;) {
+      seen.push(...page.events.map((event) => event.external_id))
+      refused.push(...(page.refused ?? []).map((entry) => entry.external_id))
+      if (!page.more) break
+      // The next page names only the cursor: the since window has to be carried by it.
+      page = await list(runtime, { source: "recordings", cursor: page.cursor, limit: 1 })
+    }
+    expect(seen).toEqual(["w-3", "w-4"])
+    expect(new Set(seen).size).toBe(seen.length)
+    expect(seen).not.toContain("w-1")
+    expect(seen).not.toContain("w-2")
+    expect(refused).toEqual(["w-5"])
+  })
+
   it("refuses another account's cursor as CURSOR_INVALID", async () => {
     const runtime = await probed()
     await run(runtime, "probe", { source: "recordings" }, "personal")

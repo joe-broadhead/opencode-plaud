@@ -11,12 +11,13 @@
  */
 import { build } from "esbuild"
 import { readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { builtinModules } from "node:module"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..")
 const HOST = ["@opencode/plugin", "@opencode/plugin/*", "@opencode/schema", "@opencode/schema/*"]
-const allowed = (path) => path.startsWith("node:") || HOST.some((name) => (name.endsWith("/*") ? path.startsWith(name.slice(0, -1)) : path === name))
+const allowed = (path) => path.startsWith("node:") || builtinModules.includes(path) || HOST.some((name) => (name.endsWith("/*") ? path.startsWith(name.slice(0, -1)) : path === name))
 
 const result = await build({
   absWorkingDir: ROOT,
@@ -31,6 +32,8 @@ const result = await build({
   legalComments: "none",
   metafile: true,
   logLevel: "warning",
+  // The YAML parser is CommonJS and reads `process` with require(); the bundle is ESM, so give it a real require.
+  banner: { js: `import { createRequire } from "node:module";\nconst require = createRequire(import.meta.url);` },
 })
 
 const unexpected = Object.entries(result.metafile.outputs).flatMap(([file, output]) => [

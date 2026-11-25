@@ -14,12 +14,14 @@ import { handlersFor, owners } from "./handlers/index.js"
 import { manifest, packageName, version } from "./manifest.js"
 import { createProvider, type ToolExecutor } from "./provider/client.js"
 import { loadSettings } from "./settings.js"
-import { loadSkills, registerSkills } from "./skills.js"
+import { readSkills, registerSkills } from "./skills.js"
 
 export default Plugin.define({
   id: manifest.plugin.name,
   async setup(context) {
     assertHost(context, manifest)
+    // Check every skill before anything registers, so a malformed file fails setup with one clear error.
+    const skills = readSkills()
     const options = (context.options ?? {}) as Readonly<Record<string, unknown>>
     const settings = loadSettings(options)
 
@@ -29,10 +31,6 @@ export default Plugin.define({
     // Plaud's MCP server holds the credentials: one server per alias, named plaud or plaud-<alias>.
     const registered = await registerPlaudAccounts(context, manifest, options, settings.url)
 
-    // `../skills/` is the package's skills folder from both src/ and the bundled dist/. `register` wires methods, not
-    // skills, so setup adds them here beside the one register call.
-    const skills = await loadSkills(new URL("../skills/", import.meta.url))
-    const skillRegistration = await registerSkills(context, skills)
 
     const handlers = handlersFor({
       packageName,
@@ -65,9 +63,10 @@ export default Plugin.define({
     })
 
     const registration = await register(context, manifest, handlers)
+    const skillRegistration = await registerSkills(context, skills)
     return async () => {
-      await registration.dispose()
       await skillRegistration.dispose()
+      await registration.dispose()
     }
   },
 })

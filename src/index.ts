@@ -1,64 +1,73 @@
-import { Plugin } from "@opencode/plugin"
-import { DEFAULT_ACCOUNT, loadConfig } from "./domain/config.js"
-import { registerCommands } from "./host/commands.js"
-import { nameIntegrations } from "./host/integration.js"
-import { accountServer, registerMcp } from "./host/mcp.js"
-import { defaultRules, registerPermissions } from "./host/permissions.js"
-import { registerRpc } from "./host/rpc.js"
-import { loadSkills, registerSkills } from "./host/skills.js"
-import { registerTools } from "./host/tools/index.js"
-import { eventsMethod, owners, probeMethod } from "./host/tools/events.js"
-import { recentMethod } from "./host/tools/recent.js"
-import { METHODS, registerToolsRpc } from "./host/tools-rpc.js"
-import { readStatus } from "./status.js"
-import { checkHost, hostWarning, PLUGIN_ID } from "./version.js"
-
 /**
- * Setup runs in order: options, the host check, one Plaud MCP server per
- * account and its `/connect` name, the default permission rules, plaud_export, plaud_recent and plaud_events_list, then
- * `/plaud-status`, the skills, the status RPC and the tools RPC for scripts (the five reads, `recent`, `events_list` and
- * the source contract's `probe`). Each account's owner, which probe names and the recordings source's pages carry, is
- * kept per account by this plugin instance alone.
- * The cleanup disposes every registration, newest first.
+ * The plugin's one entry: `Plugin.define({ id, setup })`, the host gate, the accounts, and one `register` call.
+ *
+ * `register` wires doors 1–3 from `handlers`, resolves accounts, generates the access rules and builds the bus.
+ * This file never calls `ctx.tool`, `ctx.rpc` or `ctx.permission` itself; the provider reads Plaud through the host's
+ * own MCP executors, and the one local write is the export.
  */
-export default Plugin.define({
-  id: PLUGIN_ID,
-  async setup(ctx) {
-    const options = loadConfig(ctx.options)
-    const host = checkHost(ctx.app.version, options.allowUntestedHost)
-    const warning = hostWarning(host)
-    if (warning !== undefined) console.warn(`opencode-plaud: ${warning}`)
+import { Plugin } from "@opencode/plugin"
+import { accountsOf, type AccountSignal } from "@we-the-rebel-alliance/plugin-contract/accounts"
+import { assertHost, register } from "@we-the-rebel-alliance/plugin-contract/register"
+import { registerPlaudAccounts, signalFor } from "./accounts.js"
+import type { Rule } from "./export/matcher.js"
+import { handlersFor, owners } from "./handlers/index.js"
+import { manifest, packageName, version } from "./manifest.js"
+import { createProvider, type ToolExecutor } from "./provider/client.js"
+import { loadSettings } from "./settings.js"
+import { loadSkills, registerSkills } from "./skills.js"
 
-    const registrations: { dispose(): Promise<void> }[] = []
-    const cleanup = async () => {
-      for (const registration of registrations.splice(0).reverse()) await registration.dispose().catch(() => undefined)
+export default Plugin.define({
+  id: manifest.plugin.name,
+  async setup(context) {
+    assertHost(context, manifest)
+    const options = (context.options ?? {}) as Readonly<Record<string, unknown>>
+    const settings = loadSettings(options)
+
+    const plan = accountsOf(manifest, options)
+    if (!plan.ok) throw new Error(`OPTIONS_INVALID: ${plan.problems.join("; ")}. Next step: fix the plugin's accounts option.`)
+
+    // Plaud's MCP server holds the credentials: one server per alias, named plaud or plaud-<alias>.
+    const registered = await registerPlaudAccounts(context, manifest, options, settings.url)
+
+    // `../skills/` is the package's skills folder from both src/ and the bundled dist/. `register` wires methods, not
+    // skills, so setup adds them here beside the one register call.
+    const skills = await loadSkills(new URL("../skills/", import.meta.url))
+    const skillRegistration = await registerSkills(context, skills)
+
+    const handlers = handlersFor({
+      packageName,
+      manifest,
+      version,
+      hostVersion: context.app.version,
+      accounts: plan.value.accounts,
+      accountProblems: registered.problems,
+      async accountSignal(alias: string): Promise<AccountSignal> {
+        const servers = (await context.mcp.list()).data
+        return signalFor(alias, servers)
+      },
+      provider: createProvider(async () => (await context.tool.list()) as unknown as readonly ToolExecutor[]),
+      clock: Date.now,
+      settings,
+      location: {
+        directory: context.location.directory,
+        ...(context.location.workspaceID === undefined ? {} : { workspaceID: context.location.workspaceID }),
+        project: { directory: context.location.project.directory },
+      },
+      agentRules: async (agent: string): Promise<readonly Rule[]> => {
+        const found = await context.agent.get({ agentID: agent, location: { directory: context.location.directory } })
+        return found.data.permissions as readonly Rule[]
+      },
+      sessionRules: async (sessionID: string): Promise<readonly Rule[]> => {
+        const session = await context.session.get({ sessionID })
+        return (session.permissions ?? []) as readonly Rule[]
+      },
+      owners: owners(),
+    })
+
+    const registration = await register(context, manifest, handlers)
+    return async () => {
+      await registration.dispose()
+      await skillRegistration.dispose()
     }
-    try {
-      const servers = await registerMcp(ctx, options)
-      registrations.push(servers)
-      registrations.push(nameIntegrations(ctx, servers.list))
-      registrations.push(await registerPermissions(ctx, defaultRules(servers.list.map((server) => server.name), options.access)))
-      const kept = owners()
-      registrations.push(await registerTools(ctx, options, kept))
-      // `../skills/` is the package's skills folder from both src/ and the bundled dist/.
-      const skills = await loadSkills(new URL("../skills/", import.meta.url))
-      const status = () => readStatus(ctx, { host, servers, exportRoots: options.exportRoots, skills, access: options.access })
-      registrations.push(await registerCommands(ctx, status))
-      registrations.push(await registerSkills(ctx, skills))
-      registrations.push(await registerRpc(ctx, status))
-      // Scripts call the five reads, recent, events_list and probe with no model. Every account's server is the plugin's to use,
-      // even one the user defined under that name, as for the model and plaud_export; so there is no SERVER_CONFLICT.
-      // The envelope's account picks the server, and the own methods get it as call.account.
-      const accounts: [string, ...string[]] = [DEFAULT_ACCOUNT, ...options.accounts]
-      const stopTools = await registerToolsRpc(ctx, {
-        methods: [...METHODS, recentMethod(ctx, accounts), eventsMethod(ctx, accounts, kept), probeMethod(ctx, accounts, kept)],
-        mcp: { server: accountServer(options.accounts), managed: () => true },
-      })
-      registrations.push({ dispose: stopTools })
-    } catch (error) {
-      await cleanup()
-      throw error
-    }
-    return cleanup
   },
 })

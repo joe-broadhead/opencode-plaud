@@ -1,152 +1,77 @@
 # Architecture
 
-The plugin is a thin layer over Plaud's hosted MCP server. OpenCode hosts the server, signs in and runs Plaud's read tools. The plugin adds the server definitions, default permission rules, an export tool, a read of the newest recordings, the source contract's events listing and probe, a status view, and a tools RPC for scripts.
+## Layers
 
-```text
-OpenCode 2.4.1 server
- ├─ ctx.mcp.transform      server "plaud", plus "plaud-<alias>" per extra account: remote, https://mcp.plaud.ai/mcp
- │                         OpenCode connects, runs the OAuth sign-in, stores and refreshes the tokens
- ├─ ctx.integration           each server's /connect entry named "Plaud" or "Plaud (<alias>)",
- │                         and marked "Sign in required" while its account needs a new sign-in
- ├─ Plaud's tools          plaud_list_files, plaud_get_file, plaud_get_note, plaud_get_transcript, plaud_get_current_user (and plaud-<alias>_*)
- ├─ ctx.agent.transform    default rules right after each agent's base allow
- ├─ ctx.tool.transform     plaud_export, plaud_recent and plaud_events_list, in the Code Mode namespace "plaud", whose description steers reads and export
- ├─ ctx.command.transform  /plaud-status
- ├─ ctx.skill.transform    opencode-plaud, opencode-plaud-export, opencode-plaud-digest
- ├─ ctx.rpc.register       RPC "plaud.recordings": status
- └─ tools RPC              "plaud.recordings.tools": describe, the five known reads and recent, for
-                           scripts, with a permission evaluate hook for its own calls in flight
-OpenCode TUI
- └─ plaud.recordings.tui   the "Plaud: Status" palette command (/plaud) and dialog, from the status RPC
-```
+| Layer | Files | Does |
+|---|---|---|
+| Entry | `src/index.ts` | `Plugin.define({ id, setup })`, the host gate, the account wiring, the runtime and one `register` call |
+| Accounts | `src/accounts.ts` | one Plaud MCP server per alias through the contract's `accounts` module, and each alias's state for `status` |
+| Manifest | `src/manifest.ts` | reads `package.json` `capabilities` and checks it with the contract's validator |
+| Settings | `src/settings.ts` | validates and defaults the options |
+| Handlers | `src/handlers/` | one file per method: the description, the input and output schemas, and the work |
+| Provider | `src/provider/` | Plaud's MCP tool names and endpoint, the host executor reads, and Plaud's payload shapes |
+| Export | `src/export/` | file naming and Markdown, the atomic write, the download, and the `external_directory` gate |
 
-The plugin id is `plaud.recordings`. It uses only the public `@opencode/plugin` API of OpenCode 2.4.1. It starts no process, bundles no runtime, has no Plaud API client of its own, and never sees a token.
+The entry is deliberately thin. `register` from the contract wires doors 1–3: one agent tool per method in the `plaud`
+namespace, the same tools in Code Mode, one RPC registration under `plaud`, the permission assertions on
+`<alias>:<operation>`, the access rules inserted into every agent, and the bus writer. This repository never calls
+`ctx.tool`, `ctx.rpc` or `ctx.permission` itself.
 
-## Package
+## The call path
 
-| Export | File | Contents |
-| --- | --- | --- |
-| `.` | `dist/index.js` | The server part, bundled with zod. |
-| `./tui` | `dist/tui.js` | The TUI part, compiled from `src/tui.tsx` to plain JavaScript. It bundles no third-party code. |
+1. OpenCode loads `dist/index.js` through the package's `./server` export and calls `setup(ctx)`.
+2. `assertHost` refuses an OpenCode release outside `>=2.4.1 <2.5.0` with `HOST_UNTESTED`, unless
+   `allowUntestedHost` is set.
+3. `src/accounts.ts` adds one remote MCP server per alias through `ctx.mcp.transform`, named `plaud` or
+   `plaud-<alias>`, all on the one endpoint.
+4. `register` checks the handler table against `capabilities.methods`, resolves the accounts from the options,
+   generates the access rules into every agent, builds the bus writer, and registers the tools and the one RPC id.
+5. A call resolves the account, validates the input against the handler's schema, asserts the method's operations,
+   runs the handler, checks the answer and maps a failure to the contract's error table.
 
-`dist/` holds only these two files. `scripts/build.mjs` bundles each with esbuild into one self-contained file, with no chunks and no relative imports; the RPC contract and the status words (`src/rpc.ts`) are inlined into both. The contract is plain JSON Schema with a plain TypeScript type beside it, so only the server part, whose tool and option schemas use zod, bundles zod. OpenCode reloads a plugin in place and keeps the modules it already loaded for unchanged paths, so a shared sibling module could be a stale copy after an update. Only `@opencode/plugin`, OpenTUI, Solid and Node built-ins stay imports.
+## The provider
 
-The skills are read from the package's `skills/` folder at setup. OpenCode provides `@opencode/plugin`, OpenTUI and Solid to plugins, so they are not bundled and the package declares no dependencies or peers. `NOTICE` carries the licences of the bundled code, and the build fails when it no longer matches.
+`src/provider/client.ts` is the only file that names Plaud's endpoint and tool names. A read goes through OpenCode's
+own executor for `<server>_<tool>` with the caller's tool context, so the host's permission rules for that read still
+apply. Nothing here fetches Plaud directly except the signed audio link an export downloads.
 
-## Setup
+The payload readers (`recordings.ts`, `transcript.ts`, `note.ts`, `owner.ts`) are Plaud's wire shapes, written once and
+shared by every method: `list_files`, `get_file`, `get_transcript`, `get_note` and `get_current_user`.
 
-`src/index.ts` runs these steps in order:
+## The export
 
-1. Validate the options (`src/domain/config.ts`). A problem stops setup with `OPTIONS_INVALID`.
-2. Check the OpenCode version against `>=2.4.1 <2.5.0` (`src/version.ts`). Outside it, setup stops with `HOST_UNTESTED`, unless `allowUntestedHost` is set. A release inside it that is not in `TESTED_HOSTS` (the one list of tested releases, which the tests and CI read) starts with a warning.
-3. Register one MCP server per account (`src/host/mcp.ts`), and name each one's `/connect` entry (`src/host/integration.ts`).
-4. Insert the default permission rules (`src/host/permissions.ts`).
-5. Add `plaud_export`, `plaud_recent` and `plaud_events_list` (`src/host/tools/`).
-6. Add `/plaud-status` (`src/host/commands.ts`), the skills (`src/host/skills.ts`) and the status RPC (`src/host/rpc.ts`).
-7. Add the tools RPC for scripts (`src/host/tools-rpc.ts`).
+`plan_export` is a read: it validates the input and computes the exact destination, and writes nothing.
+`export` is the commit: it re-checks the plan, re-checks the `external_directory` gate, then
 
-If a step fails, the steps before it are undone and the plugin does not start. `/plugins` then shows the error, and the TUI palette entry is not shown. On shutdown or reload, every registration is removed, newest first.
+1. reads the recording through Plaud's own `get_file`, `get_transcript` or `get_note`;
+2. stages the bytes in a private file beside the destination, hashing as it writes;
+3. fsyncs and publishes with a hard link, or a rename when overwriting, so the destination is never half-written;
+4. answers the path, size and SHA-256.
 
-## Servers
+The gate mirrors OpenCode's matcher exactly (`src/export/matcher.ts`): an input's and a pattern's backslash is a `/`,
+`*` and `?` are wildcards, `s` is always set, and `i` is set on win32 or for a path action on darwin. The host cannot
+check a plugin's own file write, so the plugin checks the rules the host would evaluate.
 
-Each account's server is `{ "type": "remote", "url": <url option> }`. The default account is `plaud`; an alias `work` is `plaud-work`. The transform is synchronous and replays on every config rebuild. If the user's config already defines a server with that name, the plugin leaves it alone and status marks the account `userServer`.
+## OpenCode APIs
 
-OpenCode makes each remote server an integration named after the server, which `/connect` lists. The plugin renames it "Plaud", or "Plaud (<alias>)", also for a server the user defined. OpenCode registers the integration again under the server name whenever the MCP config reloads, so `src/host/integration.ts` checks on `integration.updated` and `mcp.status.changed`, and polls for the first ten seconds, and registers the rename again when needed. When a signed-in account's server reports `needs_auth`, it sets the account's connection status with `ctx.integration.connection.status`, so `/connect` shows "Sign in required"; it clears the status once the server connects.
+| API | Who calls it |
+|---|---|
+| `Plugin.define` | `src/index.ts` |
+| `ctx.app.version`, `ctx.options`, `ctx.location` | `src/index.ts`, at setup |
+| `ctx.mcp.transform` | `src/accounts.ts`, through `registerAccounts` |
+| `ctx.mcp.list` | `status`, for each alias's state |
+| `ctx.agent.get`, `ctx.session.get` | the export, for the rules the gate evaluates |
+| `ctx.tool.list` | the provider, for the MCP executors of the account's server |
+| `ctx.agent.transform`, `ctx.tool.transform`, `ctx.rpc.register`, `ctx.permission.assert` | `register` only |
 
-OpenCode names the server's tools `<server>_<tool>` and puts them in Code Mode. Plaud maintains them; the plugin knows only which five are harmless reads (`KNOWN_READS` in `src/host/mcp.ts`).
+## State and caching
 
-## Permissions
+The plugin keeps no content cache and no credential. A consumer keeps its cursor; the plugin binds it to the account and
+refuses one another account presents. The only state the plugin keeps is each account's owner, as its last `probe` read
+it, so `status` and the pages name the same owner.
 
-The default rules use no permission hook. `ctx.agent.transform` inserts the block `defaultRules(servers, access)` returns right after each agent's base `* * allow` rule, broad first: `plaud*_*` takes the `access` effect, the five known reads of each configured account's server (`plaud_<tool>`, `plaud-<alias>_<tool>`) are allowed again by exact name, `plaud_export` takes the same effect, and `plaud_recent` is allowed by its exact name. At the default `"all"` every rule allows, so a tool Plaud adds later runs too; `"ask-changes"` and `"read-only"` are how a user restricts it. Everything later in the agent's list, and saved approvals, still win. Agents without a base allow are left alone. The rules are in [configuration](configuration.md#permissions).
+## Build
 
-OpenCode creates agents defined only in the user's config after plugins run, so they miss the rules. Status finds those that need a fix, `unguardedAgents()`: at `"all"` none, because nothing is held back; at a restricting value, agents with a base allow, without the block anywhere after it, whose own rules would let an unknown Plaud tool run without asking (`evaluate()`: the last matching rule wins). An agent whose rules already ask for or deny Plaud's tools is not listed. It names them and gives the per-agent fix.
-
-## Export
-
-`plaud_export` (`src/host/tools/export.ts`) runs in one step:
-
-1. **Validate.** The input is `{ account?, recordingId, kind, block?, destination?, overwrite? }` (`src/domain/contract/index.ts`). A `destination` must be absolute and inside an export root, or the export stops before the prompt. Without one, the file is `<first root>/<kind>/<recordingId>.<ext>`; a transcript's is `<first root>/transcript/<recordingId>.<block>.md`, so each block has its own file.
-2. **Ask.** One `ctx.permission.assert` with action `plaud_export`, resource and save `<account>:<kind>`, and a preview: the account, kind, recording id, block, destination and `overwrite`. A decline or a deny is passed to OpenCode unchanged.
-3. **Start the budget.** `exportTimeoutMs` starts after approval and also ends on the call's own cancellation.
-4. **Read.** The export calls the host's executor for `<server>_get_file`, `_get_transcript` or `_get_note` from `ctx.tool.list()`, with its own tool context, so the read tools' permission rules apply. Host hooks do not run on these calls, so the export sees the signed links. If the tool is missing, the account is not signed in: `AUTH_REQUIRED`. Plaud returns each result as JSON text inside an untrusted-data envelope (`<untrusted-user-data-<hex> source="plaud-recording">`); `src/domain/normalize.ts` takes the JSON out.
-5. **Fetch or render.** Audio is downloaded from the signed link, within `maxAudioBytes`, with progress reports. The link and every redirect hop (at most 5) must be https with no user name or password, and a hop from another machine may not lead to this one; the export follows redirects itself to check each hop. No error names a link. A transcript is read page by page through Plaud's cursor, 500 segments a page (Plaud's maximum; its default is 50), and rendered to Markdown, as is a note. Text is held to 25 MiB.
-6. **Write.** Missing folders below the root are created one at a time (mode 0700), and a symbolic link that leads outside the roots is refused. The content goes to a private staging file, `.plaud-export-<random>.partial` (mode 0600), beside the destination. It is hashed and synced to disk.
-7. **Publish.** A hard link puts the file in place, so an existing file is never replaced unless `overwrite` is true; then a rename replaces it. On a filesystem without hard links, the export checks that the name is free, then renames. The staging file is always removed.
-8. **Return** `{ path, bytes, sha256 }`.
-
-## Recent recordings
-
-`plaud_recent` (`src/host/tools/recent.ts`) takes `{ account?, limit? }`, `limit` 1 to 20 and 8 by default. It asserts `plaud_recent` with the account as resource and save, then calls the host's executor for the account's `<server>_list_files`, as the export reads, so that read's own rule applies too. Plaud's server refuses a `page_size` below 10, so it asks for at least 10 and keeps the first `limit`. It returns a Home `list`, `{ items: [{ id, text }], editable: false }`: one line per recording, the title on one line, the start time in UTC and the length, at most 200 characters. It returns no link and no content. The tools RPC runs the same spec as the method `recent`, with `{ limit? }` as input and the envelope's `account`; there a refused `list_files` reaches the module untouched, so a script reads `PERMISSION_DENIED`.
-
-## Events list
-
-`plaud_events_list` (`src/host/tools/events.ts`) is Plaud's side of the source contract,
-`@we-the-rebel-alliance/source-contract`, pinned to the commit in `package-lock.json` (the old `v0.3.0` tag no longer resolves after the transfer) as a dev dependency and bundled into `dist/index.js`: its
-`events` module builds the page and the events and screens them for secrets, and its `cursor` module encodes the
-cursors. `package.json`'s `sources` declares `plaud.recordings` (input `source: "recordings"`) and the list snapshot `plaud.recordings.list`. The events source asserts
-`plaud_events_list` with the account as resource and save, then reads through the host's executors for the account's
-`list_files`, one week at a time from the cursor's position to 6 hours ago. Each week asks for a day more on each side,
-reads every page until one is shorter than 20 or repeats the one before, and keeps the recordings that started within
-it; they are sorted by (start, id). The tools RPC runs the same spec as the method `events_list`, with the envelope's
-account.
-
-The `recordings` source names the owner the account's last `probe` named: `probeMethod` asserts `plaud_probe` and reads
-the account's `get_current_user`, and `owners()` keeps the answer per account for this plugin instance, so a page reads
-no identity, as the contract's kit requires. Its cursor is the contract's version 2, bound to (`plaud`, `recordings`, the
-account), with the owner's id and label beside the position; a listing checks that id against the account's kept owner,
-and with none kept answers `UNAVAILABLE`, so a page never names an owner only a cursor states.
-
-`test/conformance.test.ts` runs the contract's conformance kit over the declaration and both methods, on invented
-Plaud answers (`test/fixtures/sources.json`), and writes `reports/conformance-report.json`; `npm run conformance` runs it
-alone, and the release attaches the report. Every check runs but `failed-holds-cursor`, which the test states cannot
-apply, with its reason in the report (`atomicPages`: `list_files` answers whole pages and no recording is read on its
-own, so none can fail alone). The fixture has a recording that reaches Plaud two days after it started, behind the
-cursor, and one that reaches it later than the lookback, so the kit's expired-gap checks run.
-
-A device keeps its recordings until the Plaud app connects to it, so a recording can reach Plaud days after it
-started, once the cursor has passed its start. A `recordings` page reads again `LOOKBACK_MS` (14 days) before its
-cursor and lists every recording there the cursor has not listed. The cursor keeps a 24-bit digest of each recording it
-listed from where its lookback starts (`c`), as many as fit the contract's 1,024 characters (`k`; with more, `c` moves
-forward), the time its page was read (`n`) and the earliest start its listing asked for (`f`). A recording in the
-`BAND_MS` (7 days) before the lookback whose `created_at` is after `n` reached Plaud later than the lookback: the page
-answers `gap: { reason: "expired", since: its start }`, and the next page's `n` is its own read, so the read answers it
-once.
-
-## Signed links
-
-Plaud's results carry signed links: `presigned_url` (the audio, valid for about 24 hours) in `get_file`, and `data_link` (a transcript or note) in each item of `get_file`'s `source_list` and `note_list` and in each `get_note` tab.
-
-The plugin has no tool hook. Plaud's own read tools, which the model calls directly or in Code Mode, pass Plaud's results through unchanged, links included; treat those links as credentials and prefer `plaud_export` for audio. The plugin's own tools (`plaud_recent`, `plaud_events_list`, `plaud_export`) return no link at all. The tools RPC for scripts withholds every one in a script's result with `withholdSignedLinksInOutput` and `withholdSignedLinksInText` in `src/domain/redact.ts`, in `shapeResult`.
-
-The export reads Plaud's results itself through raw executors from `ctx.tool.list()`, fetches the audio link plugin-side, writes the file, and never returns or logs a link.
-
-## Scripts
-
-The tools RPC, `plaud.recordings.tools`, lets a script call Plaud's five known reads, `plaud_recent` (method `recent`), `plaud_events_list` (method `events_list`) and the source contract's `probe` with no model ([Scripting](scripting.md)). The transport is the source contract's `tools-rpc` module, bundled; `src/host/tools-rpc.ts` is Plaud's part of it, one `ToolsRpcPlugin` value: the reads (`KNOWN_READS` in `src/host/mcp.ts`), the next steps, `shapeResult`, which withholds the signed links, and `pluginError`, which gives the plugin's own errors their code and next step. Setup passes `recent`, `events_list` and `probe` as owned methods (`recentMethod` in `src/host/tools/recent.ts`, `eventsMethod` and `probeMethod` in `src/host/tools/events.ts`).
-
-Each call names a session; the session's agent and rules decide, exactly as for the model. The RPC refuses a tool those rules hide, then calls the tool's executor from `ctx.tool.list()`, which checks the agent's rules, the session's rules and saved approvals. A permission `evaluate` hook turns an ask on one of the RPC's own calls in flight into a deny, since no one can answer it; it touches no other call.
-
-The envelope's optional `account` picks the server: none or `default` is `plaud`, an alias from the options `plaud-<alias>` (`accountServer()` in `src/host/mcp.ts`), and anything else is `ACCOUNT_UNKNOWN`. A server the user's config defines under an account's name is used, as for the model and `plaud_export`, so the RPC never reports a server conflict.
-
-## Status
-
-`src/status.ts` builds one status from OpenCode's MCP server list, its tool list, the agents' rules, the host check and the options. It reads nothing from Plaud and never shows a token.
-
-| OpenCode server state | Account state | Shown as |
-| --- | --- | --- |
-| `connected` | `signed_in` | connected |
-| `needs_auth` | `sign_in_needed` | sign-in required |
-| `pending` | `connecting` | connecting |
-| `failed` | `failed` | failed, with OpenCode's reason (links withheld) |
-| `disabled` | `disabled` | disabled |
-| not listed | `missing` | not configured |
-
-The summary line names the most urgent account state, in this order: sign-in required, failed, not configured, disabled, connecting, connected.
-
-Every view shows the rows in one order: Connection (each account's state), Account (each account's server), Access (what `access` allows, and the export folders), Skills (only when a skill of the user's or a project's has one of the plugin's skill ids, so OpenCode loads it instead: its path), Tools, Agents without default rules (`none`, or the names with the rules to copy), OpenCode (the version, `tested` or `untested`, and the supported range), then one Next step: the most urgent, or `Nothing to do.`
-
-Three views show it:
-
-- `/plaud-status` posts it as a synthetic message with `resume: false`, so no model turn starts. When some agent misses the rules, it adds them as JSON to copy.
-- The RPC `plaud.recordings` has one method, `status`, called with `{}`. It returns `{ version, state, accounts, exportRoots, tools, host, unguardedAgents, permissionsBlock, shadowedSkills, nextStep }`. `version`, `state`, `host` (`{ version, range, tested }`), `unguardedAgents` and `nextStep` are the fields every plugin of this family shares; `state` is the most urgent account's, as `connected`, `sign_in_required`, `connecting`, `failed`, `disabled` or `not_configured`; it is never `host_untested`, because outside the supported range the plugin either does not start or was told to with `allowUntestedHost`. An untested release inside the range changes only `host.tested` and the OpenCode row. `tools` counts the Plaud tools the plugin knows and the unknown ones, with up to ten unknown names. `shadowedSkills` lists, as `{ id, path }`, each skill in OpenCode's skill list (`ctx.skill.list()`) that has one of the plugin's skill ids but another path; its next step, after any sign-in or agent fix, is to move or rename that file. If the status cannot be read, it fails with the declared error `unavailable`, whose `data.nextStep` says what to do.
-- The TUI part, `plaud.recordings.tui`, opens a dialog from the palette command **Plaud: Status**, or `/plaud` in the prompt. In the dialog, `r` refreshes and `Esc` closes. While the dialog is open, it reads the RPC again when the server reconnects, when a `plaud` or `plaud-<alias>` server changes state, and when an agent, an integration or a credential changes (`agent.updated`, `integration.updated`, `credential.updated`, `credential.switched`).
+`scripts/build.mjs` bundles `src/index.ts` into `dist/index.js` with esbuild. `@opencode/*` stays external; the contract's
+runtime modules are inlined, and `NOTICE` lists their licences. `dist/` is generated by `npm run bundle` and committed, so
+an install from a tag needs no build; CI re-runs the bundle and refuses a stale copy.

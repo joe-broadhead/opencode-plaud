@@ -1,9 +1,8 @@
 import { Plugin } from "@opencode/plugin"
 
 /**
- * A test-only plugin that keeps its context per location, so a test can run
- * a registered tool's executor with a real session context, the way the
- * host does, without a model turn.
+ * A test-only plugin that keeps its context per location, so a test can run a registered tool's executor with a real
+ * session context, the way the host does, without a model turn.
  */
 
 interface Probe {
@@ -15,7 +14,7 @@ export function createProbe(): Probe {
   const contexts = new Map<string, Plugin.Context>()
   return {
     plugin: Plugin.define({
-      id: "opencode-plaud.test.probe",
+      id: "plaud.test.probe",
       setup(ctx) {
         contexts.set(ctx.location.directory, ctx)
       },

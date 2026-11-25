@@ -307,7 +307,6 @@
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "build": "npm run clean && node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json",
     "test": "vitest run --project unit",
     "test:host": "vitest run --project host",
@@ -315,7 +314,8 @@
     "fixtures": "node scripts/record-fixture.mjs",
     "docs": "plugin-kit docs",
     "docs:check": "plugin-kit docs --check",
-    "check": "npm run typecheck && npm run build && npm test && npm run test:host && npm run test:pack && plugin-kit check && plugin-kit docs --check"
+    "check": "npm run typecheck && npm run bundle && npm test && npm run test:host && npm run test:pack && plugin-kit check && plugin-kit docs --check",
+    "bundle": "npm run clean && node scripts/build.mjs"
   },
   "devDependencies": {
     "@opencode/client": "2.4.1",

@@ -20,7 +20,7 @@ npm run check
 | Step | What it proves |
 |---|---|
 | `npm run typecheck` | the sources and tests typecheck under strict settings |
-| `npm run build` | `dist/index.js` is built from `src/index.ts` with esbuild, and `NOTICE` matches the third-party code it inlines |
+| `npm run bundle` | `dist/index.js` is built from `src/index.ts` with esbuild, and `NOTICE` matches the third-party code it inlines; the result is committed |
 | `npm test` | the handlers, provider, settings, matcher and recorded fixture pass |
 | `npm run test:host` | the built plugin loads in the embedded OpenCode 2.4.1 host and behaves |
 | `npm run test:pack` | the packed tarball installs alone and loads |

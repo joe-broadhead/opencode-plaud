@@ -10,7 +10,7 @@
  * no longer matches what it bundled; `--check-notice` only checks, and `--notice` rewrites it.
  */
 import { build } from "esbuild"
-import { readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { builtinModules } from "node:module"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -52,6 +52,19 @@ for (const [file, output] of Object.entries(result.metafile.outputs)) {
     const name = /node_modules\/((?:@[^/]+\/)?[^/]+)\//.exec(input)?.[1]
     if (name === undefined || bytesInOutput === 0) continue
     bundled.set(name, new Set([...(bundled.get(name) ?? []), relative(ROOT, join(ROOT, file))]))
+  }
+}
+// A bundled dist can inline its own dependencies; plugin-contract's chunks carry the original module path in a
+// comment (`// node_modules/zod/v4/...`). Those packages are redistributed by this bundle too.
+for (const [file, output] of Object.entries(result.metafile.outputs)) {
+  for (const input of Object.keys(output.inputs)) {
+    if (!input.startsWith("node_modules/")) continue
+    const text = readFileSync(join(ROOT, input), "utf8")
+    for (const match of text.matchAll(/\/\/\s*node_modules\/((?:@[^/\s]+\/)?[^/\s]+)\//g)) {
+      const name = match[1]
+      if (!existsSync(join(ROOT, "node_modules", name, "package.json"))) continue
+      bundled.set(name, new Set([...(bundled.get(name) ?? []), relative(ROOT, join(ROOT, file))]))
+    }
   }
 }
 const notices = [...bundled.keys()].sort().map((name) => {

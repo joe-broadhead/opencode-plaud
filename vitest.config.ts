@@ -11,7 +11,7 @@ export default defineConfig({
     projects: [
       {
         extends: true,
-        test: { name: "unit", include: ["test/*.test.ts"], exclude: ["test/pack.test.ts"], testTimeout: 30_000 },
+        test: { name: "unit", include: ["test/*.test.ts", "test/unit/**/*.test.ts"], exclude: ["test/pack.test.ts"], testTimeout: 30_000 },
       },
       {
         extends: true,

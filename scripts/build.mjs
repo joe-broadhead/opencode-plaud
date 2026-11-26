@@ -54,6 +54,14 @@ for (const [file, output] of Object.entries(result.metafile.outputs)) {
     bundled.set(name, new Set([...(bundled.get(name) ?? []), relative(ROOT, join(ROOT, file))]))
   }
 }
+// plugin-contract's dist carries zod pre-bundled, so zod is not a metafile input of its own. Detect its code in the
+// emitted bundle instead; those packages are redistributed by this bundle too.
+for (const [file] of Object.entries(result.metafile.outputs)) {
+  const code = readFileSync(join(ROOT, file), "utf8")
+  if (/\$ZodType|ZodError/.test(code)) {
+    bundled.set("zod", new Set([...(bundled.get("zod") ?? []), relative(ROOT, join(ROOT, file))]))
+  }
+}
 const notices = [...bundled.keys()].sort().map((name) => {
   const root = join(ROOT, "node_modules", name)
   const { version, license } = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))

@@ -2,7 +2,7 @@
 // with the same options as scripts/build.mjs, collects every package that actually ends up in the bundle (including a
 // package inlined by a bundled dist, such as zod inside plugin-contract), and requires each one's heading and verbatim
 // licence text in NOTICE.
-import { existsSync, readFileSync, readdirSync } from "node:fs"
+import { readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { build } from "esbuild"
@@ -63,22 +63,17 @@ export async function bundledPackages(): Promise<string[]> {
     const name = packageOf(path)
     if (keep(name)) found.add(name)
   }
-  // A bundled dist can inline its own dependencies; plugin-contract's chunks carry the original module path in a
-  // comment (`// node_modules/zod/v4/...`). Those packages are redistributed by this bundle too.
-  for (const path of inputs) {
-    if (!path.startsWith("node_modules/")) continue
-    const text = readFileSync(join(root, path), "utf8")
-    for (const match of text.matchAll(/\/\/\s*node_modules\/((?:@[^/\s]+\/)?[^/\s]+)\//g)) {
-      const name = match[1]
-      if (keep(name) && existsSync(join(root, "node_modules", name, "package.json"))) found.add(name)
-    }
-  }
+  // plugin-contract's dist carries zod pre-bundled, so zod is not a metafile input of its own. Detect its code in the
+  // emitted bundle instead; those packages are redistributed by this bundle too.
+  const output = result.outputFiles?.find((file) => file.path.endsWith("index.js"))?.text ?? ""
+  if (/\$ZodType|ZodError/.test(output)) found.add("zod")
   return [...found].sort()
 }
 
 describe("the bundled third-party notices", () => {
   test("every bundled package has its heading and verbatim licence in NOTICE", async () => {
     const packages = await bundledPackages()
+    expect(packages).toContain("@we-the-rebel-alliance/plugin-contract")
     expect(packages).toContain("yaml")
     expect(packages).toContain("zod")
     const notice = readFileSync(join(root, "NOTICE"), "utf8")
